@@ -4132,3 +4132,126 @@ function seedNewSpace(space) {
   };
   if (starters[space.nature]) starters[space.nature]();
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+/* ============================================================
+   ming — theme toggle
+   theme.js  ·  sun ⇄ moon, one control, reused everywhere it appears
+
+   Priority for the resolved theme:
+     explicit Ming choice (localStorage) → system preference → light
+   The inline snippet in <head> already applied the initial value to
+   <html data-theme="..."> before paint; this file only wires the
+   button(s) and orchestrates the transition from here on.
+   ============================================================ */
+(function () {
+  const KEY = 'ming-theme';
+  const EXPLICIT_KEY = 'ming-theme-explicit';
+  const root = document.documentElement;
+  const sweep = document.getElementById('theme-sweep');
+  const toggles = () => Array.from(document.querySelectorAll('[data-theme-toggle]'));
+  const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function current() {
+    return root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function syncButtons() {
+    const dark = current() === 'dark';
+    toggles().forEach(btn => {
+      btn.setAttribute('aria-pressed', String(dark));
+      btn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    });
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', dark ? '#100D0B' : '#F7F2EC');
+  }
+
+  function persist(theme) {
+    try {
+      localStorage.setItem(KEY, theme);
+      localStorage.setItem(EXPLICIT_KEY, '1');
+    } catch (e) {}
+  }
+
+  /* Sun → dusk → moon, or moon → dawn → sun. The sweep visually
+     covers the moment the CSS variables actually flip, which is what
+     makes an instant variable swap read as something continuous. */
+  function transition(fromBtn) {
+    const next = current() === 'dark' ? 'light' : 'dark';
+    const rm = reduceMotion();
+    const app = document.getElementById('app');
+
+    if (fromBtn && app) {
+      const r = fromBtn.getBoundingClientRect();
+      const a = app.getBoundingClientRect();
+      sweep.style.setProperty('--sweep-x', (r.left + r.width / 2 - a.left) + 'px');
+      sweep.style.setProperty('--sweep-y', (r.top + r.height / 2 - a.top) + 'px');
+    }
+
+    sweep.classList.remove('to-dark', 'to-light', 'is-sweeping');
+    toggles().forEach(b => b.classList.remove('is-pulsing'));
+
+    if (!rm) {
+      root.classList.add('theme-transitioning');
+      sweep.classList.add(next === 'dark' ? 'to-dark' : 'to-light');
+      // restart the animation even if one just ran
+      void sweep.offsetWidth;
+      sweep.classList.add('is-sweeping');
+      toggles().forEach(b => { void b.offsetWidth; b.classList.add('is-pulsing'); });
+    }
+
+    // flip the variables while the sweep is at its most opaque, so the
+    // swap itself is hidden rather than felt as a snap
+    const flipDelay = rm ? 0 : 320;
+    setTimeout(() => {
+      root.setAttribute('data-theme', next);
+      persist(next);
+      syncButtons();
+    }, flipDelay);
+
+    const cleanupDelay = rm ? 60 : 900;
+    setTimeout(() => {
+      root.classList.remove('theme-transitioning');
+      sweep.classList.remove('is-sweeping', 'to-dark', 'to-light');
+      toggles().forEach(b => b.classList.remove('is-pulsing'));
+    }, cleanupDelay);
+  }
+
+  toggles().forEach(btn => {
+    btn.addEventListener('click', () => transition(btn));
+  });
+
+  // Live-follow the system only until the person makes an explicit choice.
+  try {
+    if (!localStorage.getItem(EXPLICIT_KEY)) {
+      matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+        if (localStorage.getItem(EXPLICIT_KEY)) return;
+        root.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+        syncButtons();
+      });
+    }
+  } catch (e) {}
+
+  syncButtons();
+})();
