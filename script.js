@@ -372,7 +372,7 @@ function locationLine() {
     };
     case 'requesting': return { title: 'Getting your location…', sub: 'Your device is finding a fix' };
     case 'denied': return { title: 'Location is off', sub: 'Turn on location access to discover people nearby' };
-    case 'unavailable': return { title: 'Location unavailable', sub: 'Your device could not provide a position' };
+    case 'unavailable': return { title: 'Location unavailable, Turn on device location', sub: 'Your device could not provide a position' };
     case 'timeout': return { title: 'Location timed out', sub: 'Move somewhere with a clearer signal and try again' };
     default: return { title: 'Location is off', sub: 'Turn on location access to discover people nearby' };
   }
