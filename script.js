@@ -1,7 +1,7 @@
-/*================================================
-   REAL-JS
-================================================*/
-/* ============================================================
+/*============================
+     APP.JS
+  ============================*/
+  /* ============================================================
    ming — People. Moments. Possibilities.
    app.js  ·  vanilla JS, no dependencies
    Sections: Utilities · Demo Data · App State · Rendering atoms
@@ -372,7 +372,7 @@ function locationLine() {
     };
     case 'requesting': return { title: 'Getting your location…', sub: 'Your device is finding a fix' };
     case 'denied': return { title: 'Location is off', sub: 'Turn on location access to discover people nearby' };
-    case 'unavailable': return { title: 'Location unavailable, Turn on device location', sub: 'Your device could not provide a position' };
+    case 'unavailable': return { title: 'Location unavailable', sub: 'Your device could not provide a position' };
     case 'timeout': return { title: 'Location timed out', sub: 'Move somewhere with a clearer signal and try again' };
     default: return { title: 'Location is off', sub: 'Turn on location access to discover people nearby' };
   }
@@ -1140,24 +1140,51 @@ const MOON_ROOMS = {
   reminders: { title: 'Reminders', sub: 'Things to hold onto', icon: 'alarm' }
 };
 
+/* Native actions rather than a command menu — each just seeds the
+   input with a starting thought; the person still decides whether
+   and how to send it. */
+const MOON_INTENTS = {
+  think: { label: 'Think', seed: 'Help me think through something: ' },
+  plan: { label: 'Plan', seed: 'I want to plan ' },
+  remember: { label: 'Remember', seed: 'Remember this: ' },
+  explore: { label: 'Explore', seed: "I'm curious about " },
+  reflect: { label: 'Reflect', seed: 'Something on my mind — ' },
+  create: { label: 'Create', seed: "I'm trying to make " },
+  organize: { label: 'Organize', seed: 'Help me get organized around ' }
+};
+
 function renderMoonflower() {
+  if (window.MoonSky && !window.MoonSky.onEclipse) {
+    // set once, the first time Moonflower is actually opened — moon-sky.js
+    // loads after this file, so window.MoonSky doesn't exist at boot()
+    window.MoonSky.onEclipse = () => {
+      const was = $('#moon-quiet') ? $('#moon-quiet').textContent : '';
+      $$('.moon').forEach(el => el.classList.add('is-eclipse'));
+      const q = $('#moon-quiet');
+      if (q) q.textContent = 'The sky has paused for a moment. Nothing here needs you to do anything.';
+      setTimeout(() => {
+        $$('.moon').forEach(el => el.classList.remove('is-eclipse'));
+        if (q && state.tab === 'moonflower') renderMoonflower();
+      }, 10000);
+    };
+  }
   $('#moon-title').textContent = `${greetWord()}, ${currentUser.name.split(' ')[0]}.`;
   $('#moon-grid').innerHTML = `
-    <button class="moon-tile" data-action="moon:talk">
-      <span class="ic">${icon('spark')}</span>
-      <span class="t">Talk to Me</span><span class="s">A conversation that stays here</span>
-    </button>
-    <button class="moon-tile" data-action="moon:journey">
+    <button class="moon-tile moon-glass" data-action="moon:journey">
       <span class="ic">${icon('target')}</span>
       <span class="t">My Journey</span><span class="s">${moonGoals.length} things you are working towards</span>
     </button>
-    <button class="moon-tile" data-action="moon:space">
+    <button class="moon-tile moon-glass" data-action="moon:space">
       <span class="ic">${icon('note')}</span>
-      <span class="t">My Space</span><span class="s">${moonNotes.length} notes and memories</span>
+      <span class="t">My Space</span><span class="s">${moonNotes.length} notes, ${moonNotes.length === 1 ? 'one star' : moonNotes.length + ' stars'}</span>
     </button>
-    <button class="moon-tile" data-action="moon:reminders">
+    <button class="moon-tile moon-glass" data-action="moon:reminders">
       <span class="ic">${icon('alarm')}</span>
       <span class="t">Reminders</span><span class="s">${moonReminders.filter(r => !r.done).length} still open</span>
+    </button>
+    <button class="moon-tile moon-glass" data-action="moon:talk">
+      <span class="ic">${icon('spark')}</span>
+      <span class="t">Talk to Me</span><span class="s">A conversation that stays here</span>
     </button>`;
   const pending = moonReminders.find(r => !r.done);
   $('#moon-quiet').innerHTML = pending
@@ -1174,11 +1201,18 @@ function openMoonRoom(key) {
   const form = $('#moon-form');
   const actionBtn = $('#moonroom-action');
   form.hidden = key !== 'talk';
-  actionBtn.hidden = key === 'talk';
-  actionBtn.setAttribute('aria-label', key === 'journey' ? 'Add a goal' : key === 'space' ? 'Add a note' : 'Add a reminder');
+  actionBtn.hidden = key === 'talk' || key === 'space';
+  actionBtn.setAttribute('aria-label', key === 'journey' ? 'Add a goal' : 'Add a reminder');
   renderMoonRoom();
   pushStack('moonroom');
   if (key === 'talk') setTimeout(() => { const s = $('#moonroom-scroll'); s.scrollTop = s.scrollHeight; }, 80);
+}
+
+/* deterministic-looking scatter for the constellation, stable per note id */
+function constellationPos(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return { x: 10 + (h % 82), y: 14 + ((h >> 8) % 72) };
 }
 
 function renderMoonRoom() {
@@ -1186,60 +1220,108 @@ function renderMoonRoom() {
   const host = $('#moonroom-body');
 
   if (key === 'talk') {
-    host.innerHTML = `<div style="padding:14px 16px 8px;display:flex;flex-direction:column;gap:8px">
-      ${moonChat.map(m => `<div class="bub ${m.me ? 'me' : 'them'}" style="${m.me ? '' : 'background:rgba(251,249,253,.95)'}">${esc(m.text)}<span class="time">${clockTime(m.at)}</span></div>`).join('')}
+    host.innerHTML = `
+    <div class="moon-chips" role="group" aria-label="Ways to start">
+      ${Object.entries(MOON_INTENTS).map(([k, v]) => `<button class="moon-chip" data-action="moon-intent:${k}">${esc(v.label)}</button>`).join('')}
+    </div>
+    <div style="padding:6px 16px 8px;display:flex;flex-direction:column;gap:8px">
+      ${moonChat.map(m => `<div class="bub ${m.me ? 'me' : 'them'}">${esc(m.text)}<span class="time">${clockTime(m.at)}</span></div>`).join('')}
     </div>
     <p class="center-note">Private to you. Not stored on any server in this demo.</p>`;
     return;
   }
 
   if (key === 'journey') {
-    host.innerHTML = `<div style="padding:6px 0 0">${moonGoals.length ? moonGoals.map(g => {
+    host.innerHTML = `<div style="padding:10px 0 0">${moonGoals.length ? moonGoals.map(g => {
       const done = g.steps.filter(s => s.done).length;
-      const pct = Math.round((done / g.steps.length) * 100);
-      return `<div class="goal">
+      const pct = done / g.steps.length;
+      const W = 300, cx = 8, cy = 30, cw = W - 40;
+      const path = `M${cx},${cy} C${cx + cw * 0.3},${cy - 22} ${cx + cw * 0.7},${cy + 18} ${cx + cw},${cy - 4}`;
+      // an eased point along the curve's general shape — a believable position
+      // on the path rather than exact bezier arithmetic
+      const approxY = cy - Math.sin(pct * Math.PI) * 14;
+      return `<div class="orbit-goal moon-glass">
         <div class="t">${esc(g.title)}</div>
         <div class="s">${esc(g.sub)} · ${done} of ${g.steps.length} done</div>
-        <div class="bar"><i style="width:${pct}%"></i></div>
+        <svg class="track" viewBox="0 0 ${W} 56" preserveAspectRatio="none">
+          <path class="track-path" d="${path}"/>
+          <circle class="track-node" cx="${cx}" cy="${cy}" r="3"/>
+          <circle class="track-target" cx="${cx + cw}" cy="${cy - 4}" r="6"/>
+          <circle class="track-cur" cx="${cx + cw * pct}" cy="${approxY}" r="5"/>
+        </svg>
         <div class="steps">${g.steps.map((s, i) => `
           <button class="check" aria-pressed="${s.done}" data-action="step:${g.id}:${i}">
             <span class="box">${icon('check')}</span><span class="lb">${esc(s.t)}</span>
           </button>`).join('')}</div>
       </div>`;
-    }).join('') : emptyState('Nothing here yet', 'Add the first thing you are working towards.', { t: 'Add a goal', a: 'moon-add' })}</div>`;
+    }).join('') : emptyState('No trajectory set yet', 'Add the first thing you are working towards.', { t: 'Add a goal', a: 'moon-add' })}</div>`;
     return;
   }
 
   if (key === 'space') {
-    host.innerHTML = `<div style="padding:6px 0 0">${moonNotes.length ? moonNotes.map(n => `
-      <div class="note">
-        <div class="d">${esc(new Date(n.at).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }))} · ${esc(timeAgo(n.at))}</div>
-        <p>${esc(n.text)}</p>
-        <div style="margin-top:10px"><button class="btn btn--sm btn--danger" data-action="del-note:${n.id}">${icon('trash')}Delete</button></div>
-      </div>`).join('') : emptyState('Your private space is waiting.', 'Write the first thing. Only you will ever read it.', { t: 'Write a note', a: 'moon-add' })}</div>`;
+    const stars = moonNotes.map(n => {
+      const p = constellationPos(n.id);
+      return `<button class="cstar" style="left:${p.x}%;top:${p.y}%" data-action="open-note:${n.id}" aria-label="Memory from ${esc(timeAgo(n.at))}"></button>`;
+    }).join('');
+    host.innerHTML = `
+      <div class="constellation">
+        ${moonNotes.length ? stars : `<div class="cempty">Your sky is empty. Every note you write becomes a star here.</div>`}
+      </div>
+      <div class="log-composer moon-glass">
+        <div class="date">${esc(new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase())}</div>
+        <h4>How was today?</h4>
+        <textarea id="log-input" rows="2" placeholder="Write here…" maxlength="600"></textarea>
+        <div class="row"><button id="log-save" disabled>Save privately</button></div>
+      </div>
+      <div id="log-entries">${moonNotes.map(logEntryRow).join('') || ''}</div>`;
+    const ta = $('#log-input'), save = $('#log-save');
+    ta.addEventListener('input', () => { save.disabled = !ta.value.trim(); });
+    save.addEventListener('click', () => {
+      const v = ta.value.trim();
+      if (!v) return;
+      moonNotes.unshift({ id: uid('mn'), at: now(), text: v, place: hasLocation() ? areaLabel() : null });
+      ta.value = ''; save.disabled = true;
+      renderMoonRoom(); renderMoonflower();
+      if (window.MoonSky) window.MoonSky.pulse();
+      toast('Saved to My Space', 'check');
+    });
     return;
   }
 
   if (key === 'reminders') {
-    host.innerHTML = `<div style="padding:12px 18px 0">${moonReminders.length ? moonReminders.map(r => `
-      <button class="check" aria-pressed="${r.done}" data-action="rem:${r.id}" style="border-bottom:1px solid var(--border)">
-        <span class="box">${icon('check')}</span>
-        <span class="lb">${esc(r.text)}</span>
-        <span class="when">${esc(r.when)}</span>
-      </button>`).join('') : emptyState('Nothing to remember', 'Add something small. Moonflower will keep it for you.', { t: 'Add a reminder', a: 'moon-add' })}</div>`;
+    const open = moonReminders.filter(r => !r.done).length;
+    const W = 320, cy = 30, R = 22;
+    const arc = moonReminders.map((r, i) => {
+      const t = moonReminders.length > 1 ? i / (moonReminders.length - 1) : 0.5;
+      const x = 30 + t * (W - 60);
+      const y = cy - Math.sin(t * Math.PI) * R;
+      return `<g class="body ${r.done ? 'done' : ''}"><circle cx="${x}" cy="${y}" r="4"/></g>`;
+    }).join('');
+    host.innerHTML = `
+      <div class="orbit-strip"><svg viewBox="0 0 ${W} 60" preserveAspectRatio="none">
+        <path class="ring" d="M20,30 Q160,${30 - R * 1.6} 300,30"/>${arc}
+      </svg></div>
+      <div style="padding:2px 18px 0">${moonReminders.length ? moonReminders.map(r => `
+        <button class="check" aria-pressed="${r.done}" data-action="rem:${r.id}" style="border-bottom:1px solid var(--border)">
+          <span class="box">${icon('check')}</span>
+          <span class="lb">${esc(r.text)}</span>
+          <span class="when">${esc(r.when)}</span>
+        </button>`).join('') : emptyState('Nothing to remember', 'Add something small. Moonflower will keep it for you.', { t: 'Add a reminder', a: 'moon-add' })}</div>
+      ${moonReminders.length ? `<p class="center-note">${open} still open</p>` : ''}`;
   }
+}
+
+function logEntryRow(n) {
+  return `<div class="log-entry moon-glass" id="log-${n.id}">
+    <div class="d">${esc(new Date(n.at).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' }))} · ${esc(timeAgo(n.at))}${n.place ? ` · ${esc(n.place)}` : ''}</div>
+    <p>${esc(n.text)}</p>
+    <div class="del"><button class="btn btn--sm btn--danger" data-action="del-note:${n.id}">${icon('trash')}Delete</button></div>
+  </div>`;
 }
 
 function moonAdd() {
   const key = state.moonRoom;
-  if (key === 'space') {
-    openModal({
-      title: 'Write a note',
-      lede: 'Only you will ever see this.',
-      fields: `<div class="field"><label for="mf-note">Note</label><textarea id="mf-note" placeholder="What happened today?"></textarea></div>`,
-      actions: [{ t: 'Cancel', cls: 'btn--soft', a: 'close-modal' }, { t: 'Save note', cls: 'btn--primary', a: 'save-note' }]
-    });
-  } else if (key === 'journey') {
+  if (key === 'journey') {
     openModal({
       title: 'Add a goal',
       lede: 'Break it into a few small steps you can actually tick off.',
@@ -1274,6 +1356,56 @@ function moonReply(text) {
     return 'Good question. Let us take it apart: what do you already know, and what are you actually deciding between?';
   }
   return 'Noted. I will keep that here. What else is on your mind?';
+}
+
+/* A small heuristic layer on top of moonReply — this is still a
+   scripted demo, not a real model, but it acts on Moonflower's own
+   data rather than only talking about it: it can store a memory,
+   recall one, or offer to turn a deadline-shaped sentence into a
+   Journey. Nothing here reaches outside the current session. */
+function moonAct(text) {
+  const t = text.toLowerCase();
+
+  if (state.moonPendingJourney && /^\s*(yes|yeah|sure|please|do it|go ahead|ok(ay)?)\b/i.test(text)) {
+    const title = state.moonPendingJourney;
+    state.moonPendingJourney = null;
+    moonGoals.unshift({ id: uid('g'), title, sub: 'Started from a conversation', steps: [{ t: 'Define the first concrete step', done: false }] });
+    if (state.moonRoom === 'journey') renderMoonRoom();
+    renderMoonflower();
+    return `Done — "${title}" is in My Journey now.`;
+  }
+  state.moonPendingJourney = null;
+
+  const remember = text.match(/remember (?:that |this[:,]?\s*)?(.+)/i);
+  if (remember && remember[1].trim().length > 3) {
+    let note = remember[1].trim().replace(/\.+$/, '');
+    note = note.charAt(0).toUpperCase() + note.slice(1) + '.';
+    moonNotes.unshift({ id: uid('mn'), at: now(), text: note, place: hasLocation() ? areaLabel() : null });
+    renderMoonflower();
+    if (state.moonRoom === 'space') renderMoonRoom();
+    return `Kept — it's in My Space now${hasLocation() ? ', tagged near ' + areaLabel() : ''}.`;
+  }
+
+  const recall = t.match(/what was i (?:working (?:on|toward)|doing)[^\d]*(\d+)\s*(day|week|month)s?\s*ago/);
+  if (recall) {
+    const n = +recall[1], unit = recall[2];
+    const span = unit === 'day' ? n * HOUR * 24 : unit === 'week' ? n * HOUR * 24 * 7 : n * HOUR * 24 * 30;
+    const target = now() - span;
+    const goal = moonGoals[moonGoals.length - 1];
+    const note = moonNotes.filter(nt => nt.at <= target + HOUR * 24 * 3).sort((a, b) => Math.abs(a.at - target) - Math.abs(b.at - target))[0];
+    const bits = [];
+    if (goal) bits.push(`working toward "${goal.title}"`);
+    if (note) bits.push(`you had written "${note.text.length > 64 ? note.text.slice(0, 64) + '…' : note.text}"`);
+    if (bits.length) return `Around then you were ${bits.join(', and ')}.`;
+    return "I don't have anything from that far back yet — Moonflower only remembers what you've told it.";
+  }
+
+  if (/\b(exam|deadline|interview|certification|test|assessment)\b/.test(t)) {
+    state.moonPendingJourney = text.replace(/\.+$/, '');
+    return `That sounds worth tracking properly rather than just saying out loud. Want me to set "${state.moonPendingJourney}" as a goal in My Journey?`;
+  }
+
+  return moonReply(text);
 }
 
 /* ------------------------------------------------------------
@@ -1781,6 +1913,16 @@ document.addEventListener('click', e => {
 
     case 'moon': openMoonRoom(arg); break;
     case 'moon-add': moonAdd(); break;
+    case 'moon-intent': {
+      const inp = $('#moon-input');
+      if (!inp) break;
+      inp.value = MOON_INTENTS[arg] ? MOON_INTENTS[arg].seed : '';
+      inp.focus();
+      inp.setSelectionRange(inp.value.length, inp.value.length);
+      autoGrow(inp);
+      $('#moon-send').disabled = !inp.value.trim();
+      break;
+    }
     case 'step': {
       const g = moonGoals.find(x => x.id === arg);
       if (!g) break;
@@ -1799,12 +1941,11 @@ document.addEventListener('click', e => {
       renderMoonRoom(); renderMoonflower();
       toast('Note deleted', 'trash');
       break;
-    case 'save-note': {
-      const v = $('#mf-note').value.trim();
-      if (!v) { closeModal(); break; }
-      moonNotes.unshift({ id: uid('mn'), at: now(), text: v });
-      closeModal(); renderMoonRoom(); renderMoonflower();
-      toast('Saved to My Space', 'check');
+    case 'open-note': {
+      const n = moonNotes.find(x => x.id === arg);
+      if (!n) break;
+      const row = $('#log-' + arg);
+      if (row) { row.scrollIntoView({ behavior: 'smooth', block: 'center' }); row.style.borderColor = 'rgba(221,226,234,.4)'; setTimeout(() => { row.style.borderColor = ''; }, 900); }
       break;
     }
     case 'save-goal': {
@@ -1926,10 +2067,12 @@ $('#moon-form').addEventListener('submit', e => {
   moonInput.value = ''; moonInput.style.height = 'auto'; moonSend.disabled = true;
   moonChat.push({ me: true, text: v, at: now() });
   renderMoonRoom();
+  if (window.MoonSky) window.MoonSky.pulse();
   const s = $('#moonroom-scroll'); s.scrollTop = s.scrollHeight;
   setTimeout(() => {
-    moonChat.push({ me: false, text: moonReply(v), at: now() });
+    moonChat.push({ me: false, text: moonAct(v), at: now() });
     renderMoonRoom();
+    if (window.MoonSky) window.MoonSky.pulse();
     s.scrollTop = s.scrollHeight;
   }, 900);
 });
@@ -1979,9 +2122,23 @@ boot();
 
 
 
-/*================================================
-   NEW JS
-================================================*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*================================
+   SPACES.JS
+================================*/
 /* ============================================================
    ming — Spaces
    spaces.js  ·  loaded after app.js, reuses its helpers
@@ -3063,7 +3220,7 @@ VIEWS.business.brief = s => {
     ${contentOf(s.id, 'doc').map(d => `
       <div class="sp-card" style="display:flex;align-items:center;gap:12px">
         ${icon('sp-doc')}<div style="flex:1"><div style="font-size:14px">${esc(d.title)}</div>
-        <div style="font-size:11.5px;color:var(--muted)">${esc(d.meta)}</div></div>${icon('chev')}
+        <div style="font-size:11.5px;color:var(--muted)">${esc(d.meta)}</div></div><span class="go">${icon('chev')}</span>
       </div>`).join('') || spEmpty('No documents shared.')}
   </div>`;
 };
@@ -4151,10 +4308,651 @@ function seedNewSpace(space) {
 
 
 
-  
 
 
 
+
+
+
+
+
+
+
+/*=============================
+   MOON-SKY.JS
+=============================*/
+/* ============================================================
+   ming — Moonflower
+   moon-sky.js  ·  a single canvas, one render loop, mounted into
+   whichever Moonflower screen is currently active.
+
+   Ming is the world outside; this is the world inside. The engine
+   never touches app.js's state or Moonflower's data (goals, notes,
+   reminders, chat) — it only draws the environment behind it.
+
+   Two atmospheres share this canvas and one render loop:
+     mode 'dark'  — moon, cool stars, a rare occasional eclipse
+     mode 'light' — sun, warm atmosphere, faint drifting dust
+   The mode follows Ming's existing global theme toggle by watching
+   <html data-theme> — the same self-wiring already used below to
+   move the canvas between screens. theme.js is never touched.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const COARSE = matchMedia('(pointer: coarse)').matches;
+  const cores = navigator.hardwareConcurrency || 4;
+
+  /* ---- one-time device tier ---- */
+  function pickTier() {
+    if (REDUCED) return 'still';
+    if (cores <= 2 || (COARSE && innerWidth < 380)) return 'low';
+    if (cores >= 6 && !COARSE) return 'high';
+    return 'mid';
+  }
+  const TIERS = {
+    still: { stars: 90, sat: 0, neb: 1, shoot: 0, dpr: 1, parallax: 0 },
+    low: { stars: 70, sat: 2, neb: 1, shoot: 1, dpr: 1, parallax: 0.4 },
+    mid: { stars: 150, sat: 3, neb: 2, shoot: 2, dpr: 1.5, parallax: 0.7 },
+    high: { stars: 240, sat: 5, neb: 3, shoot: 2, dpr: 2, parallax: 1 }
+  };
+
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  /* dark atmosphere */
+  const NIGHT = {
+    space: '#02030A', shadow: '#0B0D16', grey: '#8F929B',
+    light: '#DDE2EA', silver: '#BFC5D0', blue: '#11182A', violet: '#28233D'
+  };
+  /* light atmosphere — evolves from Ming's own warm palette, not a
+     plain white flip: quiet cream/gold, sunlight through a still room */
+  const DAY = {
+    sky: '#F7EEE0', skyEdge: '#EEDFC5', dust: '#E7CFA6',
+    sunCore: '#FFF7E6', sunMid: '#F3D9A6', sunEdge: '#D9A75C', cloud: '#EADFC9'
+  };
+
+  function initialMode() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function MoonSky() {
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = 'msky';
+    this.canvas.setAttribute('aria-hidden', 'true');
+    this.ctx = this.canvas.getContext('2d', { alpha: true });
+    this.tier = pickTier();
+    this.cfg = TIERS[this.tier];
+    this.mounted = null;
+    this.running = false;
+    this.w = 0; this.h = 0; this.dpr = 1;
+    this.t0 = performance.now();
+    this.introStart = null;
+    this.slowFrames = 0; this.frameChecks = 0;
+    this.pointer = { x: 0, y: 0, tx: 0, ty: 0 };
+    this.orientReady = false;
+
+    /* mode: 0 = dark/moon, 1 = light/sun. mix eases toward target so a
+       theme switch reads as time passing, not a hard cut */
+    this.mode = initialMode();
+    this.mix = this.mode === 'light' ? 1 : 0;
+    this.mixTarget = this.mix;
+
+    /* eclipse: dark-mode only, rare, cinematic. Eligible after a
+       while, then again after a long randomized gap. Phases advance
+       against accumulated dark-mode viewing time, not wall clock, so
+       it never fires while the person is looking at daylight. */
+    this.eclipse = { phase: 'idle', t: 0, next: rand(45, 90), darkTime: 0 };
+    this.onEclipse = null;
+
+    this._genField();
+    this._ro = new ResizeObserver(() => this._resize());
+    this._raf = null;
+
+    this._onPointer = e => {
+      if (!this.cfg.parallax) return;
+      this.pointer.tx = clamp((e.clientX / innerWidth) * 2 - 1, -1, 1);
+      this.pointer.ty = clamp((e.clientY / innerHeight) * 2 - 1, -1, 1);
+    };
+    this._onOrient = e => {
+      if (!this.cfg.parallax || e.gamma === null) return;
+      this.pointer.tx = clamp(e.gamma / 28, -1, 1);
+      this.pointer.ty = clamp((e.beta - 40) / 28, -1, 1);
+    };
+    this._onFirstTap = () => {
+      if (this.orientReady) return;
+      this.orientReady = true;
+      if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
+        DeviceOrientationEvent.requestPermission().then(r => {
+          if (r === 'granted') window.addEventListener('deviceorientation', this._onOrient);
+        }).catch(() => {});
+      } else if (typeof DeviceOrientationEvent !== 'undefined') {
+        window.addEventListener('deviceorientation', this._onOrient);
+      }
+    };
+  }
+
+  MoonSky.prototype._genField = function () {
+    const c = this.cfg;
+    this.stars = [];
+    for (let i = 0; i < c.stars; i++) {
+      const depth = Math.pow(Math.random(), 1.6); // biased toward far (small/dim)
+      this.stars.push({
+        x: Math.random(), y: Math.random(),
+        r: lerp(0.4, 1.9, depth),
+        base: lerp(0.15, 0.95, depth),
+        depth,
+        phase: rand(0, Math.PI * 2),
+        speed: rand(0.6, 1.6),
+        warm: Math.random() < 0.18
+      });
+    }
+    this.nebula = [];
+    for (let i = 0; i < c.neb; i++) {
+      this.nebula.push({
+        x: rand(0.1, 0.9), y: rand(0.05, 0.7), r: rand(0.28, 0.46),
+        hue: Math.random() < 0.5 ? NIGHT.violet : NIGHT.blue,
+        alpha: rand(0.12, 0.22), phase: rand(0, Math.PI * 2)
+      });
+    }
+    this.sats = [];
+    for (let i = 0; i < c.sat; i++) this._newSat();
+    this.shots = [];
+    this._nextShot = rand(1800, 4600);
+    this.body = { xf: rand(0.68, 0.82), yf: rand(0.2, 0.34), rf: rand(0.24, 0.29), craters: null };
+    const cr = [];
+    for (let i = 0; i < 15; i++) {
+      const a = rand(0, Math.PI * 2), d = rand(0.05, 0.82) * rand(0.4, 1);
+      cr.push({ dx: Math.cos(a) * d, dy: Math.sin(a) * d, r: rand(0.05, 0.16), shade: rand(0.12, 0.32) });
+    }
+    this.body.craters = cr;
+    this.rays = [];
+    for (let i = 0; i < 6; i++) this.rays.push({ a: rand(0, Math.PI * 2), w: rand(0.16, 0.3), speed: rand(0.004, 0.01) });
+  };
+
+  MoonSky.prototype._newSat = function () {
+    const edge = Math.floor(rand(0, 4));
+    const pos = { x: 0, y: 0 };
+    if (edge === 0) { pos.x = rand(0, 1); pos.y = -0.05; }
+    else if (edge === 1) { pos.x = 1.05; pos.y = rand(0, 1); }
+    else if (edge === 2) { pos.x = rand(0, 1); pos.y = 1.05; }
+    else { pos.x = -0.05; pos.y = rand(0, 1); }
+    const target = { x: rand(0.1, 0.9), y: rand(0.1, 0.9) };
+    const speed = rand(0.006, 0.014);
+    const ang = Math.atan2(target.y - pos.y, target.x - pos.x);
+    this.sats.push({
+      x: pos.x, y: pos.y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
+      blink: rand(0, 6), r: rand(1.1, 1.8)
+    });
+  };
+
+  MoonSky.prototype._spawnShot = function () {
+    const c = this.cfg;
+    if (this.shots.length >= c.shoot) return;
+    const fromTop = Math.random() < 0.7;
+    const x = fromTop ? rand(0.1, 0.95) : (Math.random() < 0.5 ? -0.02 : 1.02);
+    const y = fromTop ? -0.02 : rand(0.05, 0.5);
+    const ang = rand(0.35, 0.85) * (Math.random() < 0.5 ? 1 : -1) + Math.PI / 2 * (fromTop ? 1 : 0.4);
+    const speed = rand(0.55, 1.3);
+    const big = Math.random() < 0.15;
+    this.shots.push({
+      x, y, vx: Math.cos(ang) * speed * (fromTop ? 1 : (x < 0 ? 1 : -1)),
+      vy: Math.sin(ang) * speed * 0.7 + 0.25,
+      life: 0, max: rand(0.7, big ? 1.6 : 1.1), len: big ? rand(120, 190) : rand(55, 110),
+      w: big ? rand(1.6, 2.2) : rand(0.8, 1.4)
+    });
+  };
+
+  /* ---- theme: called by the <html data-theme> watcher below ---- */
+  MoonSky.prototype.setMode = function (mode) {
+    if (mode !== 'light' && mode !== 'dark') return;
+    if (this.mode === mode) return;
+    this.mode = mode;
+    this.mixTarget = mode === 'light' ? 1 : 0;
+    // leaving the dark atmosphere mid-eclipse: let it recede quickly
+    // rather than freezing an occluder over a moon that is fading out
+    if (mode === 'light' && this.eclipse.phase !== 'idle' && this.eclipse.phase !== 'recede') {
+      this.eclipse.phase = 'recede'; this.eclipse.t = 0;
+    }
+    // the "still" tier never runs a render loop, so give it an
+    // immediate, un-animated redraw rather than a stale atmosphere
+    if (this.tier === 'still') {
+      this.mix = this.mixTarget;
+      if (this.mounted) this._draw(performance.now());
+    }
+  };
+
+  /* ---- lifecycle ---- */
+  MoonSky.prototype.mountTo = function (el) {
+    if (this.mounted === el) { this.start(); return; }
+    if (this.mounted) this._ro.unobserve(this.mounted);
+    this.mounted = el;
+    el.insertBefore(this.canvas, el.firstChild);
+    el.addEventListener('pointerdown', this._onFirstTap, { once: true, passive: true });
+    this._ro.observe(el);
+    this._resize();
+    this.introStart = performance.now();
+    this.start();
+  };
+
+  MoonSky.prototype._resize = function () {
+    if (!this.mounted) return;
+    const r = this.mounted.getBoundingClientRect();
+    this.dpr = Math.min(devicePixelRatio || 1, this.cfg.dpr);
+    this.w = Math.max(1, Math.round(r.width));
+    this.h = Math.max(1, Math.round(r.height));
+    this.canvas.width = this.w * this.dpr;
+    this.canvas.height = this.h * this.dpr;
+    this.canvas.style.width = this.w + 'px';
+    this.canvas.style.height = this.h + 'px';
+  };
+
+  MoonSky.prototype.start = function () {
+    if (this.running) return;
+    this.running = true;
+    if (this.cfg.parallax) {
+      window.addEventListener('pointermove', this._onPointer, { passive: true });
+    }
+    document.addEventListener('visibilitychange', this._onVis || (this._onVis = () => {
+      if (document.hidden) this.stop(); else if (this.mounted) this.start();
+    }));
+    this._lastT = performance.now();
+    if (this.tier === 'still') { this._draw(performance.now()); this.running = false; return; }
+    const step = t => { this._frame(t); if (this.running) this._raf = requestAnimationFrame(step); };
+    this._raf = requestAnimationFrame(step);
+  };
+
+  MoonSky.prototype.stop = function () {
+    this.running = false;
+    if (this._raf) cancelAnimationFrame(this._raf);
+    window.removeEventListener('pointermove', this._onPointer);
+  };
+
+  MoonSky.prototype._frame = function (t) {
+    const start = performance.now();
+    this._draw(t);
+    const dt = performance.now() - start;
+    if (this.frameChecks < 240) {
+      this.frameChecks++;
+      if (dt > 20) this.slowFrames++;
+      if (this.frameChecks === 240 && this.slowFrames > 140 && this.tier !== 'low' && this.tier !== 'still') {
+        this.tier = this.tier === 'high' ? 'mid' : 'low';
+        this.cfg = TIERS[this.tier];
+        this._genField();
+      }
+    }
+  };
+
+  /* ---- eclipse state machine (dark mode only) ----
+     approach → align (peak, corona + dip) → recede → idle, then a
+     long randomized wait before it's eligible again. */
+  MoonSky.prototype._advanceEclipse = function (dtSec) {
+    const e = this.eclipse;
+    if (this.mode !== 'dark' || this.mix > 0.05) { e.darkTime = 0; return; }
+    e.darkTime += dtSec;
+
+    if (e.phase === 'idle') {
+      if (e.darkTime >= e.next) { e.phase = 'approach'; e.t = 0; }
+      return;
+    }
+    e.t += dtSec;
+    const DUR = { approach: 6, align: 3.2, recede: 6.5 };
+    if (e.phase === 'approach' && e.t >= DUR.approach) { e.phase = 'align'; e.t = 0; if (this.onEclipse) this.onEclipse(); }
+    else if (e.phase === 'align' && e.t >= DUR.align) { e.phase = 'recede'; e.t = 0; }
+    else if (e.phase === 'recede' && e.t >= DUR.recede) {
+      e.phase = 'idle'; e.t = 0; e.darkTime = 0; e.next = rand(150, 320);
+    }
+  };
+
+  /* 0 = no eclipse influence, 1 = full alignment (peak dimming) */
+  MoonSky.prototype._eclipseK = function () {
+    const e = this.eclipse;
+    if (e.phase === 'idle') return 0;
+    const DUR = { approach: 6, align: 3.2, recede: 6.5 };
+    if (e.phase === 'approach') return clamp(e.t / DUR.approach, 0, 1);
+    if (e.phase === 'align') return 1;
+    return clamp(1 - e.t / DUR.recede, 0, 1);
+  };
+
+  /* ---- draw ---- */
+  MoonSky.prototype._draw = function (t) {
+    const ctx = this.ctx, w = this.w, h = this.h, dpr = this.dpr;
+    const dtSec = clamp((t - (this._lastT || t)) / 1000, 0, 0.25);
+    this._lastT = t;
+    this.mix = lerp(this.mix, this.mixTarget, clamp(dtSec * 1.1, 0, 1));
+    this._advanceEclipse(dtSec);
+    const eK = this._eclipseK();
+    this.eclipsing = eK > 0.02 && this.mix < 0.5;
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    const mix = this.mix; // 0 dark .. 1 light
+
+    /* sky fill — cross-faded, never a hard swap */
+    ctx.fillStyle = NIGHT.space;
+    ctx.fillRect(0, 0, w, h);
+    if (mix > 0.002) {
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, DAY.sky);
+      sky.addColorStop(1, DAY.skyEdge);
+      ctx.save();
+      ctx.globalAlpha = mix;
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+
+    const time = (t - this.t0) / 1000;
+    const intro = this.introStart ? clamp((t - this.introStart) / 1400, 0, 1) : 1;
+    const introEase = 1 - Math.pow(1 - intro, 3);
+    const dim = 1 - eK * 0.4; // eclipse ambient dip
+
+    if (this.cfg.parallax) {
+      this.pointer.x = lerp(this.pointer.x, this.pointer.tx, 0.05);
+      this.pointer.y = lerp(this.pointer.y, this.pointer.ty, 0.05);
+    }
+    const px = this.pointer.x, py = this.pointer.y;
+
+    const bodyX = this.body.xf * w;
+    const bodyY = this.body.yf * h + (this.tier === 'still' ? 0 : Math.sin(time * 0.06) * 4);
+    const bodyR = this.body.rf * Math.min(w, h * 1.15);
+
+    /* nebula / soft cloud — farthest, barely moves, hue crosses over */
+    ctx.save();
+    ctx.translate(px * 5, py * 5);
+    this.nebula.forEach(n => {
+      const nx = n.x * w + Math.sin(time * 0.05 + n.phase) * 10;
+      const ny = n.y * h + Math.cos(time * 0.04 + n.phase) * 8;
+      const r = n.r * Math.max(w, h);
+      const nightA = n.alpha * introEase * (1 - mix) * dim;
+      if (nightA > 0.003) {
+        const g = ctx.createRadialGradient(nx, ny, 0, nx, ny, r);
+        g.addColorStop(0, hexA(n.hue, nightA));
+        g.addColorStop(1, hexA(n.hue, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(nx, ny, r, 0, 7); ctx.fill();
+      }
+      const dayA = n.alpha * 0.55 * introEase * mix;
+      if (dayA > 0.003) {
+        const g2 = ctx.createRadialGradient(nx, ny, 0, nx, ny, r);
+        g2.addColorStop(0, hexA(DAY.cloud, dayA));
+        g2.addColorStop(1, hexA(DAY.cloud, 0));
+        ctx.fillStyle = g2;
+        ctx.beginPath(); ctx.arc(nx, ny, r, 0, 7); ctx.fill();
+      }
+    });
+    ctx.restore();
+
+    /* stars ⇄ dust — same positions and twinkle, color/alpha crosses over */
+    const still = this.tier === 'still';
+    const pulseBoost = (this._pulseUntil && t < this._pulseUntil)
+      ? 0.22 * ((this._pulseUntil - t) / 900)
+      : 0;
+    for (let i = 0; i < this.stars.length; i++) {
+      const s = this.stars[i];
+      const factor = lerp(3, 20, s.depth) * this.cfg.parallax;
+      const sx = s.x * w + px * factor;
+      const sy = s.y * h + py * factor;
+      let a = s.base;
+      if (!still) a *= 0.72 + 0.28 * Math.sin(time * s.speed + s.phase);
+      const dm = Math.hypot(sx - bodyX, sy - bodyY);
+      const glowBoost = dm < bodyR * 3.2 ? (1 - dm / (bodyR * 3.2)) * 0.35 : 0;
+      const nightA = clamp((a + glowBoost + pulseBoost) * dim, 0, 1) * introEase * (1 - mix);
+      const dayA = a * 0.22 * mix * introEase; // faint dust, deliberately subtle
+      if (nightA > 0.004) {
+        ctx.beginPath();
+        ctx.fillStyle = s.warm ? `rgba(223,214,196,${nightA})` : `rgba(221,226,234,${nightA})`;
+        ctx.arc(sx, sy, s.r, 0, 7);
+        ctx.fill();
+        if (s.r > 1.5 && nightA > 0.6) {
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(221,226,234,${nightA * 0.12})`;
+          ctx.arc(sx, sy, s.r * 3.2, 0, 7);
+          ctx.fill();
+        }
+      }
+      if (dayA > 0.004) {
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(217,167,92,${dayA})`;
+        ctx.arc(sx, sy, s.r * 0.85, 0, 7);
+        ctx.fill();
+      }
+    }
+
+    ctx.save();
+    ctx.translate(px * 6 * this.cfg.parallax, py * 6 * this.cfg.parallax);
+
+    /* sun bloom + disc (fades in as mix → 1) */
+    if (mix > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = mix * introEase;
+      const sunBloomR = bodyR * 2.9;
+      const sbloom = ctx.createRadialGradient(bodyX, bodyY, bodyR * 0.3, bodyX, bodyY, sunBloomR);
+      sbloom.addColorStop(0, hexA(DAY.sunEdge, 0.28));
+      sbloom.addColorStop(1, hexA(DAY.sunEdge, 0));
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = sbloom;
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, sunBloomR, 0, 7); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+
+      if (!still) {
+        this.rays.forEach(ray => {
+          const a0 = ray.a + time * ray.speed;
+          ctx.save();
+          ctx.translate(bodyX, bodyY);
+          ctx.rotate(a0);
+          const rg = ctx.createRadialGradient(0, 0, bodyR * 0.9, 0, 0, bodyR * 2.4);
+          rg.addColorStop(0, hexA(DAY.sunMid, 0.05));
+          rg.addColorStop(1, hexA(DAY.sunMid, 0));
+          ctx.fillStyle = rg;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.arc(0, 0, bodyR * 2.4, -ray.w / 2, ray.w / 2);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+        });
+      }
+
+      const sun = ctx.createRadialGradient(
+        bodyX - bodyR * 0.25, bodyY - bodyR * 0.28, bodyR * 0.1,
+        bodyX, bodyY, bodyR * 0.86
+      );
+      sun.addColorStop(0, DAY.sunCore);
+      sun.addColorStop(0.55, DAY.sunMid);
+      sun.addColorStop(1, DAY.sunEdge);
+      ctx.fillStyle = sun;
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR * 0.86, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+
+    /* moon bloom + disc + craters (fades in as mix → 0) */
+    if (mix < 0.99) {
+      const moonAlpha = (1 - mix) * introEase * dim;
+      const bloomR = bodyR * 2.6;
+      const bloom = ctx.createRadialGradient(bodyX - bodyR * 0.3, bodyY - bodyR * 0.3, bodyR * 0.4, bodyX, bodyY, bloomR);
+      bloom.addColorStop(0, `rgba(224,227,238,${0.30 * moonAlpha})`);
+      bloom.addColorStop(1, 'rgba(224,227,238,0)');
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = bloom;
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, bloomR, 0, 7); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = moonAlpha;
+      const disc = ctx.createRadialGradient(
+        bodyX - bodyR * 0.38, bodyY - bodyR * 0.4, bodyR * 0.15,
+        bodyX, bodyY, bodyR
+      );
+      disc.addColorStop(0, '#F1F0EE');
+      disc.addColorStop(0.42, NIGHT.light);
+      disc.addColorStop(0.75, NIGHT.silver);
+      disc.addColorStop(1, NIGHT.shadow);
+      ctx.fillStyle = disc;
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.fill();
+
+      ctx.save();
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.clip();
+      this.body.craters.forEach(cr => {
+        const cx = bodyX + cr.dx * bodyR, cy = bodyY + cr.dy * bodyR, r = cr.r * bodyR;
+        const lit = ((cx - bodyX) < 0) ? 1 : 0.4;
+        const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
+        g.addColorStop(0, `rgba(11,13,22,0)`);
+        g.addColorStop(0.6, `rgba(11,13,22,${cr.shade * 0.5 * lit})`);
+        g.addColorStop(1, `rgba(11,13,22,${cr.shade * lit})`);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill();
+      });
+      const rim = ctx.createRadialGradient(bodyX - bodyR * 0.5, bodyY - bodyR * 0.5, bodyR * 0.7, bodyX - bodyR * 0.5, bodyY - bodyR * 0.5, bodyR * 1.05);
+      rim.addColorStop(0, 'rgba(255,255,255,0)');
+      rim.addColorStop(1, 'rgba(255,255,255,.18)');
+      ctx.fillStyle = rim;
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.fill();
+      ctx.restore();
+      ctx.restore();
+
+      /* eclipse occluder + corona, drawn only while it's actually happening */
+      if (eK > 0.02) {
+        const approach = this.eclipse.phase === 'recede' ? 1 - eK : eK;
+        const ox = bodyX + (1 - approach) * bodyR * 2.4;
+        const oy = bodyY - (1 - approach) * bodyR * 0.6;
+        ctx.save();
+        ctx.globalAlpha = moonAlpha;
+        ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.clip();
+        ctx.fillStyle = NIGHT.space;
+        ctx.beginPath(); ctx.arc(ox, oy, bodyR * 1.02, 0, 7); ctx.fill();
+        ctx.restore();
+        if (this.eclipse.phase === 'align') {
+          const corona = ctx.createRadialGradient(bodyX, bodyY, bodyR * 0.94, bodyX, bodyY, bodyR * 1.16);
+          corona.addColorStop(0, 'rgba(255,255,255,0)');
+          corona.addColorStop(0.7, `rgba(255,246,232,${0.5 * moonAlpha})`);
+          corona.addColorStop(1, 'rgba(255,246,232,0)');
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = corona;
+          ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR * 1.16, 0, 7); ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+    ctx.restore();
+
+    /* satellites — a night-sky detail, fades out with the moon */
+    if (!still && mix < 0.9) {
+      const dt = 1 / 60;
+      const satA = (1 - mix) * dim;
+      this.sats.forEach((s, idx) => {
+        s.x += s.vx; s.y += s.vy; s.blink += dt;
+        if (s.x < -0.1 || s.x > 1.1 || s.y < -0.1 || s.y > 1.1) { this.sats.splice(idx, 1); this._newSat(); return; }
+        const sx = s.x * w + px * 10 * this.cfg.parallax, sy = s.y * h + py * 10 * this.cfg.parallax;
+        const blink = 0.4 + 0.6 * Math.max(0, Math.sin(s.blink * 1.3));
+        const tlen = 9, ang = Math.atan2(s.vy, s.vx);
+        const g = ctx.createLinearGradient(sx, sy, sx - Math.cos(ang) * tlen, sy - Math.sin(ang) * tlen);
+        g.addColorStop(0, `rgba(200,208,224,${0.5 * introEase * satA})`);
+        g.addColorStop(1, 'rgba(200,208,224,0)');
+        ctx.strokeStyle = g; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - Math.cos(ang) * tlen, sy - Math.sin(ang) * tlen); ctx.stroke();
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(216,222,232,${blink * introEase * satA})`;
+        ctx.arc(sx, sy, s.r, 0, 7); ctx.fill();
+      });
+    }
+
+    /* shooting stars — same, night-only */
+    if (!still && mix < 0.9) {
+      this._nextShot -= 16.7;
+      if (this._nextShot <= 0) { this._spawnShot(); this._nextShot = rand(2200, 8600); }
+      const shotA = (1 - mix) * dim;
+      for (let i = this.shots.length - 1; i >= 0; i--) {
+        const sh = this.shots[i];
+        sh.life += 1 / 60;
+        sh.x += sh.vx * 0.012; sh.y += sh.vy * 0.012;
+        sh.vx *= 1.012; sh.vy *= 1.012;
+        const alpha = (sh.life < sh.max * 0.15
+          ? sh.life / (sh.max * 0.15)
+          : clamp(1 - (sh.life - sh.max * 0.15) / (sh.max * 0.85), 0, 1)) * shotA;
+        if (sh.life >= sh.max || alpha <= 0) { this.shots.splice(i, 1); continue; }
+        const hx = sh.x * w, hy = sh.y * h;
+        const ang = Math.atan2(sh.vy, sh.vx);
+        const tx = hx - Math.cos(ang) * sh.len, ty = hy - Math.sin(ang) * sh.len;
+        const g = ctx.createLinearGradient(hx, hy, tx, ty);
+        g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+        g.addColorStop(0.4, `rgba(221,226,234,${alpha * 0.5})`);
+        g.addColorStop(1, 'rgba(221,226,234,0)');
+        ctx.strokeStyle = g; ctx.lineWidth = sh.w; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  };
+
+  function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  /* ---- react to Moonflower-specific moments ---- */
+  MoonSky.prototype.pulse = function () {
+    // a brief brightening, used when a message lands inside "Talk to Me"
+    if (this.tier === 'still') return;
+    const boost = 900;
+    this._pulseUntil = performance.now() + boost;
+  };
+
+  /* ============================================================
+     auto-wiring — no changes to app.js or theme.js required.
+     One observer moves the canvas between Moonflower's two screens;
+     a second watches the global theme and crossfades this engine's
+     own atmosphere to match, independently of anything else that
+     also reacts to that same attribute.
+  ============================================================ */
+  const sky = new MoonSky();
+  window.MoonSky = sky;
+
+  const ids = ['screen-moonflower', 'screen-moonroom'];
+  const screens = ids.map(id => document.getElementById(id)).filter(Boolean);
+
+  function sync() {
+    const active = screens.find(s => s.classList.contains('is-active'));
+    if (active) sky.mountTo(active);
+    else sky.stop();
+  }
+  screens.forEach(s => new MutationObserver(sync).observe(s, { attributes: true, attributeFilter: ['class'] }));
+  sync();
+
+  new MutationObserver(() => sky.setMode(initialMode()))
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*=================================
+   THEME.JS
+=================================*/
 /* ============================================================
    ming — theme toggle
    theme.js  ·  sun ⇄ moon, one control, reused everywhere it appears
@@ -4255,3 +5053,710 @@ function seedNewSpace(space) {
 
   syncButtons();
 })();
+
+
+<script type="text/plain" id="sql">
+  -- ============================================================
+-- ming — Spaces, Marketplace, Escrow, Wallet
+-- schema.sql  ·  Postgres / Supabase
+--
+-- The contract that spaces.js `Server` stands in for. Same action
+-- names, same guards. Every rule that matters lives here, because
+-- the client is assumed hostile: it can send any payload it likes.
+--
+-- Run order: extensions → types → tables → indexes → RLS → functions.
+-- ============================================================
+
+create extension if not exists "pgcrypto";
+create extension if not exists "pg_stat_statements";
+
+-- ============================================================
+-- 1. TYPES
+-- ============================================================
+create type space_nature as enum ('business','friendly','casual','silly','romantic','marketplace');
+create type space_privacy as enum ('private','approval','discoverable');
+create type space_role as enum ('owner','admin','manager','moderator','seller','buyer','member','guest');
+create type order_status as enum (
+  'pending','funded','seller_confirmed','shipped','delivered',
+  'accepted','completed','disputed','refunded','cancelled'
+);
+create type dispute_status as enum ('evidence','review','resolved');
+create type asset_code as enum ('USDT','BTC');
+
+-- ============================================================
+-- 2. SPACES
+-- ============================================================
+create table spaces (
+  id              uuid primary key default gen_random_uuid(),
+  name            text not null check (length(btrim(name)) between 2 and 40),
+  description     text check (length(description) <= 160),
+  nature          space_nature not null,
+  privacy         space_privacy not null default 'private',
+  require_approval boolean not null default false,
+  max_members     int check (max_members is null or max_members between 2 and 10000),
+  hue             int check (hue is null or hue between 0 and 360),
+  location_linked boolean not null default false,
+  -- coarse cell only; never a precise point, and only when location_linked
+  area_cell       text,
+  features        jsonb not null default '{}'::jsonb,
+  owner_id        uuid not null references auth.users(id),
+  expires_at      timestamptz,
+  created_at      timestamptz not null default now(),
+  -- nature is immutable: the whole environment depends on it
+  constraint romantic_is_private check (nature <> 'romantic' or privacy = 'private')
+);
+
+create table space_members (
+  space_id   uuid not null references spaces(id) on delete cascade,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  role       space_role not null default 'member',
+  approved   boolean not null default true,
+  joined_at  timestamptz not null default now(),
+  primary key (space_id, user_id)
+);
+create index on space_members (user_id);
+
+-- Which roles exist per nature. Enforced by trigger, not by the client.
+create table space_role_sets (
+  nature space_nature primary key,
+  roles  space_role[] not null
+);
+insert into space_role_sets values
+  ('business',    '{owner,admin,manager,member}'),
+  ('friendly',    '{owner,moderator,member}'),
+  ('casual',      '{owner,moderator,member,guest}'),
+  ('silly',       '{owner,moderator,member}'),
+  ('romantic',    '{owner,member}'),
+  ('marketplace', '{owner,moderator,seller,buyer}');
+
+create table space_permissions (
+  action    text primary key,
+  min_rank  int not null
+);
+insert into space_permissions values
+  ('space.update',80), ('space.invite.rotate',80), ('space.member.role',80),
+  ('space.member.remove',60), ('space.post',30), ('space.post.pin',60),
+  ('space.moderate',60), ('product.create',40), ('order.create',30),
+  ('dispute.arbitrate',60);
+
+create or replace function role_rank(r space_role) returns int language sql immutable as $$
+  select case r
+    when 'owner' then 100 when 'admin' then 80
+    when 'manager' then 60 when 'moderator' then 60
+    when 'seller' then 40 when 'member' then 30 when 'buyer' then 30
+    else 10 end;
+$$;
+
+create or replace function can(p_space uuid, p_action text, p_user uuid default auth.uid())
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select role_rank(m.role) >= coalesce((select min_rank from space_permissions where action = p_action), 0)
+       and m.approved
+     from space_members m
+     where m.space_id = p_space and m.user_id = p_user),
+    false);
+$$;
+
+-- ============================================================
+-- 3. INVITATIONS
+-- Only the hash is stored. The plaintext is returned once, by the
+-- function that mints it, and never persisted or logged.
+-- ============================================================
+create table space_invites (
+  id         uuid primary key default gen_random_uuid(),
+  space_id   uuid not null references spaces(id) on delete cascade,
+  code_hash  bytea not null,
+  hint       text,                  -- last 2 chars, for "is this the current one?"
+  version    int not null default 1,
+  max_uses   int check (max_uses is null or max_uses > 0),
+  uses       int not null default 0,
+  expires_at timestamptz,
+  revoked    boolean not null default false,
+  revoked_at timestamptz,
+  created_by uuid not null references auth.users(id),
+  created_at timestamptz not null default now()
+);
+-- at most one live code per space
+create unique index one_live_invite on space_invites (space_id) where not revoked;
+create index on space_invites (code_hash) where not revoked;
+
+create or replace function issue_invite(p_space uuid, p_ttl_hours int, p_max_uses int)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  v_code text;
+  v_next int;
+begin
+  if not can(p_space, 'space.invite.rotate') then
+    raise exception 'not permitted' using errcode = '42501';
+  end if;
+
+  -- revoking first is what makes the previous code die instantly
+  update space_invites
+     set revoked = true, revoked_at = now()
+   where space_id = p_space and not revoked;
+
+  select coalesce(max(version),0) + 1 into v_next from space_invites where space_id = p_space;
+
+  -- 8 chars from a 32-symbol alphabet ≈ 40 bits, plus revocation and
+  -- expiry, plus a rate limit on redemption. Not a password: a coupon.
+  v_code := upper(
+    translate(encode(gen_random_bytes(8),'base32'), 'OIL01', 'PQRST')
+  );
+  v_code := substr(v_code,1,4) || '-' || substr(v_code,5,4);
+
+  insert into space_invites (space_id, code_hash, hint, version, max_uses, expires_at, created_by)
+  values (p_space, digest(v_code,'sha256'), right(v_code,2), v_next, p_max_uses,
+          case when p_ttl_hours is null then null else now() + make_interval(hours => p_ttl_hours) end,
+          auth.uid());
+
+  insert into audit_logs (space_id, actor_id, event, meta)
+  values (p_space, auth.uid(), 'invite.rotated', jsonb_build_object('version', v_next));
+
+  return v_code;   -- the only time the plaintext exists outside the caller
+end $$;
+
+create or replace function redeem_invite(p_code text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  v_inv space_invites;
+  v_space spaces;
+  v_role space_role;
+begin
+  perform rate_limit('invite.redeem', auth.uid(), 10, interval '1 hour');
+
+  select * into v_inv from space_invites
+   where code_hash = digest(upper(btrim(p_code)),'sha256') and not revoked
+   for update;
+
+  -- one generic failure for every reason: a wrong code must not reveal
+  -- whether the space exists, is full, or the code merely expired
+  if v_inv is null
+     or (v_inv.expires_at is not null and v_inv.expires_at < now())
+     or (v_inv.max_uses is not null and v_inv.uses >= v_inv.max_uses)
+  then raise exception 'invalid invitation' using errcode = 'P0002';
+  end if;
+
+  select * into v_space from spaces where id = v_inv.space_id;
+
+  if v_space.max_members is not null and
+     (select count(*) from space_members where space_id = v_space.id) >= v_space.max_members
+  then raise exception 'invalid invitation' using errcode = 'P0002';
+  end if;
+
+  v_role := case when v_space.nature = 'marketplace' then 'buyer'::space_role else 'member'::space_role end;
+
+  insert into space_members (space_id, user_id, role, approved)
+  values (v_space.id, auth.uid(), v_role, not v_space.require_approval)
+  on conflict do nothing;
+
+  update space_invites set uses = uses + 1 where id = v_inv.id;
+
+  insert into audit_logs (space_id, actor_id, event, meta)
+  values (v_space.id, auth.uid(), 'member.joined', jsonb_build_object('version', v_inv.version));
+
+  return v_space.id;
+end $$;
+
+-- ============================================================
+-- 4. SPACE CONTENT
+-- ============================================================
+create table space_content (
+  id         uuid primary key default gen_random_uuid(),
+  space_id   uuid not null references spaces(id) on delete cascade,
+  kind       text not null,
+  author_id  uuid not null references auth.users(id),
+  payload    jsonb not null default '{}'::jsonb,
+  pinned     boolean not null default false,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index on space_content (space_id, kind, created_at desc);
+
+create table content_reactions (
+  content_id uuid not null references space_content(id) on delete cascade,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  key        text not null,
+  primary key (content_id, user_id, key)
+);
+create table poll_votes (
+  content_id uuid not null references space_content(id) on delete cascade,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  option_idx int not null,
+  primary key (content_id, user_id)   -- one vote each, changeable
+);
+
+-- ============================================================
+-- 5. MARKETPLACE
+-- ============================================================
+create table marketplace_products (
+  id          uuid primary key default gen_random_uuid(),
+  space_id    uuid not null references spaces(id) on delete cascade,
+  seller_id   uuid not null references auth.users(id),
+  title       text not null check (length(btrim(title)) between 2 and 60),
+  description text,
+  price       numeric(18,2) not null check (price > 0),
+  asset       asset_code not null default 'USDT',
+  qty         int not null default 1 check (qty >= 0),
+  condition   text not null,
+  category    text not null,
+  handover    text not null,
+  status      text not null default 'listed' check (status in ('listed','sold','withdrawn','suspended')),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index on marketplace_products (space_id, status, created_at desc);
+
+-- price changes are history, not an overwrite: sudden drops are a fraud signal
+create table product_price_history (
+  product_id uuid not null references marketplace_products(id) on delete cascade,
+  price      numeric(18,2) not null,
+  changed_by uuid not null,
+  changed_at timestamptz not null default now()
+);
+
+create table marketplace_orders (
+  id                  text primary key default 'MO-' || upper(substr(encode(gen_random_bytes(6),'hex'),1,8)),
+  space_id            uuid not null references spaces(id),
+  product_id          uuid not null references marketplace_products(id),
+  buyer_id            uuid not null references auth.users(id),
+  seller_id           uuid not null references auth.users(id),
+  unit_price          numeric(18,2) not null,     -- copied from the listing, server-side
+  qty                 int not null default 1 check (qty > 0),
+  total               numeric(18,2) not null,
+  asset               asset_code not null,
+  status              order_status not null default 'pending',
+  acceptance_deadline timestamptz,
+  idempotency_key     text not null,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now(),
+  constraint no_self_dealing check (buyer_id <> seller_id)
+);
+create unique index on marketplace_orders (idempotency_key);
+create index on marketplace_orders (buyer_id, created_at desc);
+create index on marketplace_orders (seller_id, created_at desc);
+
+-- append-only: the order's history cannot be rewritten by anyone
+create table order_events (
+  id          bigserial primary key,
+  order_id    text not null references marketplace_orders(id),
+  from_status order_status,
+  to_status   order_status not null,
+  transition  text not null,
+  actor_id    uuid,
+  meta        jsonb not null default '{}'::jsonb,
+  created_at  timestamptz not null default now()
+);
+create index on order_events (order_id, id);
+revoke update, delete on order_events from public, authenticated;
+
+create table marketplace_disputes (
+  id           uuid primary key default gen_random_uuid(),
+  order_id     text not null references marketplace_orders(id),
+  space_id     uuid not null references spaces(id),
+  opened_by    uuid not null references auth.users(id),
+  reason       text not null,
+  detail       text,
+  status       dispute_status not null default 'evidence',
+  evidence_deadline timestamptz not null default now() + interval '96 hours',
+  resolution   text,
+  resolved_by  uuid,
+  resolved_at  timestamptz,
+  created_at   timestamptz not null default now()
+);
+create unique index one_open_dispute on marketplace_disputes (order_id) where status <> 'resolved';
+
+create table dispute_evidence (
+  id          bigserial primary key,
+  dispute_id  uuid not null references marketplace_disputes(id) on delete cascade,
+  user_id     uuid not null references auth.users(id),
+  party       text not null check (party in ('buyer','seller','moderator')),
+  kind        text not null check (kind in ('photo','video','doc','tracking','messages')),
+  storage_path text,                       -- private bucket, signed URLs only
+  label       text not null,
+  sha256      bytea,                       -- so a file cannot be swapped later
+  created_at  timestamptz not null default now()
+);
+revoke update, delete on dispute_evidence from public, authenticated;
+
+-- ============================================================
+-- 6. WALLET  (development mode — no custody, no chain)
+-- Balances are a view over an append-only ledger. Nothing writes a
+-- balance directly, so every number has a row explaining it.
+-- ============================================================
+create table wallets (
+  user_id    uuid primary key references auth.users(id) on delete cascade,
+  status     text not null default 'active' check (status in ('active','frozen','closed')),
+  created_at timestamptz not null default now()
+);
+
+create table wallet_accounts (
+  user_id uuid not null references wallets(user_id) on delete cascade,
+  asset   asset_code not null,
+  primary key (user_id, asset)
+);
+
+create table wallet_entries (
+  id              bigserial primary key,
+  user_id         uuid not null,
+  asset           asset_code not null,
+  bucket          text not null check (bucket in ('available','held')),
+  amount          numeric(30,10) not null,          -- signed; sum = balance
+  kind            text not null,                    -- escrow_hold, escrow_release, payout, fee, refund, deposit, withdrawal
+  ref             text,                             -- order id, withdrawal id
+  idempotency_key text unique,
+  mode            text not null default 'development' check (mode in ('development','live')),
+  created_at      timestamptz not null default now(),
+  foreign key (user_id, asset) references wallet_accounts (user_id, asset)
+);
+create index on wallet_entries (user_id, asset, created_at desc);
+revoke update, delete on wallet_entries from public, authenticated;
+
+create view wallet_balances as
+  select user_id, asset,
+         sum(amount) filter (where bucket = 'available') as available,
+         sum(amount) filter (where bucket = 'held')      as held
+  from wallet_entries group by user_id, asset;
+
+-- Addresses and withdrawals exist as structure only. No key material is
+-- generated, stored or referenced here; a custodial provider owns that.
+create table wallet_addresses (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references wallets(user_id) on delete cascade,
+  asset        asset_code not null,
+  address      text not null,
+  label        text,
+  provider_ref text,                 -- external custodian's id
+  verified_at  timestamptz,          -- allowlist cooling-off
+  created_at   timestamptz not null default now()
+);
+create table withdrawals (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null,
+  asset        asset_code not null,
+  amount       numeric(30,10) not null check (amount > 0),
+  address_id   uuid not null references wallet_addresses(id),
+  status       text not null default 'blocked'
+               check (status in ('blocked','requested','approved','sent','failed')),
+  blocked_reason text default 'no custody provider configured',
+  created_at   timestamptz not null default now()
+);
+
+-- ============================================================
+-- 7. ESCROW STATE MACHINE
+-- The client names a transition. The server decides whether that
+-- transition is legal, for that actor, in that state, right now.
+-- ============================================================
+create table escrow_transitions (
+  from_status order_status not null,
+  transition  text not null,
+  to_status   order_status not null,
+  allowed_parties text[] not null,
+  primary key (from_status, transition)
+);
+insert into escrow_transitions values
+  ('pending','fund','funded','{buyer}'),
+  ('pending','cancel','cancelled','{buyer,seller}'),
+  ('funded','seller_confirm','seller_confirmed','{seller}'),
+  ('funded','cancel','cancelled','{seller}'),
+  ('funded','dispute','disputed','{buyer,seller}'),
+  ('seller_confirmed','ship','shipped','{seller}'),
+  ('seller_confirmed','dispute','disputed','{buyer,seller}'),
+  ('shipped','confirm_delivery','delivered','{buyer}'),
+  ('shipped','dispute','disputed','{buyer,seller}'),
+  ('delivered','accept','accepted','{buyer}'),
+  ('delivered','dispute','disputed','{buyer}'),
+  ('accepted','release','completed','{system}'),
+  ('disputed','resolve_release','completed','{arbiter}'),
+  ('disputed','resolve_refund','refunded','{arbiter}'),
+  ('disputed','resolve_partial','completed','{arbiter}');
+
+create or replace function party_of(p_order marketplace_orders, p_user uuid)
+returns text language sql stable as $$
+  select case
+    when p_order.buyer_id  = p_user then 'buyer'
+    when p_order.seller_id = p_user then 'seller'
+    when can(p_order.space_id,'dispute.arbitrate',p_user) then 'arbiter'
+    else null end;
+$$;
+
+create or replace function create_order(p_product uuid, p_idempotency text)
+returns marketplace_orders language plpgsql security definer set search_path = public as $$
+declare v_p marketplace_products; v_o marketplace_orders;
+begin
+  select * into v_o from marketplace_orders where idempotency_key = p_idempotency;
+  if found then return v_o; end if;                    -- replay-safe
+
+  perform rate_limit('order.create', auth.uid(), 20, interval '1 hour');
+
+  select * into v_p from marketplace_products where id = p_product for update;
+  if v_p is null or v_p.status <> 'listed' or v_p.qty < 1 then
+    raise exception 'listing unavailable' using errcode = 'P0002';
+  end if;
+  if v_p.seller_id = auth.uid() then raise exception 'cannot buy your own listing'; end if;
+  if not can(v_p.space_id,'order.create') then raise exception 'not permitted' using errcode='42501'; end if;
+
+  -- price is read from the listing row; a client-supplied price is ignored
+  insert into marketplace_orders (space_id, product_id, buyer_id, seller_id,
+                                  unit_price, qty, total, asset, idempotency_key)
+  values (v_p.space_id, v_p.id, auth.uid(), v_p.seller_id,
+          v_p.price, 1, v_p.price, v_p.asset, p_idempotency)
+  returning * into v_o;
+
+  insert into order_events (order_id, from_status, to_status, transition, actor_id)
+  values (v_o.id, null, 'pending', 'create', auth.uid());
+  return v_o;
+end $$;
+
+create or replace function transition_order(p_order text, p_transition text, p_meta jsonb default '{}')
+returns marketplace_orders language plpgsql security definer set search_path = public as $$
+declare
+  v_o marketplace_orders; v_rule escrow_transitions; v_party text; v_fee numeric;
+begin
+  -- the row lock is what stops two taps, or two devices, double-spending
+  select * into v_o from marketplace_orders where id = p_order for update;
+  if v_o is null then raise exception 'order not found' using errcode='P0002'; end if;
+
+  select * into v_rule from escrow_transitions
+   where from_status = v_o.status and transition = p_transition;
+  if v_rule is null then
+    raise exception 'transition % is not legal from %', p_transition, v_o.status using errcode='P0001';
+  end if;
+
+  v_party := party_of(v_o, auth.uid());
+  if v_party is null or not (v_party = any(v_rule.allowed_parties)) then
+    raise exception 'not permitted' using errcode='42501';
+  end if;
+
+  if p_transition = 'fund' then
+    perform wallet_hold(v_o.buyer_id, v_o.asset, v_o.total, v_o.id);
+  elsif p_transition in ('cancel','resolve_refund') and v_o.status <> 'pending' then
+    perform wallet_refund(v_o.buyer_id, v_o.asset, v_o.total, v_o.id);
+  elsif p_transition = 'resolve_release' then
+    perform wallet_settle(v_o, 1.0);
+  elsif p_transition = 'resolve_partial' then
+    perform wallet_settle(v_o, coalesce((p_meta->>'seller_share')::numeric, 0.5));
+  end if;
+
+  update marketplace_orders
+     set status = v_rule.to_status,
+         acceptance_deadline = case when p_transition = 'confirm_delivery'
+                                    then now() + interval '72 hours' else acceptance_deadline end,
+         updated_at = now()
+   where id = v_o.id
+  returning * into v_o;
+
+  insert into order_events (order_id, from_status, to_status, transition, actor_id, meta)
+  values (v_o.id, v_rule.from_status, v_rule.to_status, p_transition, auth.uid(), p_meta);
+
+  -- release is a system step triggered by acceptance, not a user action
+  if v_o.status = 'accepted' then
+    perform wallet_settle(v_o, 1.0);
+    update marketplace_orders set status = 'completed', updated_at = now() where id = v_o.id
+    returning * into v_o;
+    insert into order_events (order_id, from_status, to_status, transition, actor_id, meta)
+    values (v_o.id, 'accepted', 'completed', 'release', null, '{"by":"system"}');
+    update marketplace_products set qty = qty - v_o.qty,
+           status = case when qty - v_o.qty <= 0 then 'sold' else status end
+     where id = v_o.product_id;
+  end if;
+
+  return v_o;
+end $$;
+
+-- A scheduled job (pg_cron) closes the acceptance window. Doing it here
+-- rather than on the client means nobody can stall a seller forever.
+create or replace function auto_accept_due() returns int
+language plpgsql security definer set search_path = public as $$
+declare v_n int := 0; v_o marketplace_orders;
+begin
+  for v_o in select * from marketplace_orders
+             where status = 'delivered' and acceptance_deadline < now() for update skip locked loop
+    perform wallet_settle(v_o, 1.0);
+    update marketplace_orders set status = 'completed' where id = v_o.id;
+    insert into order_events (order_id, from_status, to_status, transition, meta)
+    values (v_o.id, 'delivered', 'completed', 'auto_accept', '{"by":"system"}');
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
+-- ---- wallet primitives (all append-only) ----
+create or replace function wallet_hold(p_user uuid, p_asset asset_code, p_amt numeric, p_ref text)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_avail numeric;
+begin
+  select coalesce(available,0) into v_avail from wallet_balances where user_id = p_user and asset = p_asset;
+  if v_avail is null or v_avail < p_amt then
+    raise exception 'insufficient balance' using errcode='P0001';
+  end if;
+  insert into wallet_entries (user_id, asset, bucket, amount, kind, ref, idempotency_key)
+  values (p_user, p_asset, 'available', -p_amt, 'escrow_hold', p_ref, p_ref || ':hold'),
+         (p_user, p_asset, 'held',        p_amt, 'escrow_hold', p_ref, p_ref || ':hold:h');
+end $$;
+
+create or replace function wallet_refund(p_user uuid, p_asset asset_code, p_amt numeric, p_ref text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  insert into wallet_entries (user_id, asset, bucket, amount, kind, ref, idempotency_key)
+  values (p_user, p_asset, 'held',      -p_amt, 'escrow_refund', p_ref, p_ref || ':refund:h'),
+         (p_user, p_asset, 'available',  p_amt, 'escrow_refund', p_ref, p_ref || ':refund');
+end $$;
+
+create or replace function wallet_settle(p_o marketplace_orders, p_seller_share numeric)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_to_seller numeric := round(p_o.total * p_seller_share, 2);
+        v_fee numeric := round(v_to_seller * 0.015, 2);
+begin
+  insert into wallet_entries (user_id, asset, bucket, amount, kind, ref, idempotency_key)
+  values (p_o.buyer_id, p_o.asset, 'held', -p_o.total, 'escrow_release', p_o.id, p_o.id || ':rel:h');
+  if p_o.total - v_to_seller > 0 then
+    insert into wallet_entries (user_id, asset, bucket, amount, kind, ref, idempotency_key)
+    values (p_o.buyer_id, p_o.asset, 'available', p_o.total - v_to_seller, 'escrow_partial_refund', p_o.id, p_o.id || ':rel:pr');
+  end if;
+  insert into wallet_entries (user_id, asset, bucket, amount, kind, ref, idempotency_key)
+  values (p_o.seller_id, p_o.asset, 'available', v_to_seller - v_fee, 'sale_payout', p_o.id, p_o.id || ':payout'),
+         (p_o.seller_id, p_o.asset, 'available', -0, 'fee', p_o.id, p_o.id || ':fee');
+end $$;
+
+-- ============================================================
+-- 8. ABUSE CONTROLS
+-- ============================================================
+create table rate_limit_hits (
+  bucket text not null, user_id uuid not null, at timestamptz not null default now()
+);
+create index on rate_limit_hits (bucket, user_id, at desc);
+
+create or replace function rate_limit(p_bucket text, p_user uuid, p_max int, p_window interval)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_n int;
+begin
+  delete from rate_limit_hits where at < now() - interval '7 days';
+  select count(*) into v_n from rate_limit_hits
+   where bucket = p_bucket and user_id = p_user and at > now() - p_window;
+  if v_n >= p_max then raise exception 'rate limit' using errcode='P0004'; end if;
+  insert into rate_limit_hits (bucket, user_id) values (p_bucket, p_user);
+end $$;
+
+create table audit_logs (
+  id        bigserial primary key,
+  space_id  uuid references spaces(id) on delete cascade,
+  actor_id  uuid,
+  event     text not null,
+  meta      jsonb not null default '{}'::jsonb,
+  ip        inet,
+  created_at timestamptz not null default now()
+);
+create index on audit_logs (space_id, id desc);
+revoke update, delete on audit_logs from public, authenticated;
+
+-- Signals a reviewer sees on a dispute. Facts, not a score that decides for them.
+create view account_signals as
+  select u.id as user_id,
+         (select count(*) from marketplace_orders o where o.seller_id = u.id and o.status = 'completed') as sales_completed,
+         (select count(*) from marketplace_orders o where o.buyer_id  = u.id and o.status = 'completed') as purchases_completed,
+         (select count(*) from marketplace_disputes d join marketplace_orders o on o.id = d.order_id
+           where o.buyer_id = u.id) as disputes_as_buyer,
+         (select count(*) from marketplace_disputes d join marketplace_orders o on o.id = d.order_id
+           where o.seller_id = u.id) as disputes_as_seller,
+         (select count(*) from marketplace_orders o where o.buyer_id = u.id and o.status = 'refunded') as refunds_received,
+         u.created_at as account_age
+  from auth.users u;
+
+-- ============================================================
+-- 9. ROW LEVEL SECURITY
+-- Default deny. Membership is the gate for everything inside a Space.
+-- ============================================================
+alter table spaces               enable row level security;
+alter table space_members        enable row level security;
+alter table space_invites        enable row level security;
+alter table space_content        enable row level security;
+alter table marketplace_products enable row level security;
+alter table marketplace_orders   enable row level security;
+alter table order_events         enable row level security;
+alter table marketplace_disputes enable row level security;
+alter table dispute_evidence     enable row level security;
+alter table wallet_entries       enable row level security;
+alter table wallet_addresses     enable row level security;
+alter table audit_logs           enable row level security;
+
+create or replace function is_member(p_space uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from space_members
+                  where space_id = p_space and user_id = auth.uid() and approved);
+$$;
+
+-- spaces: members see theirs; discoverable ones expose name/nature only
+-- through a dedicated view, never this table
+create policy spaces_read on spaces for select using (is_member(id));
+create policy spaces_update on spaces for update using (can(id,'space.update')) with check (can(id,'space.update'));
+create policy spaces_insert on spaces for insert with check (owner_id = auth.uid());
+
+create policy members_read on space_members for select using (is_member(space_id));
+create policy members_write on space_members for update using (can(space_id,'space.member.role'));
+create policy members_delete on space_members for delete
+  using (user_id = auth.uid() or can(space_id,'space.member.remove'));
+
+-- nobody selects invite rows directly; issue/redeem go through the functions
+create policy invites_none on space_invites for select using (false);
+
+create policy content_read on space_content for select using (is_member(space_id));
+create policy content_insert on space_content for insert
+  with check (author_id = auth.uid() and can(space_id,'space.post'));
+create policy content_update on space_content for update
+  using (author_id = auth.uid() or can(space_id,'space.moderate'));
+
+create policy products_read on marketplace_products for select using (is_member(space_id));
+create policy products_insert on marketplace_products for insert
+  with check (seller_id = auth.uid() and can(space_id,'product.create'));
+create policy products_update on marketplace_products for update
+  using (seller_id = auth.uid() or can(space_id,'space.moderate'));
+
+-- an order is visible to its two parties and to moderators. No listing of
+-- other people's orders, which is the usual IDOR in a marketplace.
+create policy orders_read on marketplace_orders for select
+  using (buyer_id = auth.uid() or seller_id = auth.uid() or can(space_id,'dispute.arbitrate'));
+-- writes only through transition_order()
+create policy orders_no_write on marketplace_orders for update using (false);
+create policy orders_no_insert on marketplace_orders for insert with check (false);
+
+create policy events_read on order_events for select using (
+  exists (select 1 from marketplace_orders o where o.id = order_id
+          and (o.buyer_id = auth.uid() or o.seller_id = auth.uid() or can(o.space_id,'dispute.arbitrate'))));
+create policy events_no_insert on order_events for insert with check (false);
+
+create policy disputes_read on marketplace_disputes for select using (
+  exists (select 1 from marketplace_orders o where o.id = order_id
+          and (o.buyer_id = auth.uid() or o.seller_id = auth.uid() or can(o.space_id,'dispute.arbitrate'))));
+
+create policy evidence_read on dispute_evidence for select using (
+  exists (select 1 from marketplace_disputes d join marketplace_orders o on o.id = d.order_id
+          where d.id = dispute_id
+            and (o.buyer_id = auth.uid() or o.seller_id = auth.uid() or can(o.space_id,'dispute.arbitrate'))));
+create policy evidence_insert on dispute_evidence for insert with check (user_id = auth.uid());
+
+create policy wallet_read on wallet_entries for select using (user_id = auth.uid());
+create policy wallet_no_write on wallet_entries for insert with check (false);
+create policy addresses_own on wallet_addresses for all using (user_id = auth.uid());
+create policy audit_read on audit_logs for select using (space_id is not null and is_member(space_id));
+
+-- ============================================================
+-- 10. GRANTS
+-- The API role gets functions, not tables, wherever money or
+-- membership is involved.
+-- ============================================================
+revoke all on marketplace_orders, order_events, wallet_entries, space_invites from anon, authenticated;
+grant select on marketplace_orders, order_events, wallet_entries to authenticated;
+grant execute on function issue_invite, redeem_invite, create_order, transition_order to authenticated;
+revoke execute on function wallet_hold, wallet_refund, wallet_settle, auto_accept_due from anon, authenticated;
+
+-- ============================================================
+-- 11. NOT IMPLEMENTED, AND DELIBERATELY SO
+--   · custody of USDT/BTC — needs a regulated provider; no key
+--     material is generated or stored anywhere in this schema
+--   · on-chain deposits and withdrawals — `withdrawals.status`
+--     defaults to 'blocked' until that provider exists
+--   · identity verification — no table claims a user is "verified"
+--   · automatic dispute rulings — a person decides, with the
+--     timeline, the evidence and account_signals in front of them
+-- ============================================================
+</script>
