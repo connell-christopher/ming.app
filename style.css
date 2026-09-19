@@ -1,4 +1,7 @@
-/* ============================================================
+  /*============================
+     STYLE.CSS
+  ============================*/
+  /* ============================================================
    ming — People. Moments. Possibilities.
    style.css
    ============================================================ */
@@ -1492,7 +1495,7 @@ input[type="range"]::-moz-range-thumb {
 .menu-item + .menu-item { border-top: 1px solid var(--border); }
 .menu-item .t { flex: 1 1 auto; font-size: 14.5px; font-weight: 530; }
 .menu-item svg { width: 19px; height: 19px; color: var(--coffee-light); }
-.menu-item .go { color: rgba(146, 114, 88, .6); }
+.menu-item .go { color: var(--coffee-light); }  /* was a hardcoded literal that never adapted to dark mode */
 
 /* ---------- 26. Moonflower ---------- */
 .moon {
@@ -1789,6 +1792,28 @@ input[type="range"]::-moz-range-thumb {
   }
 }
 
+/* ---------- 33b. Navigation chevron — one size, everywhere ----------
+   Audit finding: icon('chev') is wrapped in a `.go` span at every call
+   site, but no rule ever gave that svg a width/height. A bare <svg>
+   with no explicit size and no CSS falls back to the UA default box
+   (300×150), which is what was rendering as an oversized ">" on cards
+   like Daily Update / Activity / Need Help. This is the actual fix —
+   a size, not a redesign. The touch target (the parent button/row)
+   is untouched; only the glyph itself shrinks to something proportional. */
+.go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.go svg {
+  width: 18px;
+  height: 18px;
+}
+@media (max-width: 360px) {
+  .go svg { width: 16px; height: 16px; }
+}
+
 /* ---------- 32. Small phones ---------- */
 @media (max-width: 360px) {
   .greet h1 { font-size: 23px; }
@@ -1907,7 +1932,30 @@ html.theme-transitioning *::after {
 
 
 
-/* -------------------------- NEW CODE ----------------------------------*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*=======================================
+   SPACES.CSS
+=======================================*/
 /* ============================================================
    ming — Spaces
    spaces.css
@@ -2607,4 +2655,337 @@ html.theme-transitioning *::after {
 
 @media (prefers-reduced-motion: reduce) {
   .wz-step, .sp[data-nature="silly"] .sticker.pop { animation: none !important; }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*=======================================
+   MOONFLOWER.CSS
+=======================================*/
+/* ============================================================
+   ming — Moonflower
+   moonflower.css  ·  the private lunar environment.
+   Scoped entirely to `.moon` — nothing here touches Ming proper.
+   ============================================================ */
+
+/* ---------- palette ----------
+   .moon carries the light/day atmosphere by default — evolved from
+   Ming's own warm palette, per the brief, not a generic light theme.
+   [data-theme="dark"] .moon carries the night/moon atmosphere.
+   Both sides only ever redefine variables; every rule below reads
+   through them, so nothing else in this file needs a dark variant. */
+.moon {
+  --m-space: #F7EEE0;
+  --m-bg-rgb: 247, 238, 224;
+  --m-ink-rgb: 176, 134, 72;    /* warm celestial gold, used at low alpha for glows/borders/tints */
+  --m-ink2-rgb: 158, 112, 56;
+  --m-grey: #A9977C;
+  --m-light: #C9863E;
+  --m-silver: #B79A6C;
+  --m-oncolor: #3B2A1C;         /* ink placed on top of the bright accent */
+  --bg: var(--m-space);
+  --surface: rgba(var(--m-ink-rgb), .05);
+  --surface-2: rgba(var(--m-ink-rgb), .09);
+  --text: #3B2C1E;
+  --muted: #8A7862;
+  --border: rgba(var(--m-ink-rgb), .16);
+  --coffee: #B08A4E;
+  --coffee-dark: #6B4A2A;
+  --coffee-light: #A9876A;
+  background: var(--m-space) !important;
+  color: var(--text);
+  overflow: hidden;
+}
+[data-theme="dark"] .moon {
+  --m-space: #02030A;
+  --m-bg-rgb: 2, 3, 10;
+  --m-ink-rgb: 221, 226, 234;
+  --m-ink2-rgb: 191, 197, 208;
+  --m-grey: #8F929B;
+  --m-light: #DDE2EA;
+  --m-silver: #BFC5D0;
+  --m-oncolor: #10131C;
+  --surface: rgba(var(--m-ink-rgb), .06);
+  --surface-2: rgba(var(--m-ink-rgb), .1);
+  --text: #EDEFF4;
+  --muted: #9CA1AE;
+  --border: rgba(var(--m-ink-rgb), .12);
+  --coffee: #C7CCDA;
+  --coffee-dark: #DDE2EA;
+  --coffee-light: #8F929B;
+}
+
+/* the eclipse is a night-only event: a brief, warm-tinted hush over
+   the glass surfaces at its peak, cleared automatically afterward */
+.moon.is-eclipse .moon-glass,
+.moon.is-eclipse .moon-tile,
+.moon.is-eclipse .orbit-goal,
+.moon.is-eclipse .log-composer,
+.moon.is-eclipse .log-entry {
+  transition: box-shadow 1.4s ease, border-color 1.4s ease;
+  border-color: rgba(255, 246, 232, .22);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .06) inset, 0 0 30px -10px rgba(255, 246, 232, .18);
+}
+
+.moon .msky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  animation: mskyIn 900ms ease-out forwards;
+}
+@keyframes mskyIn { to { opacity: 1; } }
+
+.moon .topbar,
+.moon .scroll,
+.moon .thread,
+.moon .composer,
+.moon .fab,
+.moon .nav { position: relative; z-index: 1; }
+
+.moon .topbar { background: transparent; backdrop-filter: none; border-bottom: none; }
+.moon .topbar.is-scrolled { border-bottom-color: var(--border); background: rgba(var(--m-bg-rgb),.5); backdrop-filter: blur(10px); }
+.moon .icon-btn { color: var(--text); }
+.moon .icon-btn:active { background: rgba(var(--m-ink-rgb),.08); }
+.moon .back-btn svg, .moon .topbar-title { color: var(--text); }
+
+/* ---------- glass primitive ---------- */
+.moon-glass {
+  background: linear-gradient(155deg, rgba(var(--m-ink-rgb),.07), rgba(var(--m-ink-rgb),.03));
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 18px 40px -28px rgba(0,0,0,.7);
+}
+
+/* ---------- home ---------- */
+.moon-hero { padding: 8px 22px 6px; text-align: left; position: relative; z-index: 1; }
+.moon-hero .mark { display: none; } /* the real moon lives in the canvas now */
+.moon-hero .eyebrow {
+  font-size: 11px; letter-spacing: .1em; color: var(--muted);
+  display: flex; align-items: center; gap: 8px;
+}
+.moon-hero .eyebrow .dot {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--m-light);
+  box-shadow: 0 0 8px 1px rgba(var(--m-ink-rgb),.7);
+  animation: mdotPulse 3.2s ease-in-out infinite;
+}
+@keyframes mdotPulse { 50% { opacity: .35; } }
+.moon-hero h1 {
+  margin-top: 10px;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: 28px; font-weight: 400; letter-spacing: -.01em; line-height: 1.22;
+  color: var(--m-light);
+}
+.moon-hero p { margin-top: 9px; font-size: 13.5px; color: var(--muted); line-height: 1.55; max-width: 30ch; }
+
+.moon-feel {
+  margin: 18px 18px 0;
+  display: block;
+  width: calc(100% - 36px);
+  text-align: left;
+  padding: 15px 17px;
+  position: relative; z-index: 1;
+}
+.moon-feel .q { font-size: 13px; color: var(--muted); }
+.moon-feel .a {
+  margin-top: 6px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font-size: 15.5px; font-weight: 500; color: var(--m-light);
+}
+.moon-feel .a svg { width: 17px; height: 17px; color: var(--muted); }
+
+.moon-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 11px;
+  padding: 22px 18px 0; position: relative; z-index: 1;
+}
+.moon-tile {
+  text-align: left; padding: 17px 15px 16px;
+  min-height: 118px; display: flex; flex-direction: column;
+  transition: transform 200ms ease, background 200ms ease;
+  position: relative; overflow: hidden;
+}
+.moon-tile:active { transform: translateY(-2px) scale(.98); background: rgba(var(--m-ink-rgb),.1); }
+.moon-tile .ic { color: var(--m-silver); margin-bottom: auto; }
+.moon-tile .ic svg { width: 20px; height: 20px; }
+.moon-tile .t { font-size: 15px; font-weight: 540; letter-spacing: -.015em; margin-top: 14px; color: var(--text); }
+.moon-tile .s { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+.moon-tile::after {
+  content: ""; position: absolute; right: -20px; top: -20px;
+  width: 70px; height: 70px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--m-ink-rgb),.09), transparent 70%);
+}
+
+.moon-quiet {
+  margin: 20px 18px 0; padding: 15px 17px;
+  font-size: 12.5px; color: var(--muted); line-height: 1.6;
+  border: 1px dashed rgba(var(--m-ink-rgb),.16); border-radius: 16px;
+  position: relative; z-index: 1;
+}
+
+/* ---------- room shell ---------- */
+.moon #moonroom-scroll { position: relative; z-index: 1; }
+.moon .center-note { color: var(--muted); }
+
+/* ---------- talk ---------- */
+/* ---------- talk: native intents, not a command menu ---------- */
+.moon-chips {
+  display: flex; gap: 8px; overflow-x: auto;
+  padding: 14px 16px 4px; position: relative; z-index: 1;
+}
+.moon-chip {
+  flex: 0 0 auto; min-height: 34px; padding: 0 13px;
+  border-radius: 999px; font-size: 12.5px; font-weight: 540;
+  color: var(--text);
+  background: rgba(var(--m-ink-rgb), .07);
+  border: 1px solid var(--border);
+  transition: background 150ms ease, transform 150ms ease;
+}
+.moon-chip:active { transform: scale(.94); background: rgba(var(--m-ink-rgb), .14); }
+
+.moon .bub.them {
+  background: linear-gradient(155deg, rgba(var(--m-ink-rgb),.08), rgba(var(--m-ink-rgb),.03));
+  border: 1px solid var(--border);
+  color: var(--text);
+  backdrop-filter: blur(14px);
+}
+.moon .bub.me {
+  background: linear-gradient(155deg, rgba(var(--m-ink-rgb),.92), rgba(var(--m-ink2-rgb),.86));
+  color: var(--m-oncolor);
+}
+.moon .bub .time { opacity: .55; }
+.moon .composer {
+  background: rgba(var(--m-bg-rgb),.55);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+}
+.moon .composer textarea {
+  background: rgba(var(--m-ink-rgb),.06);
+  border-color: var(--border);
+  color: var(--text);
+}
+.moon .composer textarea::placeholder { color: var(--muted); }
+.moon .send { background: var(--m-light); color: var(--m-oncolor); }
+
+/* ---------- my journey: orbital trajectories ---------- */
+.orbit-goal {
+  margin: 0 16px 14px; padding: 17px 17px 15px; position: relative; z-index: 1;
+}
+.orbit-goal .t { font-size: 15px; font-weight: 540; color: var(--text); }
+.orbit-goal .s { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.orbit-goal svg.track { display: block; width: 100%; height: 56px; margin-top: 10px; overflow: visible; }
+.orbit-goal .track-path { fill: none; stroke: rgba(var(--m-ink-rgb),.16); stroke-width: 1.5; stroke-dasharray: 3 5; }
+.orbit-goal .track-fill { fill: none; stroke: var(--m-light); stroke-width: 2; filter: drop-shadow(0 0 4px rgba(var(--m-ink-rgb),.5)); transition: stroke-dashoffset 700ms ease; }
+.orbit-goal .track-node { fill: rgba(var(--m-ink-rgb),.35); }
+.orbit-goal .track-cur {
+  fill: var(--m-light);
+  filter: drop-shadow(0 0 6px rgba(var(--m-ink-rgb),.9));
+}
+.orbit-goal .track-target { fill: none; stroke: var(--m-silver); stroke-width: 1.4; }
+.orbit-goal .steps { margin-top: 6px; }
+
+/* ---------- my space: personal constellation ---------- */
+.constellation {
+  position: relative; height: 128px; margin: 4px 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: radial-gradient(120px 90px at 70% 20%, rgba(var(--m-ink-rgb),.05), transparent 70%);
+  overflow: hidden;
+}
+.constellation .cstar {
+  position: absolute; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--m-light);
+  box-shadow: 0 0 8px 2px rgba(var(--m-ink-rgb),.55);
+  transform: translate(-50%, -50%);
+  transition: transform 160ms ease;
+}
+.constellation .cstar::after {
+  content: ""; position: absolute; inset: -7px; border-radius: 50%;
+  border: 1px solid rgba(var(--m-ink-rgb),.25); opacity: 0;
+  transition: opacity 160ms ease;
+}
+.constellation .cstar:active::after { opacity: 1; }
+.constellation .cempty {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: var(--muted); text-align: center; padding: 0 20px;
+}
+
+.log-composer { margin: 0 16px 8px; padding: 17px 17px 15px; position: relative; z-index: 1; }
+.log-composer .date { font-size: 11px; letter-spacing: .06em; color: var(--muted); }
+.log-composer h4 {
+  margin-top: 6px; font-size: 15.5px; font-weight: 460; color: var(--m-light);
+  font-family: "Iowan Old Style", Palatino, Georgia, serif;
+}
+.log-composer textarea {
+  width: 100%; margin-top: 12px; min-height: 72px; max-height: 160px;
+  background: rgba(var(--m-ink-rgb),.05); border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 13px; font-size: 14.5px; line-height: 1.55; color: var(--text); resize: none; outline: none;
+}
+.log-composer textarea::placeholder { color: var(--muted); }
+.log-composer textarea:focus { border-color: rgba(var(--m-ink-rgb),.35); background: rgba(var(--m-ink-rgb),.08); }
+.log-composer .row { display: flex; justify-content: flex-end; margin-top: 10px; }
+.log-composer .row button {
+  font-size: 13px; font-weight: 540; color: var(--m-light);
+  padding: 9px 4px; opacity: .5; transition: opacity 150ms;
+}
+.log-composer .row button:not([disabled]) { opacity: 1; }
+
+.log-entry { margin: 0 16px 10px; padding: 15px 16px; position: relative; z-index: 1; }
+.log-entry .d { font-size: 11px; color: var(--muted); letter-spacing: .03em; }
+.log-entry p { margin-top: 7px; font-size: 14px; line-height: 1.6; color: var(--text); }
+.log-entry .del { margin-top: 10px; }
+
+/* ---------- reminders: orbit strip ---------- */
+.orbit-strip {
+  margin: 6px 16px 6px; height: 58px; position: relative; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.orbit-strip svg { width: 100%; height: 58px; overflow: visible; }
+.orbit-strip .ring { fill: none; stroke: rgba(var(--m-ink-rgb),.14); stroke-width: 1; }
+.orbit-strip .body { transition: opacity 200ms; }
+.orbit-strip .body.done { opacity: .35; }
+.orbit-strip .body circle { fill: var(--m-light); filter: drop-shadow(0 0 5px rgba(var(--m-ink-rgb),.6)); }
+.orbit-strip .body.done circle { fill: var(--m-grey); filter: none; }
+
+.moon .check { color: var(--text); }
+.moon .check .box { border-color: rgba(var(--m-ink-rgb),.28); }
+.moon .check[aria-pressed="true"] .box { background: var(--m-light); border-color: var(--m-light); }
+.moon .check[aria-pressed="true"] .box svg { color: var(--m-oncolor); }
+.moon .check .when { color: var(--muted); }
+.moon .check[aria-pressed="true"] .lb { color: var(--muted); }
+
+/* ---------- shared empty state on dark ---------- */
+.moon .empty .mark { border-color: rgba(var(--m-ink-rgb),.2); }
+.moon .empty .mark::after { background: rgba(var(--m-ink-rgb),.06); }
+.moon .empty h3 { color: var(--text); }
+.moon .empty p { color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .moon .msky { animation: none; opacity: 1; }
+  .moon-hero .eyebrow .dot { animation: none; }
 }
