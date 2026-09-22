@@ -5089,16 +5089,20 @@ function seedNewSpace(space) {
 
 
 /* ------------------------------------------------------------
-   MING AUTH — FORM SWITCHING + SUPABASE SIGNUP
+   MING AUTH — FORM SWITCHING + SUPABASE AUTH
 ------------------------------------------------------------ */
 
 document.addEventListener('DOMContentLoaded', () => {
   const loginForm = document.getElementById('login-form');
   const signupForm = document.getElementById('signup-form');
+
   const showSignup = document.getElementById('show-signup');
   const showLogin = document.getElementById('show-login');
 
-  /* Switch: Login → Signup */
+  /* ----------------------------------------------------------
+     LOGIN ↔ SIGNUP SWITCHING
+  ---------------------------------------------------------- */
+
   if (showSignup) {
     showSignup.addEventListener('click', (event) => {
       event.preventDefault();
@@ -5108,7 +5112,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  /* Switch: Signup → Login */
   if (showLogin) {
     showLogin.addEventListener('click', (event) => {
       event.preventDefault();
@@ -5118,12 +5121,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  /* Signup → Supabase Auth */
+  /* ----------------------------------------------------------
+     SIGN UP
+  ---------------------------------------------------------- */
+
   if (signupForm) {
     signupForm.addEventListener('submit', async (event) => {
       event.preventDefault();
-
-      console.log('MING SIGNUP BUTTON CLICKED');
 
       const name = document.getElementById('signup-name').value.trim();
       const username = document.getElementById('signup-username').value.trim();
@@ -5155,6 +5159,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
       message.textContent =
         'Account created. Check your email to confirm your account.';
+    });
+  }
+
+  /* ----------------------------------------------------------
+     LOG IN
+  ---------------------------------------------------------- */
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+
+      const message = document.getElementById('login-message');
+
+      message.textContent = 'Signing you in...';
+
+      const { data, error } =
+        await supabaseClient.auth.signInWithPassword({
+          email,
+          password
+        });
+
+      if (error) {
+        console.error('Ming login error:', error);
+        message.textContent = error.message;
+        return;
+      }
+
+      console.log('Ming login successful:', data);
+
+      message.textContent = 'Signed in successfully.';
     });
   }
 });
