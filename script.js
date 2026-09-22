@@ -5484,3 +5484,42 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+/* ------------------------------------------------------------
+   MING AUTH SESSION
+------------------------------------------------------------ */
+
+(async function initMingAuthSession() {
+  const authScreen = document.getElementById('auth-screen');
+
+  try {
+    const {
+      data: { session },
+      error
+    } = await supabaseClient.auth.getSession();
+
+    if (error) {
+      console.error('Ming session check failed.');
+      return;
+    }
+
+    if (session?.user) {
+      console.log('Ming authenticated session detected.');
+
+      // Keep the main Ming application visible.
+      if (authScreen) {
+        authScreen.hidden = true;
+      }
+
+      return;
+    }
+
+    // No authenticated session.
+    if (authScreen) {
+      authScreen.hidden = false;
+    }
+
+  } catch (error) {
+    console.error('Ming authentication initialization failed.');
+  }
+})();
