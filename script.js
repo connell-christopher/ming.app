@@ -5127,6 +5127,8 @@ if (signupForm) {
   signupForm.addEventListener('submit', async (event) => {
     event.preventDefault();
 
+      console.log('MING SIGNUP BUTTON CLICKED');
+
     const name = document.getElementById('signup-name').value.trim();
     const username = document.getElementById('signup-username').value.trim();
     const email = document.getElementById('signup-email').value.trim();
