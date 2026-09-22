@@ -5161,3 +5161,46 @@ if (signupForm) {
       'Account created. Check your email to confirm your account.';
   });
 }
+
+/* ------------------------------------------------------------
+   MING — SUPABASE SIGNUP
+------------------------------------------------------------ */
+
+const signupForm = document.getElementById('signup-form');
+
+if (signupForm) {
+  signupForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const name = document.getElementById('signup-name').value.trim();
+    const username = document.getElementById('signup-username').value.trim();
+    const email = document.getElementById('signup-email').value.trim();
+    const password = document.getElementById('signup-password').value;
+
+    const message = document.getElementById('signup-message');
+
+    message.textContent = 'Creating your account...';
+
+    const { data, error } = await supabaseClient.auth.signUp({
+      email: email,
+      password: password,
+      options: {
+        data: {
+          display_name: name,
+          username: username
+        }
+      }
+    });
+
+    if (error) {
+      console.error('Ming signup error:', error);
+      message.textContent = error.message;
+      return;
+    }
+
+    console.log('Ming signup successful:', data);
+
+    message.textContent =
+      'Account created. Check your email to confirm your account.';
+  });
+}
