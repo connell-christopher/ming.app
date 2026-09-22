@@ -12,6 +12,20 @@
    ============================================================ */
 
 /* ------------------------------------------------------------
+   SUPABASE CONNECTION
+------------------------------------------------------------ */
+
+const SUPABASE_URL = 'https://avnuejgqaxygxeiyqeny.supabase.co';
+
+const SUPABASE_PUBLISHABLE_KEY =
+  'sb_publishable_wF8lZnLfC-x9ySqXUqRcHQ_CI_QWrHW';
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
+
+/* ------------------------------------------------------------
    UTILITIES
 ------------------------------------------------------------ */
 const $ = (s, r = document) => r.querySelector(s);
