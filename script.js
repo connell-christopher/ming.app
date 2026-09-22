@@ -5164,7 +5164,6 @@ if (signupForm) {
 
 /* ------------------------------------------------------------
    MING — SUPABASE SIGNUP
------------------------------------------------------------- */
 
 const signupForm = document.getElementById('signup-form');
 
@@ -5204,3 +5203,4 @@ if (signupForm) {
       'Account created. Check your email to confirm your account.';
   });
 }
+------------------------------------------------------------ */
