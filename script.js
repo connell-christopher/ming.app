@@ -5089,7 +5089,7 @@ function seedNewSpace(space) {
 
 
 /* ------------------------------------------------------------
-   MING AUTH — FORM SWITCHING + SUPABASE AUTH
+   MING AUTH — STRICT FORM VALIDATION + SUPABASE AUTH
 ------------------------------------------------------------ */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -5100,24 +5100,130 @@ document.addEventListener('DOMContentLoaded', () => {
   const showLogin = document.getElementById('show-login');
 
   /* ----------------------------------------------------------
+     SECURITY HELPERS
+  ---------------------------------------------------------- */
+
+  const MAX_NAME_LENGTH = 60;
+  const MAX_USERNAME_LENGTH = 30;
+  const MAX_EMAIL_LENGTH = 254;
+  const MIN_PASSWORD_LENGTH = 12;
+  const MAX_PASSWORD_LENGTH = 128;
+
+  /*
+     Reject Unicode control characters, null bytes,
+     zero-width characters and other invisible characters
+     that should never be present in profile fields.
+  */
+  function containsUnsafeCharacters(value) {
+    return /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/u.test(value);
+  }
+
+  /*
+     Normalize user-controlled text without modifying passwords.
+  */
+  function normalizeText(value) {
+    return value.normalize('NFKC').trim();
+  }
+
+  /*
+     Username policy:
+     - 3–30 characters
+     - ASCII letters
+     - numbers
+     - underscore
+     - hyphen
+     - must begin/end with letter or number
+  */
+  function isValidUsername(username) {
+    return /^[A-Za-z0-9](?:[A-Za-z0-9_-]{1,28}[A-Za-z0-9])?$/.test(
+      username
+    );
+  }
+
+  /*
+     Reasonable email validation.
+     Supabase remains the authoritative authentication layer.
+  */
+  function isValidEmail(email) {
+    if (!email || email.length > MAX_EMAIL_LENGTH) {
+      return false;
+    }
+
+    if (containsUnsafeCharacters(email)) {
+      return false;
+    }
+
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  function isValidDisplayName(name) {
+    if (!name || name.length > MAX_NAME_LENGTH) {
+      return false;
+    }
+
+    if (containsUnsafeCharacters(name)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function isValidPassword(password) {
+    /*
+       Do NOT normalize, trim, lowercase, or otherwise modify
+       passwords. Passwords must reach Supabase exactly as entered.
+    */
+    return (
+      password.length >= MIN_PASSWORD_LENGTH &&
+      password.length <= MAX_PASSWORD_LENGTH &&
+      !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(password)
+    );
+  }
+
+  function setMessage(element, text) {
+    if (element) {
+      element.textContent = text;
+    }
+  }
+
+  function setButtonState(form, disabled) {
+    const button = form?.querySelector('button[type="submit"]');
+
+    if (!button) return;
+
+    button.disabled = disabled;
+    button.setAttribute('aria-busy', disabled ? 'true' : 'false');
+  }
+
+  /* ----------------------------------------------------------
      LOGIN ↔ SIGNUP SWITCHING
   ---------------------------------------------------------- */
 
-  if (showSignup) {
+  if (showSignup && loginForm && signupForm) {
     showSignup.addEventListener('click', (event) => {
       event.preventDefault();
 
       loginForm.hidden = true;
       signupForm.hidden = false;
+
+      setMessage(
+        document.getElementById('login-message'),
+        ''
+      );
     });
   }
 
-  if (showLogin) {
+  if (showLogin && loginForm && signupForm) {
     showLogin.addEventListener('click', (event) => {
       event.preventDefault();
 
       signupForm.hidden = true;
       loginForm.hidden = false;
+
+      setMessage(
+        document.getElementById('signup-message'),
+        ''
+      );
     });
   }
 
@@ -5129,36 +5235,150 @@ document.addEventListener('DOMContentLoaded', () => {
     signupForm.addEventListener('submit', async (event) => {
       event.preventDefault();
 
-      const name = document.getElementById('signup-name').value.trim();
-      const username = document.getElementById('signup-username').value.trim();
-      const email = document.getElementById('signup-email').value.trim();
-      const password = document.getElementById('signup-password').value;
-
       const message = document.getElementById('signup-message');
 
-      message.textContent = 'Creating your account...';
-
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            display_name: name,
-            username: username
-          }
-        }
-      });
-
-      if (error) {
-        console.error('Ming signup error:', error);
-        message.textContent = error.message;
+      /*
+         Prevent double submissions while Supabase is processing
+         the request.
+      */
+      if (signupForm.dataset.submitting === 'true') {
         return;
       }
 
-      console.log('Ming signup successful:', data);
+      signupForm.dataset.submitting = 'true';
+      setButtonState(signupForm, true);
 
-      message.textContent =
-        'Account created. Check your email to confirm your account.';
+      try {
+        const nameInput = document.getElementById('signup-name');
+        const usernameInput = document.getElementById('signup-username');
+        const emailInput = document.getElementById('signup-email');
+        const passwordInput = document.getElementById('signup-password');
+
+        if (
+          !nameInput ||
+          !usernameInput ||
+          !emailInput ||
+          !passwordInput
+        ) {
+          setMessage(
+            message,
+            'The signup form is temporarily unavailable.'
+          );
+          return;
+        }
+
+        const name = normalizeText(nameInput.value);
+        const username = normalizeText(usernameInput.value);
+        const email = normalizeText(emailInput.value);
+        const password = passwordInput.value;
+
+        /* ------------------------------------------------------
+           STRICT VALIDATION
+        ------------------------------------------------------ */
+
+        if (!isValidDisplayName(name)) {
+          setMessage(
+            message,
+            'Please enter a valid display name using 1–60 characters.'
+          );
+          return;
+        }
+
+        if (!isValidUsername(username)) {
+          setMessage(
+            message,
+            'Username must be 3–30 characters and contain only letters, numbers, underscores, or hyphens.'
+          );
+          return;
+        }
+
+        if (!isValidEmail(email)) {
+          setMessage(
+            message,
+            'Please enter a valid email address.'
+          );
+          return;
+        }
+
+        if (!isValidPassword(password)) {
+          setMessage(
+            message,
+            'Password must be 12–128 characters long.'
+          );
+          return;
+        }
+
+        /*
+           Keep username canonical.
+           This prevents visually confusing variants such as
+           "Connell", "CONNELL", and "connell".
+        */
+        const canonicalUsername = username.toLowerCase();
+
+        /* ------------------------------------------------------
+           SUPABASE AUTH
+           Supabase handles the actual authentication request.
+           No SQL is constructed from these values.
+        ------------------------------------------------------ */
+
+        const { data, error } =
+          await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                display_name: name,
+                username: canonicalUsername
+              }
+            }
+          });
+
+        if (error) {
+          /*
+             Do not expose raw backend errors unnecessarily.
+             Do not log passwords, tokens, or authentication data.
+          */
+          console.error('Ming signup failed:', error.message);
+
+          setMessage(
+            message,
+            'We could not create your account. Please check your details and try again.'
+          );
+
+          return;
+        }
+
+        /*
+           Do not log `data`.
+           It can contain authentication-related information.
+        */
+
+        if (data?.user && !data?.session) {
+          setMessage(
+            message,
+            'Account created. Check your email to confirm your account.'
+          );
+        } else {
+          setMessage(
+            message,
+            'Account created successfully.'
+          );
+        }
+
+      } catch (error) {
+        console.error(
+          'Ming signup request failed.'
+        );
+
+        setMessage(
+          message,
+          'Something went wrong. Please try again.'
+        );
+
+      } finally {
+        signupForm.dataset.submitting = 'false';
+        setButtonState(signupForm, false);
+      }
     });
   }
 
@@ -5170,28 +5390,97 @@ document.addEventListener('DOMContentLoaded', () => {
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
 
-      const email = document.getElementById('login-email').value.trim();
-      const password = document.getElementById('login-password').value;
-
       const message = document.getElementById('login-message');
 
-      message.textContent = 'Signing you in...';
-
-      const { data, error } =
-        await supabaseClient.auth.signInWithPassword({
-          email,
-          password
-        });
-
-      if (error) {
-        console.error('Ming login error:', error);
-        message.textContent = error.message;
+      if (loginForm.dataset.submitting === 'true') {
         return;
       }
 
-      console.log('Ming login successful:', data);
+      loginForm.dataset.submitting = 'true';
+      setButtonState(loginForm, true);
 
-      message.textContent = 'Signed in successfully.';
+      try {
+        const emailInput = document.getElementById('login-email');
+        const passwordInput = document.getElementById('login-password');
+
+        if (!emailInput || !passwordInput) {
+          setMessage(
+            message,
+            'The login form is temporarily unavailable.'
+          );
+          return;
+        }
+
+        const email = normalizeText(emailInput.value);
+        const password = passwordInput.value;
+
+        /* ------------------------------------------------------
+           LOGIN VALIDATION
+        ------------------------------------------------------ */
+
+        if (!isValidEmail(email)) {
+          setMessage(
+            message,
+            'Please enter a valid email address.'
+          );
+          return;
+        }
+
+        if (
+          password.length < 1 ||
+          password.length > MAX_PASSWORD_LENGTH
+        ) {
+          setMessage(
+            message,
+            'Email or password is incorrect.'
+          );
+          return;
+        }
+
+        /* ------------------------------------------------------
+           SUPABASE LOGIN
+        ------------------------------------------------------ */
+
+        const { error } =
+          await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+          });
+
+        if (error) {
+          /*
+             Generic authentication error helps avoid unnecessarily
+             revealing whether a particular account exists.
+          */
+          console.error('Ming login failed:', error.message);
+
+          setMessage(
+            message,
+            'Email or password is incorrect.'
+          );
+
+          return;
+        }
+
+        setMessage(
+          message,
+          'Signed in successfully.'
+        );
+
+      } catch (error) {
+        console.error(
+          'Ming login request failed.'
+        );
+
+        setMessage(
+          message,
+          'Something went wrong. Please try again.'
+        );
+
+      } finally {
+        loginForm.dataset.submitting = 'false';
+        setButtonState(loginForm, false);
+      }
     });
   }
 });
