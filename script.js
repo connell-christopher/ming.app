@@ -26,6 +26,24 @@ const supabaseClient = window.supabase.createClient(
 );
 
 /* ------------------------------------------------------------
+   SUPABASE CONNECTION TEST
+------------------------------------------------------------ */
+
+(async function testSupabaseConnection() {
+  const { error } = await supabaseClient
+    .from('profiles')
+    .select('id')
+    .limit(1);
+
+  if (error) {
+    console.error('Ming Supabase connection test failed:', error.message);
+    return;
+  }
+
+  console.log('Ming Supabase connection successful.');
+})();
+
+/* ------------------------------------------------------------
    UTILITIES
 ------------------------------------------------------------ */
 const $ = (s, r = document) => r.querySelector(s);
