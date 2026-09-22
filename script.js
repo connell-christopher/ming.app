@@ -5089,7 +5089,7 @@ function seedNewSpace(space) {
 
 
 /* ------------------------------------------------------------
-   MING AUTH SCREEN — FORM SWITCHING
+   MING AUTH — FORM SWITCHING + SUPABASE SIGNUP
 ------------------------------------------------------------ */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -5098,6 +5098,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const showSignup = document.getElementById('show-signup');
   const showLogin = document.getElementById('show-login');
 
+  /* Switch: Login → Signup */
   if (showSignup) {
     showSignup.addEventListener('click', (event) => {
       event.preventDefault();
@@ -5107,6 +5108,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  /* Switch: Signup → Login */
   if (showLogin) {
     showLogin.addEventListener('click', (event) => {
       event.preventDefault();
@@ -5115,49 +5117,44 @@ document.addEventListener('DOMContentLoaded', () => {
       loginForm.hidden = false;
     });
   }
-});
 
-/* ------------------------------------------------------------
-   MING SUPABASE — SIGN UP
------------------------------------------------------------- */
-
-const signupForm = document.getElementById('signup-form');
-
-if (signupForm) {
-  signupForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
+  /* Signup → Supabase Auth */
+  if (signupForm) {
+    signupForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
 
       console.log('MING SIGNUP BUTTON CLICKED');
 
-    const name = document.getElementById('signup-name').value.trim();
-    const username = document.getElementById('signup-username').value.trim();
-    const email = document.getElementById('signup-email').value.trim();
-    const password = document.getElementById('signup-password').value;
+      const name = document.getElementById('signup-name').value.trim();
+      const username = document.getElementById('signup-username').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const password = document.getElementById('signup-password').value;
 
-    const message = document.getElementById('signup-message');
+      const message = document.getElementById('signup-message');
 
-    message.textContent = 'Creating your account...';
+      message.textContent = 'Creating your account...';
 
-    const { data, error } = await supabaseClient.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          display_name: name,
-          username: username
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            display_name: name,
+            username: username
+          }
         }
+      });
+
+      if (error) {
+        console.error('Ming signup error:', error);
+        message.textContent = error.message;
+        return;
       }
+
+      console.log('Ming signup successful:', data);
+
+      message.textContent =
+        'Account created. Check your email to confirm your account.';
     });
-
-    if (error) {
-      console.error('Ming signup error:', error);
-      message.textContent = error.message;
-      return;
-    }
-
-    console.log('Ming signup successful:', data);
-
-    message.textContent =
-      'Account created. Check your email to confirm your account.';
-  });
-}
+  }
+});
