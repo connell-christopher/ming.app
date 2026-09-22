@@ -5085,3 +5085,28 @@ function seedNewSpace(space) {
 
   syncButtons();
 })();
+
+
+
+/* ------------------------------------------------------------
+   MING AUTH SCREEN — FORM SWITCHING
+------------------------------------------------------------ */
+
+const loginForm = document.getElementById('login-form');
+const signupForm = document.getElementById('signup-form');
+const showSignup = document.getElementById('show-signup');
+const showLogin = document.getElementById('show-login');
+
+if (showSignup) {
+  showSignup.addEventListener('click', () => {
+    loginForm.hidden = true;
+    signupForm.hidden = false;
+  });
+}
+
+if (showLogin) {
+  showLogin.addEventListener('click', () => {
+    signupForm.hidden = true;
+    loginForm.hidden = false;
+  });
+}
