@@ -5442,7 +5442,11 @@ document.addEventListener('DOMContentLoaded', () => {
       /* ------------------------------------------------------
    SUPABASE LOGIN
 ------------------------------------------------------ */
+console.log('LOGIN BUTTON WORKED');
+console.log('supabaseClient:', supabaseClient);
 
+
+        
 const { error } =
   await supabaseClient.auth.signInWithPassword({
     email,
