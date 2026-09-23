@@ -5566,30 +5566,3 @@ if (loginForm) {
     console.log('Ming: homepage opened');
   });
 }
-   
-/*========================================
-   HIDE LOGIN SCREEN
-========================================*/
-const authScreen = document.getElementById("auth-screen");
-const homeScreen = document.getElementById("home-screen");
-
-function updateAuthUI(session) {
-    if (session) {
-        // Logged in
-        authScreen.style.display = "none";
-        homeScreen.style.display = "block";
-    } else {
-        // Logged out
-        authScreen.style.display = "flex";
-        homeScreen.style.display = "none";
-    }
-}
-
-supabase.auth.getSession().then(({ data: { session } }) => {
-    updateAuthUI(session);
-});
-
-supabase.auth.onAuthStateChange((event, session) => {
-    updateAuthUI(session);
-});
-
