@@ -5503,16 +5503,20 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (session?.user) {
-      console.log('Ming authenticated session detected.');
-
-      // Keep the main Ming application visible.
+      // Hide the authentication screen
       if (authScreen) {
         authScreen.hidden = true;
       }
 
+      // Show the main Ming application
+      const app = document.getElementById('app');
+
+      if (app) {
+        app.hidden = false;
+        app.style.display = '';
+      }
+
       return;
-    }
 
     // No authenticated session.
     if (authScreen) {
