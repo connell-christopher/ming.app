@@ -5592,3 +5592,4 @@ supabase.auth.getSession().then(({ data: { session } }) => {
 supabase.auth.onAuthStateChange((event, session) => {
     updateAuthUI(session);
 });
+
