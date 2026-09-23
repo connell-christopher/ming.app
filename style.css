@@ -1,6 +1,19 @@
   /*============================
      STYLE.CSS
   ============================*/
+/* Temporary authentication visibility fix */
+#auth-screen {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#app[hidden] {
+  display: none !important;
+}
+
+
+
   /* ============================================================
    ming — People. Moments. Possibilities.
    style.css
