@@ -5560,25 +5560,8 @@ if (loginForm) {
     console.log('Ming login successful:', data.user);
 
     // Hide login/signup screen
-const authScreen = document.getElementById('auth-screen');
+document.getElementById('auth-screen').style.display = 'none';
+
 const app = document.getElementById('app');
-
-if (authScreen) {
-  authScreen.hidden = true;
-  authScreen.style.display = 'none';
-}
-
-if (app) {
-  app.hidden = false;
-  app.style.display = 'block';
-}
-
-console.log('Ming: homepage opened');
-
-    console.log('Ming: homepage opened');
-  });
-}
-
-
-console.log("AUTH:", document.getElementById("auth-screen"));
-console.log("APP:", document.getElementById("app"));
+app.hidden = false;
+app.style.display = '';
