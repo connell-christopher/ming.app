@@ -1,50 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
-<head> 
+<head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <meta name="theme-color" content="#F7F2EC" />
 <meta name="description" content="ming — people, moments and possibilities around you." />
 <title>ming</title>
+
 <script>
-  /* Resolve the theme before first paint: explicit choice, else system
-     preference, else light. Kept tiny and inline on purpose. */
-  (function () {
-    try {
-      var t = localStorage.getItem('ming-theme');
-      if (t !== 'light' && t !== 'dark') {
-        t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      }
-      document.documentElement.setAttribute('data-theme', t);
-    } catch (e) {}
-  })();
+(function () {
+  try {
+    var t = localStorage.getItem('ming-theme');
+
+    if (t !== 'light' && t !== 'dark') {
+      t = matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
+    }
+
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+})();
 </script>
+
 <link rel="stylesheet" href="style.css" />
 <link rel="stylesheet" href="spaces.css" />
 <link rel="stylesheet" href="moonflower.css" />
-
 </head>
+
 <body>
-   <!-- ===========LOGIN SECTION=========== --!>
-  <!-- ============================================================
+
+<!-- ============================================================
      MING AUTHENTICATION
 ============================================================ -->
 
 <section id="auth-screen" class="auth-screen">
+
   <div class="auth-card">
+
     <div class="auth-brand">
       <div class="auth-logo">☾</div>
       <h1>Welcome to Ming</h1>
       <p>Find your people. Share your world.</p>
     </div>
 
-    <!-- Login Form -->
+
+    <!-- LOGIN -->
+
     <form id="login-form" class="auth-form">
+
       <h2>Welcome back</h2>
-      <p class="auth-subtitle">Sign in to continue to Ming.</p>
+
+      <p class="auth-subtitle">
+        Sign in to continue to Ming.
+      </p>
 
       <div class="field">
-        <label for="login-email">Email address</label>
+
+        <label for="login-email">
+          Email address
+        </label>
+
         <input
           id="login-email"
           type="email"
@@ -52,523 +68,175 @@
           autocomplete="email"
           required
         />
+
       </div>
 
+
       <div class="field">
-        <label for="login-password">Password</label>
+
+        <label for="login-password">
+          Password
+        </label>
+
         <input
           id="login-password"
           type="password"
           placeholder="Your password"
-           autocomplete="current-password"
+          autocomplete="current-password"
           required
         />
+
       </div>
 
-      <button type="submit" class="btn btn--primary">
+
+      <button
+        type="submit"
+        class="btn btn--primary"
+      >
         Sign in
       </button>
 
-      <p id="login-message" class="auth-message"></p>
+
+      <p
+        id="login-message"
+        class="auth-message"
+      ></p>
+
 
       <p class="auth-switch">
+
         Don't have an account?
-        <button type="button" id="show-signup">Create one</button>
+
+        <button
+          type="button"
+          id="show-signup"
+        >
+          Create one
+        </button>
+
       </p>
+
     </form>
 
-    <!-- Signup Form -->
-    <form id="signup-form" class="auth-form" hidden>     
+
+    <!-- SIGNUP -->
+
+    <form
+      id="signup-form"
+      class="auth-form"
+      hidden
+    >
+
       <h2>Create your account</h2>
-      <p class="auth-subtitle">Your space in the Ming universe.</p>
+
+      <p class="auth-subtitle">
+        Your space in the Ming universe.
+      </p>
+
 
       <div class="field">
-        <label for="signup-name">Display name</label>
+
+        <label for="signup-name">
+          Display name
+        </label>
+
         <input
           id="signup-name"
           type="text"
           placeholder="Your name"
-            autocomplete="name"
+          autocomplete="name"
           required
         />
+
       </div>
 
+
       <div class="field">
-        <label for="signup-username">Username</label>
+
+        <label for="signup-username">
+          Username
+        </label>
+
         <input
           id="signup-username"
           type="text"
           placeholder="yourusername"
-            autocomplete="username"
+          autocomplete="username"
           required
         />
+
       </div>
 
+
       <div class="field">
-        <label for="signup-email">Email address</label>
+
+        <label for="signup-email">
+          Email address
+        </label>
+
         <input
           id="signup-email"
           type="email"
           placeholder="you@example.com"
-            autocomplete="email"
+          autocomplete="email"
           required
         />
+
       </div>
 
+
       <div class="field">
-        <label for="signup-password">Password</label>
+
+        <label for="signup-password">
+          Password
+        </label>
+
         <input
           id="signup-password"
           type="password"
           placeholder="At least 6 characters"
-            autocomplete="new-password"
+          autocomplete="new-password"
           minlength="6"
           required
         />
-      </div>
-      
-      <button type="submit" class="btn btn--primary">
-      Create account</button>
 
-      <p id="signup-message" class="auth-message"></p>
+      </div>
+
+
+      <button
+        type="submit"
+        class="btn btn--primary"
+      >
+        Create account
+      </button>
+
+
+      <p
+        id="signup-message"
+        class="auth-message"
+      ></p>
+
 
       <p class="auth-switch">
+
         Already have an account?
-        <button type="button" id="show-login">Sign in</button>
+
+        <button
+          type="button"
+          id="show-login"
+        >
+          Sign in
+        </button>
+
       </p>
+
     </form>
+
   </div>
+
 </section>
 
-<!-- ============ ICON SPRITE ============ -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-  <defs>
-    <g id="s" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></g>
-  </defs>
-  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M4 10.5 12 4l8 6.5V19a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19z"/><path d="M9.5 20.5v-6h5v6"/>
-  </symbol>
-  <symbol id="i-compass" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="12" r="8.5"/><path d="m15.2 8.8-2 4.4-4.4 2 2-4.4z"/>
-  </symbol>
-  <symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M19 10.3c0 5-7 11-7 11s-7-6-7-11a7 7 0 1 1 14 0z"/><circle cx="12" cy="10.2" r="2.6"/>
-  </symbol>
-  <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M20 14.2A8.4 8.4 0 0 1 9.8 4a8.5 8.5 0 1 0 10.2 10.2z"/>
-  </symbol>
-  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="8.5" r="3.8"/><path d="M4.8 20c.8-3.6 3.7-5.6 7.2-5.6s6.4 2 7.2 5.6"/>
-  </symbol>
-  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
-  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6z"/><path d="M13.7 19a2 2 0 0 1-3.4 0"/>
-  </symbol>
-  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
-  <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 5.5 7 6.5-7 6.5"/></symbol>
-  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 5.5-7 6.5 7 6.5"/></symbol>
-  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 20s-7.2-4.4-7.2-9.3A3.9 3.9 0 0 1 12 8.2a3.9 3.9 0 0 1 7.2 2.5C19.2 15.6 12 20 12 20z"/>
-  </symbol>
-  <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M20 12.5c0 3.6-3.6 6.5-8 6.5a9.6 9.6 0 0 1-2.6-.35L5 20.5l1.1-3.1A6.4 6.4 0 0 1 4 12.5C4 8.9 7.6 6 12 6s8 2.9 8 6.5z"/>
-  </symbol>
-  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 4 4 10.8l6.6 2.6L13.2 20z"/></symbol>
-  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.6V12l3 1.8"/></symbol>
-  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.6 4.4 4.4L19 7.4"/></symbol>
-  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 3.5 5.5 6v6c0 4.3 2.8 7.4 6.5 8.5 3.7-1.1 6.5-4.2 6.5-8.5V6z"/><path d="m9.4 12.2 1.9 1.9 3.6-3.8"/>
-  </symbol>
-  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="9.5" cy="9" r="3.2"/><path d="M3.8 19c.6-3 2.9-4.7 5.7-4.7s5.1 1.7 5.7 4.7"/><path d="M16.2 6.2a3.1 3.1 0 0 1 0 5.8M17.6 14.8c2 .6 3.3 2.1 3.7 4.2"/>
-  </symbol>
-  <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 3.6c.9 4.2 2.9 6.2 7 7-4.1.9-6.1 2.9-7 7-.9-4.1-2.9-6.1-7-7 4.1-.8 6.1-2.8 7-7z"/>
-  </symbol>
-  <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4.4"/><circle cx="12" cy="12" r=".6"/>
-  </symbol>
-  <symbol id="i-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M6 4h9l4 4v12H6z"/><path d="M14.6 4v4.2H19M9 13h6M9 16.4h4"/>
-  </symbol>
-  <symbol id="i-alarm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="12" cy="13" r="7"/><path d="M12 9.8V13l2.2 1.4M4.6 5.4 7.2 3.4M19.4 5.4 16.8 3.4"/>
-  </symbol>
-  <symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="4" y="5.5" width="16" height="14.5" rx="2.4"/><path d="M4 10h16M8.6 3.6v3.6M15.4 3.6v3.6"/>
-  </symbol>
-  <symbol id="i-case" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="3.5" y="7.4" width="17" height="12.2" rx="2.4"/><path d="M9 7.4V5.8A1.8 1.8 0 0 1 10.8 4h2.4A1.8 1.8 0 0 1 15 5.8v1.6M3.5 12.6h17"/>
-  </symbol>
-  <symbol id="i-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M9 11V5.6a1.5 1.5 0 0 1 3 0V11m0-.6V4.8a1.5 1.5 0 0 1 3 0V11m0-.4V6.6a1.5 1.5 0 1 1 3 0V14c0 3.6-2.4 6.4-6 6.4-3 0-4.7-1.6-6-4.4L6 13.2c-.5-1 0-2 1-2.3s1.7.2 2 1.1z"/>
-  </symbol>
-  <symbol id="i-gift" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="4" y="9.6" width="16" height="10.4" rx="2"/><path d="M3 9.6h18M12 9.6V20M12 9.6c-1-3-2.3-4.4-3.9-4.4a2 2 0 0 0 0 4.4zM12 9.6c1-3 2.3-4.4 3.9-4.4a2 2 0 0 1 0 4.4z"/>
-  </symbol>
-  <symbol id="i-plane" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M10.2 13.8 4 12.2l16-7-7 16-1.7-6.2z"/>
-  </symbol>
-  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M5.5 7h13M9.5 7V5.4A1.4 1.4 0 0 1 10.9 4h2.2a1.4 1.4 0 0 1 1.4 1.4V7M7.4 7l.8 11.7a1.6 1.6 0 0 0 1.6 1.5h4.4a1.6 1.6 0 0 0 1.6-1.5L16.6 7"/>
-  </symbol>
-  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
-  <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M15.6 4.8 19.2 8.4 8.6 19H5v-3.6z"/>
-  </symbol>
-  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="5" y="10.4" width="14" height="9.6" rx="2.4"/><path d="M8.4 10.4V8a3.6 3.6 0 0 1 7.2 0v2.4"/>
-  </symbol>
-  <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M6 21V4M6 5.2c3.5-1.8 6.5 1.4 10-.4v8.6c-3.5 1.8-6.5-1.4-10 .4z"/>
-  </symbol>
-  <symbol id="i-coffee" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M4.5 9h12v6.5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4z"/><path d="M16.5 10.4h1.6a2.4 2.4 0 0 1 0 4.8h-1.6M7.6 5.6V3.4M11.4 5.6V3.4"/>
-  </symbol>
-  <symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="m12 3.6 8 4.4-8 4.4-8-4.4z"/><path d="m4.6 12.4 7.4 4 7.4-4M4.6 16.6l7.4 4 7.4-4"/>
-  </symbol>
-  <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M4 6.5h16M4 12h16M4 17.5h16"/><path d="M14 4.6v3.8M9 10.1v3.8M16.5 15.6v3.8"/>
-  </symbol>
-</svg>
 
-<!-- ============ APP ============ -->
-<div class="app" id="app" hidden>
-  
-  <!-- HOME -->
-  <section class="screen" id="screen-home" data-tab="home" aria-label="Home">
-    <header class="topbar">
-      <div class="topbar-row">
-        <button class="av-ring live" id="home-avatar" aria-label="Open your profile"></button>
-        <div style="flex:1 1 auto;min-width:0">
-          <div class="brand">ming</div>
-        </div>
-        <button class="icon-btn" data-open="search" aria-label="Search ming"><svg><use href="#i-search"/></svg></button>
-        <button class="icon-btn" data-open="notifications" aria-label="Notifications">
-          <svg><use href="#i-bell"/></svg><span class="dot" id="notif-dot"></span>
-        </button>
-        <button class="icon-btn theme-toggle" data-theme-toggle type="button" aria-pressed="false" aria-label="Switch to dark mode">
-          <span class="tt-halo" aria-hidden="true"></span>
-          <svg class="tt-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <g class="tt-sun">
-              <circle cx="12" cy="12" r="4.3"/>
-              <line x1="12" y1="2.2" x2="12" y2="4.6"/><line x1="12" y1="19.4" x2="12" y2="21.8"/>
-              <line x1="2.2" y1="12" x2="4.6" y2="12"/><line x1="19.4" y1="12" x2="21.8" y2="12"/>
-              <line x1="4.9" y1="4.9" x2="6.6" y2="6.6"/><line x1="17.4" y1="17.4" x2="19.1" y2="19.1"/>
-              <line x1="4.9" y1="19.1" x2="6.6" y2="17.4"/><line x1="17.4" y1="6.6" x2="19.1" y2="4.9"/>
-            </g>
-            <g class="tt-moon">
-              <circle class="tt-moon-body" cx="12" cy="12" r="6.3"/>
-              <circle class="tt-crater" cx="9.4" cy="9.3" r="1.05"/>
-              <circle class="tt-crater" cx="14.2" cy="10.5" r="0.72"/>
-              <circle class="tt-crater" cx="11.1" cy="14.2" r="1.2"/>
-              <circle class="tt-crater" cx="14.7" cy="14.7" r="0.55"/>
-            </g>
-          </svg>
-        </button>
-      </div>
-    </header>
-    <div class="scroll" data-scroll>
-      <div class="greet">
-        <h1 id="greeting">Good evening, Connell</h1>
-        <p class="q">What's happening around you?</p>
-      </div>
-      <div id="home-loc"></div>
-      <div id="home-people" class="section"></div>
-      <div id="home-feed" class="section"></div>
-      <div id="home-opps" class="section"></div>
-      <p class="wordmark-foot"><b>ming</b> · people, moments, possibilities</p>
-    </div>
-  </section>
-
-  <!-- DISCOVER -->
-  <section class="screen" id="screen-discover" data-tab="discover" aria-label="Discover">
-    <header class="topbar">
-      <div class="topbar-row">
-        <div style="flex:1 1 auto">
-          <div class="topbar-title">Discover</div>
-          <div class="topbar-sub" id="discover-sub">Around Wuse II · Abuja</div>
-        </div>
-        <button class="icon-btn" data-open="search" aria-label="Search ming"><svg><use href="#i-search"/></svg></button>
-        <button class="icon-btn theme-toggle" data-theme-toggle type="button" aria-pressed="false" aria-label="Switch to dark mode">
-          <span class="tt-halo" aria-hidden="true"></span>
-          <svg class="tt-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <g class="tt-sun">
-              <circle cx="12" cy="12" r="4.3"/>
-              <line x1="12" y1="2.2" x2="12" y2="4.6"/><line x1="12" y1="19.4" x2="12" y2="21.8"/>
-              <line x1="2.2" y1="12" x2="4.6" y2="12"/><line x1="19.4" y1="12" x2="21.8" y2="12"/>
-              <line x1="4.9" y1="4.9" x2="6.6" y2="6.6"/><line x1="17.4" y1="17.4" x2="19.1" y2="19.1"/>
-              <line x1="4.9" y1="19.1" x2="6.6" y2="17.4"/><line x1="17.4" y1="6.6" x2="19.1" y2="4.9"/>
-            </g>
-            <g class="tt-moon">
-              <circle class="tt-moon-body" cx="12" cy="12" r="6.3"/>
-              <circle class="tt-crater" cx="9.4" cy="9.3" r="1.05"/>
-              <circle class="tt-crater" cx="14.2" cy="10.5" r="0.72"/>
-              <circle class="tt-crater" cx="11.1" cy="14.2" r="1.2"/>
-              <circle class="tt-crater" cx="14.7" cy="14.7" r="0.55"/>
-            </g>
-          </svg>
-        </button>
-      </div>
-    </header>
-    <div class="scroll" data-scroll>
-      <div style="padding:2px 18px 14px">
-        <button class="searchbar" data-open="search">
-          <svg><use href="#i-search"/></svg><span>Search Ming</span>
-        </button>
-      </div>
-      <div class="chips" id="discover-chips"></div>
-      <div id="discover-body"></div>
-      <p class="wordmark-foot"><b>ming</b></p>
-    </div>
-  </section>
-
-  <!-- NEARBY -->
-  <section class="screen" id="screen-nearby" data-tab="nearby" aria-label="Nearby">
-    <header class="topbar">
-      <div class="topbar-row">
-        <div style="flex:1 1 auto">
-          <div class="topbar-title">Nearby</div>
-          <div class="topbar-sub">People and activity around you.</div>
-        </div>
-        <button class="icon-btn" id="refresh-nearby" aria-label="Refresh nearby"><svg><use href="#i-layers"/></svg></button>
-        <button class="icon-btn theme-toggle" data-theme-toggle type="button" aria-pressed="false" aria-label="Switch to dark mode">
-          <span class="tt-halo" aria-hidden="true"></span>
-          <svg class="tt-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <g class="tt-sun">
-              <circle cx="12" cy="12" r="4.3"/>
-              <line x1="12" y1="2.2" x2="12" y2="4.6"/><line x1="12" y1="19.4" x2="12" y2="21.8"/>
-              <line x1="2.2" y1="12" x2="4.6" y2="12"/><line x1="19.4" y1="12" x2="21.8" y2="12"/>
-              <line x1="4.9" y1="4.9" x2="6.6" y2="6.6"/><line x1="17.4" y1="17.4" x2="19.1" y2="19.1"/>
-              <line x1="4.9" y1="19.1" x2="6.6" y2="17.4"/><line x1="17.4" y1="6.6" x2="19.1" y2="4.9"/>
-            </g>
-            <g class="tt-moon">
-              <circle class="tt-moon-body" cx="12" cy="12" r="6.3"/>
-              <circle class="tt-crater" cx="9.4" cy="9.3" r="1.05"/>
-              <circle class="tt-crater" cx="14.2" cy="10.5" r="0.72"/>
-              <circle class="tt-crater" cx="11.1" cy="14.2" r="1.2"/>
-              <circle class="tt-crater" cx="14.7" cy="14.7" r="0.55"/>
-            </g>
-          </svg>
-        </button>
-      </div>
-    </header>
-    <div class="scroll" data-scroll>
-      <div id="nearby-body"></div>
-      <p class="wordmark-foot"><b>ming</b></p>
-    </div>
-  </section>
-
-  <!-- MOONFLOWER -->
-  <section class="screen moon" id="screen-moonflower" data-tab="moonflower" aria-label="Moonflower">
-    <header class="topbar">
-      <div class="topbar-row">
-        <div style="flex:1 1 auto"><div class="topbar-title">Moonflower</div></div>
-        <button class="icon-btn" data-open="moon-about" aria-label="About Moonflower"><svg><use href="#i-lock"/></svg></button>
-        <button class="icon-btn theme-toggle" data-theme-toggle type="button" aria-pressed="false" aria-label="Switch to dark mode">
-          <span class="tt-halo" aria-hidden="true"></span>
-          <svg class="tt-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <g class="tt-sun">
-              <circle cx="12" cy="12" r="4.3"/>
-              <line x1="12" y1="2.2" x2="12" y2="4.6"/><line x1="12" y1="19.4" x2="12" y2="21.8"/>
-              <line x1="2.2" y1="12" x2="4.6" y2="12"/><line x1="19.4" y1="12" x2="21.8" y2="12"/>
-              <line x1="4.9" y1="4.9" x2="6.6" y2="6.6"/><line x1="17.4" y1="17.4" x2="19.1" y2="19.1"/>
-              <line x1="4.9" y1="19.1" x2="6.6" y2="17.4"/><line x1="17.4" y1="6.6" x2="19.1" y2="4.9"/>
-            </g>
-            <g class="tt-moon">
-              <circle class="tt-moon-body" cx="12" cy="12" r="6.3"/>
-              <circle class="tt-crater" cx="9.4" cy="9.3" r="1.05"/>
-              <circle class="tt-crater" cx="14.2" cy="10.5" r="0.72"/>
-              <circle class="tt-crater" cx="11.1" cy="14.2" r="1.2"/>
-              <circle class="tt-crater" cx="14.7" cy="14.7" r="0.55"/>
-            </g>
-          </svg>
-        </button>
-      </div>
-    </header>
-    <div class="scroll" data-scroll>
-      <div class="moon-hero">
-        <div class="mark"></div>
-        <div class="eyebrow"><span class="dot"></span>Private space</div>
-        <h1 id="moon-title">Welcome back, Connell.</h1>
-        <p>Ming is the world around you. Moonflower is the world inside you.</p>
-      </div>
-      <button class="moon-glass moon-feel" data-action="moon:talk">
-        <div class="q">How are you feeling?</div>
-        <div class="a">Talk to Moonflower <svg><use href="#i-chev"/></svg></div>
-      </button>
-      <div class="moon-grid" id="moon-grid"></div>
-      <div class="moon-quiet" id="moon-quiet"></div>
-      <p class="wordmark-foot"><b>moonflower</b></p>
-    </div>
-  </section>
-
-  <!-- PROFILE -->
-  <section class="screen" id="screen-profile" data-tab="profile" aria-label="Profile">
-    <header class="topbar">
-      <div class="topbar-row">
-        <div style="flex:1 1 auto"><div class="topbar-title">You</div></div>
-        <button class="icon-btn" data-open="settings" aria-label="Profile settings" title="Profile settings"><svg><use href="#i-settings"/></svg></button>
-        <button class="icon-btn theme-toggle" data-theme-toggle type="button" aria-pressed="false" aria-label="Switch to dark mode">
-          <span class="tt-halo" aria-hidden="true"></span>
-          <svg class="tt-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <g class="tt-sun">
-              <circle cx="12" cy="12" r="4.3"/>
-              <line x1="12" y1="2.2" x2="12" y2="4.6"/><line x1="12" y1="19.4" x2="12" y2="21.8"/>
-              <line x1="2.2" y1="12" x2="4.6" y2="12"/><line x1="19.4" y1="12" x2="21.8" y2="12"/>
-              <line x1="4.9" y1="4.9" x2="6.6" y2="6.6"/><line x1="17.4" y1="17.4" x2="19.1" y2="19.1"/>
-              <line x1="4.9" y1="19.1" x2="6.6" y2="17.4"/><line x1="17.4" y1="6.6" x2="19.1" y2="4.9"/>
-            </g>
-            <g class="tt-moon">
-              <circle class="tt-moon-body" cx="12" cy="12" r="6.3"/>
-              <circle class="tt-crater" cx="9.4" cy="9.3" r="1.05"/>
-              <circle class="tt-crater" cx="14.2" cy="10.5" r="0.72"/>
-              <circle class="tt-crater" cx="11.1" cy="14.2" r="1.2"/>
-              <circle class="tt-crater" cx="14.7" cy="14.7" r="0.55"/>
-            </g>
-          </svg>
-        </button>
-      </div>
-    </header>
-    <div class="scroll" data-scroll>
-      <div id="profile-body"></div>
-      <p class="wordmark-foot"><b>ming</b></p>
-    </div>
-  </section>
-
-  <!-- STACK: SEARCH -->
-  <section class="screen screen--stack" id="screen-search" aria-label="Search">
-    <header class="topbar">
-      <div class="topbar-row">
-        <button class="icon-btn back-btn" data-back aria-label="Close search"><svg><use href="#i-back"/></svg></button>
-        <div class="searchbar" style="flex:1 1 auto">
-          <svg><use href="#i-search"/></svg>
-          <input id="search-input" type="text" placeholder="Search Ming" aria-label="Search people, places, activities and updates" autocomplete="off" />
-          <button id="search-clear" class="icon-btn" style="width:30px;height:30px" aria-label="Clear search" hidden><svg style="width:15px;height:15px"><use href="#i-x"/></svg></button>
-        </div>
-      </div>
-    </header>
-    <div class="scroll" data-scroll><div id="search-body"></div></div>
-  </section>
-
-  <!-- STACK: NOTIFICATIONS -->
-  <section class="screen screen--stack has-nav" id="screen-notifications" aria-label="Notifications">
-    <header class="topbar">
-      <div class="topbar-row">
-        <button class="icon-btn back-btn" data-back aria-label="Back"><svg><use href="#i-back"/></svg></button>
-        <div style="flex:1 1 auto"><div class="topbar-title">Notifications</div></div>
-        <button class="btn btn--ghost btn--sm" id="mark-all-read">Mark all read</button>
-      </div>
-    </header>
-    <div class="scroll" data-scroll><div id="notif-body" style="padding:4px 18px"></div></div>
-  </section>
-
-  <!-- STACK: CONNECTIONS -->
-  <section class="screen screen--stack has-nav" id="screen-connections" aria-label="Connections">
-    <header class="topbar">
-      <div class="topbar-row">
-        <button class="icon-btn back-btn" data-back aria-label="Back"><svg><use href="#i-back"/></svg></button>
-        <div style="flex:1 1 auto">
-          <div class="topbar-title">Connections</div>
-          <div class="topbar-sub" id="conn-sub"></div>
-        </div>
-      </div>
-    </header>
-    <div class="scroll" data-scroll><div id="connections-body"></div></div>
-  </section>
-
-  <!-- STACK: MESSAGES -->
-  <section class="screen screen--stack has-nav" id="screen-messages" aria-label="Messages">
-    <header class="topbar">
-      <div class="topbar-row">
-        <button class="icon-btn back-btn" data-back aria-label="Back"><svg><use href="#i-back"/></svg></button>
-        <div style="flex:1 1 auto"><div class="topbar-title">Messages</div></div>
-      </div>
-    </header>
-    <div class="scroll" data-scroll><div id="messages-body"></div></div>
-  </section>
-
-  <!-- STACK: CHAT -->
-  <section class="screen screen--stack" id="screen-chat" aria-label="Conversation">
-    <header class="topbar">
-      <div class="topbar-row">
-        <button class="icon-btn back-btn" data-back aria-label="Back"><svg><use href="#i-back"/></svg></button>
-        <div id="chat-av"></div>
-        <div style="flex:1 1 auto;min-width:0">
-          <div class="topbar-title" id="chat-name" style="font-size:16px"></div>
-          <div class="topbar-sub" id="chat-sub"></div>
-        </div>
-      </div>
-    </header>
-    <div class="thread" id="chat-thread"></div>
-    <form class="composer" id="chat-form">
-      <textarea id="chat-input" rows="1" placeholder="Message" aria-label="Write a message"></textarea>
-      <button class="send" type="submit" id="chat-send" disabled aria-label="Send message"><svg><use href="#i-send"/></svg></button>
-    </form>
-  </section>
-
-  <!-- STACK: PERSON -->
-  <section class="screen screen--stack" id="screen-person" aria-label="Person">
-    <header class="topbar">
-      <div class="topbar-row">
-        <button class="icon-btn back-btn" data-back aria-label="Back"><svg><use href="#i-back"/></svg></button>
-        <div style="flex:1 1 auto"><div class="topbar-title" id="person-title"></div></div>
-      </div>
-    </header>
-    <div class="scroll" data-scroll><div id="person-body"></div></div>
-  </section>
-
-  <!-- STACK: MOONFLOWER ROOM -->
-  <section class="screen screen--stack moon" id="screen-moonroom" aria-label="Moonflower room">
-    <header class="topbar">
-      <div class="topbar-row">
-        <button class="icon-btn back-btn" data-back aria-label="Back"><svg><use href="#i-back"/></svg></button>
-        <div style="flex:1 1 auto">
-          <div class="topbar-title" id="moonroom-title"></div>
-          <div class="topbar-sub" id="moonroom-sub"></div>
-        </div>
-        <button class="icon-btn" id="moonroom-action" hidden aria-label="Add"><svg><use href="#i-plus"/></svg></button>
-      </div>
-    </header>
-    <div class="scroll" data-scroll id="moonroom-scroll"><div id="moonroom-body"></div></div>
-    <form class="composer" id="moon-form" hidden>
-      <textarea id="moon-input" rows="1" placeholder="Say anything. It stays here." aria-label="Message Moonflower"></textarea>
-      <button class="send" type="submit" id="moon-send" disabled aria-label="Send"><svg><use href="#i-send"/></svg></button>
-    </form>
-  </section>
-
-  <!-- FAB -->
-  <button class="fab" id="fab" aria-label="Create something new"><svg><use href="#i-plus"/></svg></button>
-
-  <!-- BOTTOM NAV -->
-  <nav class="nav" id="nav" aria-label="Main">
-    <button data-nav="home" class="is-on" aria-current="page"><svg><use href="#i-home"/></svg><span class="lb">Home</span></button>
-    <button data-nav="discover"><svg><use href="#i-compass"/></svg><span class="lb">Discover</span></button>
-    <button data-nav="nearby"><svg><use href="#i-pin"/></svg><span class="lb">Nearby</span></button>
-    <button data-nav="moonflower"><svg><use href="#i-moon"/></svg><span class="lb">Moonflower</span></button>
-    <button data-nav="profile"><svg><use href="#i-user"/></svg><span class="lb">Profile</span></button>
-  </nav>
-
-  <!-- OVERLAYS -->
-  <div class="scrim" id="scrim"></div>
-
-  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Sheet">
-    <div class="grab"></div>
-    <div class="sheet-head" id="sheet-head"></div>
-    <div class="sheet-body" id="sheet-body"></div>
-    <div class="sheet-foot" id="sheet-foot"></div>
-  </div>
-
-  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Dialog"></div>
-
-  <div class="toasts" id="toasts" aria-live="polite"></div>
-
-  <div class="theme-sweep" id="theme-sweep" aria-hidden="true"></div>
-</div>
-
-<div class="desk-mark">ming — designed for mobile</div>
-  
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="script.js"></script>
 
