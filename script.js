@@ -5491,6 +5491,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 (async function initMingAuthSession() {
   const authScreen = document.getElementById('auth-screen');
+  const app = document.getElementById('app');
 
   try {
     const {
@@ -5499,17 +5500,18 @@ document.addEventListener('DOMContentLoaded', () => {
     } = await supabaseClient.auth.getSession();
 
     if (error) {
-      console.error('Ming session check failed.');
+      console.error('Ming session check failed:', error);
       return;
     }
 
-      // Hide the authentication screen
+    if (session?.user) {
+      console.log('Ming authenticated session detected.');
+
+      // User is already logged in
       if (authScreen) {
         authScreen.hidden = true;
+        authScreen.style.display = 'none';
       }
-
-      // Show the main Ming application
-      const app = document.getElementById('app');
 
       if (app) {
         app.hidden = false;
@@ -5517,54 +5519,24 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       return;
+    }
 
-    // No authenticated session.
+    // User is NOT logged in
+    console.log('Ming: no authenticated session.');
+
     if (authScreen) {
       authScreen.hidden = false;
+      authScreen.style.display = '';
+    }
+
+    if (app) {
+      app.hidden = true;
     }
 
   } catch (error) {
-    console.error('Ming authentication initialization failed.');
+    console.error(
+      'Ming authentication initialization failed.',
+      error
+    );
   }
 })();
-
-
-// ============================================================
-// MING LOGIN
-// ============================================================
-
-const loginForm = document.getElementById('login-form');
-
-if (loginForm) {
-  loginForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-
-    console.log('Ming: login attempt started');
-
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-      email: email,
-      password: password
-    });
-
-    if (error) {
-      console.error('Ming login failed:', error.message);
-      alert(error.message);
-      return;
-    }
-
-    console.log('Ming login successful:', data.user);
-
-    // Hide login/signup screen
-    document.getElementById('auth-screen').style.display = 'none';
-
-    // Show the actual Ming application
-    const app = document.getElementById('app');
-    app.hidden = false;
-    app.style.display = '';
-
-    console.log('Ming: homepage opened');
-  });
-}
