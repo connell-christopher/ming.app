@@ -5523,3 +5523,47 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('Ming authentication initialization failed.');
   }
 })();
+
+/*====================================
+   HOMEPAGE-REDIRECT   
+====================================*/
+// ============================================================
+// MING LOGIN
+// ============================================================
+
+const loginForm = document.getElementById('login-form');
+
+if (loginForm) {
+  loginForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    console.log('Ming: login attempt started');
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+
+    if (error) {
+      console.error('Ming login failed:', error.message);
+      alert(error.message);
+      return;
+    }
+
+    console.log('Ming login successful:', data.user);
+
+    // Hide login/signup screen
+    document.getElementById('auth-screen').style.display = 'none';
+
+    // Show the actual Ming application
+    const app = document.getElementById('app');
+    app.hidden = false;
+    app.style.display = '';
+
+    console.log('Ming: homepage opened');
+  });
+}
+   
