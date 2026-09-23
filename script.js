@@ -5437,42 +5437,44 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-        /* ------------------------------------------------------
-           SUPABASE LOGIN
-        ------------------------------------------------------ */
+              /*===================================================
+        =======================================================*/
+      /* ------------------------------------------------------
+   SUPABASE LOGIN
+------------------------------------------------------ */
 
-        const { error } =
-          await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-          });
+const { error } =
+  await supabaseClient.auth.signInWithPassword({
+    email,
+    password
+  });
 
-        if (error) {
-          /*
-             Generic authentication error helps avoid unnecessarily
-             revealing whether a particular account exists.
-          */
-          console.error('Ming login failed:', error.message);
+if (error) {
+  /*
+     Generic authentication error helps avoid unnecessarily
+     revealing whether a particular account exists.
+  */
+  console.error('Ming login failed:', error.message);
 
-          setMessage(
-            message,
-            'Email or password is incorrect.'
-          );
+  setMessage(
+    message,
+    'Email or password is incorrect.'
+  );
 
-          return;
-        }
+  return;
+}
 
-        setMessage(
-          message,
-          'Signed in successfully.'
-        );
-
-
-
-
+setMessage(
+  message,
+  'Signed in successfully.'
+);
 
 
-      const authScreen = document.getElementById('auth-screen');
+/* ------------------------------------------------------
+   OPEN MING AFTER SUCCESSFUL LOGIN
+------------------------------------------------------ */
+
+const authScreen = document.getElementById('auth-screen');
 const app = document.getElementById('app');
 
 if (authScreen) {
@@ -5488,65 +5490,154 @@ if (app) {
 console.log('Ming: homepage opened');
 
 
+} catch (error) {
+  console.error(
+    'Ming login request failed.'
+  );
 
+  setMessage(
+    message,
+    'Something went wrong. Please try again.'
+  );
 
-
-        
-      } catch (error) {
-        console.error(
-          'Ming login request failed.'
-        );
-
-        setMessage(
-          message,
-          'Something went wrong. Please try again.'
-        );
-
-      } finally {
-        loginForm.dataset.submitting = 'false';
-        setButtonState(loginForm, false);
-      }
-    });
-  }
+} finally {
+  loginForm.dataset.submitting = 'false';
+  setButtonState(loginForm, false);
+}
 });
+}
+});
+
 
 /* ------------------------------------------------------------
    MING AUTH SESSION
 ------------------------------------------------------------ */
 
 (async function initMingAuthSession() {
-  const authScreen = document.getElementById('auth-screen');
-  const app = document.getElementById('app');
+
+  const authScreen =
+    document.getElementById('auth-screen');
+
+  const app =
+    document.getElementById('app');
+
+
+  /* ----------------------------------------------------------
+     INITIAL STATE
+     Always start with the app hidden.
+     Supabase will decide whether to open it.
+  ---------------------------------------------------------- */
+
+  if (app) {
+    app.hidden = true;
+    app.style.display = 'none';
+  }
+
+  if (authScreen) {
+    authScreen.hidden = false;
+    authScreen.style.display = '';
+  }
+
 
   try {
+
     const {
       data: { session },
       error
     } = await supabaseClient.auth.getSession();
 
+
+    /* --------------------------------------------------------
+       SESSION CHECK ERROR
+    -------------------------------------------------------- */
+
     if (error) {
-      console.error('Ming session check failed:', error);
+
+      console.error(
+        'Ming session check failed:',
+        error
+      );
+
+      /*
+         Keep the user on the login screen
+         if the session cannot be verified.
+      */
+
+      if (authScreen) {
+        authScreen.hidden = false;
+        authScreen.style.display = '';
+      }
+
+      if (app) {
+        app.hidden = true;
+        app.style.display = 'none';
+      }
+
       return;
     }
 
-    if (session?.user) {
-      console.log('Ming authenticated session detected.');
+
+    /* --------------------------------------------------------
+       USER IS ALREADY LOGGED IN
+    -------------------------------------------------------- */
+
+    if (session && session.user) {
+
+      console.log(
+        'Ming authenticated session detected.'
+      );
+
 
       if (authScreen) {
         authScreen.hidden = true;
         authScreen.style.display = 'none';
       }
 
+
       if (app) {
         app.hidden = false;
         app.style.display = '';
       }
 
+
       return;
     }
 
-    // NOT LOGGED IN
-    console.log('Ming: no authenticated session.');
+
+    /* --------------------------------------------------------
+       USER IS NOT LOGGED IN
+    -------------------------------------------------------- */
+
+    console.log(
+      'Ming: no authenticated session.'
+    );
+
+
+    if (authScreen) {
+      authScreen.hidden = false;
+      authScreen.style.display = '';
+    }
+
+
+    if (app) {
+      app.hidden = true;
+      app.style.display = 'none';
+    }
+
+
+  } catch (error) {
+
+    console.error(
+      'Ming authentication initialization failed.',
+      error
+    );
+
+
+    /*
+       Fail closed:
+       if anything unexpected happens,
+       keep the homepage hidden.
+    */
 
     if (authScreen) {
       authScreen.hidden = false;
@@ -5558,10 +5649,6 @@ console.log('Ming: homepage opened');
       app.style.display = 'none';
     }
 
-  } catch (error) {
-    console.error(
-      'Ming authentication initialization failed.',
-      error
-    );
   }
+
 })();
