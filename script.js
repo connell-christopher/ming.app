@@ -5474,20 +5474,9 @@ setMessage(
    OPEN MING AFTER SUCCESSFUL LOGIN
 ------------------------------------------------------ */
 
-const authScreen = document.getElementById('auth-screen');
-const app = document.getElementById('app');
+console.log('Ming login successful. Opening app.');
 
-if (authScreen) {
-  authScreen.hidden = true;
-  authScreen.style.display = 'none';
-}
-
-if (app) {
-  app.hidden = false;
-  app.style.display = '';
-}
-
-console.log('Ming: homepage opened');
+window.location.href = 'app.html';
 
 
 } catch (error) {
