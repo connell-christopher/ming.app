@@ -5504,140 +5504,26 @@ window.location.href = 'app.html';
 
 (async function initMingAuthSession() {
 
-  const authScreen =
-    document.getElementById('auth-screen');
+  const isAppPage =
+    window.location.pathname.endsWith('app.html');
 
-  const app =
-    document.getElementById('app');
-
-
-  /* ----------------------------------------------------------
-     INITIAL STATE
-     Always start with the app hidden.
-     Supabase will decide whether to open it.
-  ---------------------------------------------------------- */
-
-  if (app) {
-    app.hidden = true;
-    app.style.display = 'none';
+  if (!isAppPage) {
+    return;
   }
 
-  if (authScreen) {
-    authScreen.hidden = false;
-    authScreen.style.display = '';
+  const {
+    data: { session },
+    error
+  } = await supabaseClient.auth.getSession();
+
+  if (error || !session?.user) {
+    console.log('Ming: no authenticated session. Returning to login.');
+
+    window.location.href = 'index.html';
+
+    return;
   }
 
-
-  try {
-
-    const {
-      data: { session },
-      error
-    } = await supabaseClient.auth.getSession();
-
-
-    /* --------------------------------------------------------
-       SESSION CHECK ERROR
-    -------------------------------------------------------- */
-
-    if (error) {
-
-      console.error(
-        'Ming session check failed:',
-        error
-      );
-
-      /*
-         Keep the user on the login screen
-         if the session cannot be verified.
-      */
-
-      if (authScreen) {
-        authScreen.hidden = false;
-        authScreen.style.display = '';
-      }
-
-      if (app) {
-        app.hidden = true;
-        app.style.display = 'none';
-      }
-
-      return;
-    }
-
-
-    /* --------------------------------------------------------
-       USER IS ALREADY LOGGED IN
-    -------------------------------------------------------- */
-
-    if (session && session.user) {
-
-      console.log(
-        'Ming authenticated session detected.'
-      );
-
-
-      if (authScreen) {
-        authScreen.hidden = true;
-        authScreen.style.display = 'none';
-      }
-
-
-      if (app) {
-        app.hidden = false;
-        app.style.display = '';
-      }
-
-
-      return;
-    }
-
-
-    /* --------------------------------------------------------
-       USER IS NOT LOGGED IN
-    -------------------------------------------------------- */
-
-    console.log(
-      'Ming: no authenticated session.'
-    );
-
-
-    if (authScreen) {
-      authScreen.hidden = false;
-      authScreen.style.display = '';
-    }
-
-
-    if (app) {
-      app.hidden = true;
-      app.style.display = 'none';
-    }
-
-
-  } catch (error) {
-
-    console.error(
-      'Ming authentication initialization failed.',
-      error
-    );
-
-
-    /*
-       Fail closed:
-       if anything unexpected happens,
-       keep the homepage hidden.
-    */
-
-    if (authScreen) {
-      authScreen.hidden = false;
-      authScreen.style.display = '';
-    }
-
-    if (app) {
-      app.hidden = true;
-      app.style.display = 'none';
-    }
-
-  }
+  console.log('Ming: authenticated session detected.');
 
 })();
