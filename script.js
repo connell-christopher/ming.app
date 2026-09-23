@@ -5467,6 +5467,31 @@ document.addEventListener('DOMContentLoaded', () => {
           'Signed in successfully.'
         );
 
+
+
+
+
+
+      const authScreen = document.getElementById('auth-screen');
+const app = document.getElementById('app');
+
+if (authScreen) {
+  authScreen.hidden = true;
+  authScreen.style.display = 'none';
+}
+
+if (app) {
+  app.hidden = false;
+  app.style.display = '';
+}
+
+console.log('Ming: homepage opened');
+
+
+
+
+
+        
       } catch (error) {
         console.error(
           'Ming login request failed.'
@@ -5507,7 +5532,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (session?.user) {
       console.log('Ming authenticated session detected.');
 
-      // User is already logged in
       if (authScreen) {
         authScreen.hidden = true;
         authScreen.style.display = 'none';
@@ -5521,7 +5545,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // User is NOT logged in
+    // NOT LOGGED IN
     console.log('Ming: no authenticated session.');
 
     if (authScreen) {
@@ -5531,6 +5555,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (app) {
       app.hidden = true;
+      app.style.display = 'none';
     }
 
   } catch (error) {
