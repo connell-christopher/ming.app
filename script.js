@@ -5578,3 +5578,7 @@ console.log('Ming: homepage opened');
     console.log('Ming: homepage opened');
   });
 }
+
+
+console.log("AUTH:", document.getElementById("auth-screen"));
+console.log("APP:", document.getElementById("app"));
