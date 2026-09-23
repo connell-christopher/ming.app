@@ -5528,6 +5528,32 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 })();
 
+
+                             /*========================================
+   HIDE LOGIN SCREEN
+========================================*/
+const authScreen = document.getElementById("auth-screen");
+const homeScreen = document.getElementById("home-screen");
+
+function updateAuthUI(session) {
+    if (session) {
+        authScreen.style.display = "none";
+        homeScreen.style.display = "block";
+    } else {
+        authScreen.style.display = "flex";
+        homeScreen.style.display = "none";
+    }
+}
+
+supabase.auth.getSession().then(({ data: { session } }) => {
+    updateAuthUI(session);
+});
+
+supabase.auth.onAuthStateChange((event, session) => {
+    updateAuthUI(session);
+});
+
+
 /*====================================
    HOMEPAGE-REDIRECT   
 ====================================*/
@@ -5565,39 +5591,3 @@ document.getElementById('auth-screen').style.display = 'none';
 const app = document.getElementById('app');
 app.hidden = false;
 app.style.display = '';
-
-
-
-
-
-
-
-
-
-
-
-
-
-                             /*========================================
-   HIDE LOGIN SCREEN
-========================================*/
-const authScreen = document.getElementById("auth-screen");
-const homeScreen = document.getElementById("home-screen");
-
-function updateAuthUI(session) {
-    if (session) {
-        authScreen.style.display = "none";
-        homeScreen.style.display = "block";
-    } else {
-        authScreen.style.display = "flex";
-        homeScreen.style.display = "none";
-    }
-}
-
-supabase.auth.getSession().then(({ data: { session } }) => {
-    updateAuthUI(session);
-});
-
-supabase.auth.onAuthStateChange((event, session) => {
-    updateAuthUI(session);
-});
