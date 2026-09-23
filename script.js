@@ -2039,20 +2039,44 @@ function popStackIfPerson() {
 /* ------------------------------------------------------------
    INPUT WIRING
 ------------------------------------------------------------ */
-$('#fab').addEventListener('click', openCreateSheet);
-$('#home-avatar').addEventListener('click', () => setTab('profile'));
-$('#refresh-nearby').addEventListener('click', async () => {
-  if (state.locStatus !== 'granted') { requestLocation(); return; }
-  $('#nearby-body').innerHTML = `<div style="margin:0 18px"><div class="sk" style="height:330px;border-radius:var(--r-xl)"></div></div>` + skeletonCards(1);
-  await sleep(520);
-  renderNearby();
-  toast('Nearby refreshed', 'layers');
-});
-$('#mark-all-read').addEventListener('click', () => {
-  notifications.forEach(n => n.read = true);
-  renderNotifications(); updateNotifDot();
-  toast('All caught up', 'check');
-});
+/* ------------------------------------------------------------
+   INPUT WIRING
+------------------------------------------------------------ */
+
+if ($('#fab')) {
+  $('#fab').addEventListener('click', openCreateSheet);
+}
+
+if ($('#home-avatar')) {
+  $('#home-avatar').addEventListener('click', () => setTab('profile'));
+}
+
+if ($('#refresh-nearby')) {
+  $('#refresh-nearby').addEventListener('click', async () => {
+    if (state.locStatus !== 'granted') {
+      requestLocation();
+      return;
+    }
+
+    $('#nearby-body').innerHTML =
+      `<div style="margin:0 18px">
+        <div class="sk" style="height:330px;border-radius:var(--r-xl)"></div>
+      </div>` + skeletonCards(1);
+
+    await sleep(520);
+    renderNearby();
+    toast('Nearby refreshed', 'layers');
+  });
+}
+
+if ($('#mark-all-read')) {
+  $('#mark-all-read').addEventListener('click', () => {
+    notifications.forEach(n => n.read = true);
+    renderNotifications();
+    updateNotifDot();
+    toast('All caught up', 'check');
+  });
+}
 scrim.addEventListener('click', () => { closeSheet(); closeModal(); });
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
