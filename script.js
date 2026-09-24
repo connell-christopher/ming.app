@@ -1531,7 +1531,9 @@ function renderProfile() {
   const mine = liveUpdates().filter(u => u.authorId === currentUser.id);
   $('#profile-body').innerHTML = `
     <div class="phead">
-      ${ringAvatar(currentUser, 88, true)}
+      <button type="button" data-action="avatar-menu" aria-label="Profile photo" style="border:0;background:none;padding:0;cursor:pointer">
+        ${ringAvatar(currentUser, 88, true)}
+      </button>
       <div class="who">
         <h1>${esc(currentUser.name)}</h1>
         <div class="u">${esc(currentUser.username)}</div>
@@ -1963,6 +1965,201 @@ function closeModal() {
   if (!sheet.classList.contains('is-open')) scrim.classList.remove('is-open');
 }
 
+let pendingAvatarObjectUrl = null;
+let pendingAvatarImage = null;
+
+function openAvatarMenu() {
+  openModal({
+    title: 'Profile photo',
+    lede: currentUser.avatarUrl
+      ? 'View your current photo or choose a new one.'
+      : 'Add a clear photo so people can recognize and connect with you.',
+    fields: `<div style="text-align:center;padding:8px 0">${ringAvatar(currentUser, 96, false)}</div>`,
+    actions: [
+      ...(currentUser.avatarUrl ? [{ t: 'View photo', cls: 'btn--soft', a: 'view-avatar' }] : []),
+      { t: currentUser.avatarUrl ? 'Edit photo' : 'Add photo', cls: 'btn--primary', a: 'pick-avatar' }
+    ]
+  });
+}
+
+function viewAvatar() {
+  if (!currentUser.avatarUrl) return;
+  openModal({
+    title: 'Your photo',
+    fields: `<div style="text-align:center"><img src="${esc(currentUser.avatarUrl)}" alt="Your profile photo" style="display:block;width:min(100%,360px);aspect-ratio:1;object-fit:cover;border-radius:24px;margin:0 auto"></div>`,
+    actions: [
+      { t: 'Edit photo', cls: 'btn--soft', a: 'pick-avatar' },
+      { t: 'Close', cls: 'btn--primary', a: 'close-modal' }
+    ]
+  });
+}
+
+function pickAvatar() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.setAttribute('capture', 'user');
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast('Please choose an image file.', 'alert');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast('Photo must be 8 MB or smaller.', 'alert');
+      return;
+    }
+    if (pendingAvatarObjectUrl) URL.revokeObjectURL(pendingAvatarObjectUrl);
+    pendingAvatarObjectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      pendingAvatarImage = img;
+      openAvatarCrop();
+    };
+    img.onerror = () => toast('Could not read that photo.', 'alert');
+    img.src = pendingAvatarObjectUrl;
+  };
+  input.click();
+}
+
+function openAvatarCrop() {
+  openModal({
+    title: 'Edit photo',
+    lede: 'Move and zoom your photo until you like the frame.',
+    fields: `
+      <div style="text-align:center">
+        <div id="avatar-crop-frame" style="width:min(100%,320px);aspect-ratio:1;margin:0 auto 16px;overflow:hidden;border-radius:24px;background:#111;position:relative;touch-action:none">
+          <img id="avatar-crop-image" src="${esc(pendingAvatarObjectUrl || '')}" alt="Photo preview" style="position:absolute;left:50%;top:50%;max-width:none;width:auto;height:auto;transform:translate(-50%,-50%) scale(1);transform-origin:center;user-select:none;-webkit-user-drag:none" />
+        </div>
+        <label for="avatar-zoom" style="display:block;text-align:left;font-size:13px;margin-bottom:7px">Zoom</label>
+        <input id="avatar-zoom" type="range" min="1" max="3" step="0.01" value="1" style="width:100%" />
+        <div class="count">Your photo is cropped to a square. Maximum upload size: 8 MB.</div>
+      </div>`,
+    actions: [
+      { t: 'Cancel', cls: 'btn--soft', a: 'avatar-crop-cancel' },
+      { t: 'Save photo', cls: 'btn--primary', a: 'save-avatar-crop' }
+    ]
+  });
+
+  const img = document.getElementById('avatar-crop-image');
+  const frame = document.getElementById('avatar-crop-frame');
+  const zoom = document.getElementById('avatar-zoom');
+  let x = 0, y = 0, dragging = false, sx = 0, sy = 0, ox = 0, oy = 0;
+
+  const apply = () => {
+    const z = Number(zoom.value);
+    img.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${z})`;
+  };
+  zoom.addEventListener('input', apply);
+
+  const start = e => {
+    dragging = true;
+    const p = e.touches?.[0] || e;
+    sx = p.clientX; sy = p.clientY; ox = x; oy = y;
+  };
+  const move = e => {
+    if (!dragging) return;
+    const p = e.touches?.[0] || e;
+    x = ox + p.clientX - sx;
+    y = oy + p.clientY - sy;
+    apply();
+    e.preventDefault();
+  };
+  const end = () => { dragging = false; };
+  frame.addEventListener('mousedown', start);
+  frame.addEventListener('mousemove', move);
+  frame.addEventListener('mouseup', end);
+  frame.addEventListener('mouseleave', end);
+  frame.addEventListener('touchstart', start, { passive: false });
+  frame.addEventListener('touchmove', move, { passive: false });
+  frame.addEventListener('touchend', end);
+}
+
+async function saveAvatarCrop() {
+  if (!pendingAvatarImage) return;
+  const frame = document.getElementById('avatar-crop-frame');
+  const imgEl = document.getElementById('avatar-crop-image');
+  const zoomEl = document.getElementById('avatar-zoom');
+  if (!frame || !imgEl) return;
+
+  const frameRect = frame.getBoundingClientRect();
+  const zoom = Number(zoomEl?.value || 1);
+  const transform = getComputedStyle(imgEl).transform;
+  const matrix = new DOMMatrix(transform);
+  const tx = matrix.m41;
+  const ty = matrix.m42;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 800;
+  canvas.height = 800;
+  const ctx = canvas.getContext('2d');
+
+  const baseScale = Math.max(
+    frameRect.width / pendingAvatarImage.naturalWidth,
+    frameRect.height / pendingAvatarImage.naturalHeight
+  );
+  const drawScale = baseScale * zoom;
+  const renderedW = pendingAvatarImage.naturalWidth * drawScale;
+  const renderedH = pendingAvatarImage.naturalHeight * drawScale;
+  const scaleToCanvas = 800 / frameRect.width;
+  const dx = (frameRect.width - renderedW) / 2 + tx;
+  const dy = (frameRect.height - renderedH) / 2 + ty;
+
+  ctx.drawImage(
+    pendingAvatarImage,
+    dx * scaleToCanvas,
+    dy * scaleToCanvas,
+    renderedW * scaleToCanvas,
+    renderedH * scaleToCanvas
+  );
+
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.88));
+  if (!blob) {
+    toast('Could not prepare the photo.', 'alert');
+    return;
+  }
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user) {
+    toast('Please sign in again', 'alert');
+    return;
+  }
+
+  const path = session.user.id + '/profile.jpg';
+  const { error: uploadError } = await supabaseClient.storage.from('avatars').upload(path, blob, {
+    upsert: true,
+    contentType: 'image/jpeg',
+    cacheControl: '3600'
+  });
+  if (uploadError) {
+    console.error('Ming: avatar upload failed:', uploadError.message);
+    toast('Could not upload photo', 'alert');
+    return;
+  }
+
+  const { data: publicData } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+  const publicUrl = publicData.publicUrl + '?v=' + Date.now();
+  const { error: profileError } = await supabaseClient.from('profiles')
+    .update({ avatar_url: publicUrl })
+    .eq('id', session.user.id);
+
+  if (profileError) {
+    console.error('Ming: avatar profile update failed:', profileError.message);
+    toast('Could not save photo', 'alert');
+    return;
+  }
+
+  currentUser.avatarUrl = publicUrl;
+  if (pendingAvatarObjectUrl) URL.revokeObjectURL(pendingAvatarObjectUrl);
+  pendingAvatarObjectUrl = null;
+  pendingAvatarImage = null;
+  closeModal();
+  renderProfile();
+  renderHome();
+  toast('Profile photo updated', 'check');
+}
+
 /* ------------------------------------------------------------
    TOASTS
 ------------------------------------------------------------ */
@@ -2154,6 +2351,16 @@ document.addEventListener('click', async e => {
       break;
     }
 
+    case 'avatar-menu': openAvatarMenu(); break;
+    case 'view-avatar': viewAvatar(); break;
+    case 'pick-avatar': pickAvatar(); break;
+    case 'avatar-crop-cancel':
+      if (pendingAvatarObjectUrl) URL.revokeObjectURL(pendingAvatarObjectUrl);
+      pendingAvatarObjectUrl = null;
+      pendingAvatarImage = null;
+      closeModal();
+      break;
+    case 'save-avatar-crop': await saveAvatarCrop(); break;
     case 'edit-profile': closeSheet(); setTimeout(editProfile, 160); break;
     case 'save-profile': {
       const avatarInput = $('#ep-avatar');
