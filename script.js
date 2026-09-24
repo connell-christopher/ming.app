@@ -95,7 +95,7 @@ const currentUser = {
   bio: 'Breaking things carefully so other people can build safely. Usually somewhere with good coffee and bad wifi.',
   interests: [],
   activity: '',
-  joined: 'Joined March 2025'
+  joined: ''
 };
 
 /* ------------------------------------------------------------
@@ -151,6 +151,9 @@ const mingProfileReady = new Promise(resolve => {
     currentUser.headline = profile.headline || '';
     currentUser.interests = Array.isArray(profile.interests) ? profile.interests : [];
     currentUser.activity = profile.activity || '';
+    currentUser.joined = profile.created_at
+      ? 'Joined ' + new Date(profile.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })
+      : '';
 
     /*
        The app renders its demo UI asynchronously. The profile request can
