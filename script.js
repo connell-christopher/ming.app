@@ -5095,6 +5095,77 @@ function seedNewSpace(space) {
 })();
 
 
+/* ------------------------------------------------------------
+   MING CURRENT USER PROFILE
+   Loads the authenticated user's profile from public.profiles
+   and replaces the remaining demo identity on the live app.
+------------------------------------------------------------ */
+
+(async function loadMingCurrentUserProfile() {
+
+  try {
+    const {
+      data: { session },
+      error: sessionError
+    } = await supabaseClient.auth.getSession();
+
+    if (sessionError || !session?.user) {
+      return;
+    }
+
+    const { data: profile, error } = await supabaseClient
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, bio, created_at, updated_at')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Ming: could not load current profile.');
+      return;
+    }
+
+    if (!profile) {
+      console.warn('Ming: authenticated user has no profile row.');
+      return;
+    }
+
+    currentUser.id = profile.id;
+    currentUser.name =
+      profile.display_name ||
+      session.user.user_metadata?.display_name ||
+      'Ming user';
+
+    currentUser.username = profile.username
+      ? '@' + profile.username.replace(/^@/, '')
+      : '';
+
+    currentUser.bio = profile.bio || currentUser.bio;
+
+    const greeting = document.getElementById('greeting');
+    if (greeting) {
+      greeting.textContent = `${greetWord()}, ${currentUser.name}`;
+    }
+
+    const moonTitle = document.getElementById('moon-title');
+    if (moonTitle) {
+      moonTitle.textContent = `Welcome back, ${currentUser.name}.`;
+    }
+
+    const profileScreen = document.getElementById('screen-profile');
+    if (profileScreen?.classList.contains('is-active')) {
+      state.loaded.profile = false;
+      ensureLoaded('profile');
+    }
+
+    console.log('Ming: current profile loaded.');
+
+  } catch (error) {
+    console.warn('Ming: current profile load failed.');
+  }
+
+})();
+
+
 
 }
 
