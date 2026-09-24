@@ -1558,7 +1558,10 @@ function usernameChangeAvailable() {
   const changedAt = new Date(currentUser.usernameChangedAt).getTime();
   if (!Number.isFinite(changedAt)) return true;
 
-  return now() >= changedAt + (90 * 24 * HOUR);
+  const next = new Date(changedAt);
+  next.setMonth(next.getMonth() + 3);
+
+  return now() >= next.getTime();
 }
 
 function usernameNextChangeDate() {
