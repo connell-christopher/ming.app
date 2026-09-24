@@ -89,6 +89,7 @@ const currentUser = {
   name: 'Connell Christopher',
   username: '@connell',
   usernameChangedAt: null,
+  avatarUrl: '',
   hue: 24,
   headline: 'Application Security',
   tags: [],
@@ -141,6 +142,8 @@ const mingProfileReady = new Promise(resolve => {
       profile.display_name ||
       session.user.user_metadata?.display_name ||
       currentUser.name;
+
+    currentUser.avatarUrl = profile.avatar_url || '';
 
     currentUser.username = profile.username
       ? '@' + profile.username.replace(/^@/, '')
@@ -343,7 +346,10 @@ function avatarStyle(hue) {
 }
 function avatar(p, size = 44, opts = {}) {
   const st = p.status ? `<span class="status ${p.status}"></span>` : '';
-  return `<span class="av av--${size}" style="${avatarStyle(p.hue)}" aria-hidden="true">${initials(p.short || p.name)}${opts.status === false ? '' : st}</span>`;
+  const image = p.avatarUrl
+    ? `<img src="${esc(p.avatarUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;">`
+    : initials(p.short || p.name);
+  return `<span class="av av--${size}" style="${avatarStyle(p.hue)}" aria-hidden="true">${image}${opts.status === false ? '' : st}</span>`;
 }
 function ringAvatar(p, size = 56, live = false) {
   return `<span class="av-ring ${live ? 'live' : ''}">${avatar(p, size)}</span>`;
@@ -1603,6 +1609,18 @@ function editProfile() {
     lede: 'Keep it human. People nearby see this before they see anything else.',
     fields: `
       <div class="field">
+        <label>Profile photo</label>
+        <div style="display:flex;align-items:center;gap:14px">
+          \${ringAvatar(currentUser, 64, false)}
+          <label class="btn btn--soft" style="cursor:pointer;flex:1;text-align:center">
+            \${currentUser.avatarUrl ? 'Change photo' : 'Add your photo'}
+            <input id="ep-avatar" type="file" accept="image/*" capture="user" style="display:none" />
+          </label>
+        </div>
+        <div class="count">Use a clear photo of yourself. People are more likely to recognize and connect with you when they can see the person behind the profile.</div>
+      </div>
+
+      <div class="field">
         <label for="ep-name">Name</label>
         <input id="ep-name" type="text" value="${esc(currentUser.name)}" />
       </div>
@@ -2138,6 +2156,8 @@ document.addEventListener('click', async e => {
 
     case 'edit-profile': closeSheet(); setTimeout(editProfile, 160); break;
     case 'save-profile': {
+      const avatarInput = $('#ep-avatar');
+      const avatarFile = avatarInput?.files?.[0] || null;
       const newName = $('#ep-name').value.trim();
       const newBio = $('#ep-bio').value.trim();
       const newTags = $('#ep-tags').value
@@ -2167,6 +2187,31 @@ document.addEventListener('click', async e => {
         if (!session?.user) {
           toast('Please sign in again', 'alert');
           break;
+        }
+
+        if (avatarFile) {
+          if (!avatarFile.type.startsWith('image/')) {
+            toast('Please choose an image file.', 'alert');
+            break;
+          }
+          if (avatarFile.size > 5 * 1024 * 1024) {
+            toast('Photo must be 5 MB or smaller.', 'alert');
+            break;
+          }
+          const extension = (avatarFile.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
+          const path = session.user.id + '/profile.' + (extension || 'jpg');
+          const { error: uploadError } = await supabaseClient.storage.from('avatars').upload(path, avatarFile, {
+            upsert: true,
+            contentType: avatarFile.type,
+            cacheControl: '3600'
+          });
+          if (uploadError) {
+            console.error('Ming: avatar upload failed:', uploadError.message);
+            toast('Could not upload photo', 'alert');
+            break;
+          }
+          const { data: publicData } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+          currentUser.avatarUrl = publicData.publicUrl;
         }
 
         if (usernameChanged) {
@@ -2213,6 +2258,7 @@ document.addEventListener('click', async e => {
           .from('profiles')
           .update({
             display_name: currentUser.name,
+            avatar_url: currentUser.avatarUrl || null,
             bio: currentUser.bio,
             headline: currentUser.headline,
             interests: currentUser.interests,
