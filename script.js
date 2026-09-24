@@ -2033,10 +2033,11 @@ function openAvatarCrop() {
     fields: `
       <div style="text-align:center">
         <div id="avatar-crop-frame" style="width:min(100%,320px);aspect-ratio:1;margin:0 auto 16px;overflow:hidden;border-radius:24px;background:#111;position:relative;touch-action:none">
-          <img id="avatar-crop-image" src="${esc(pendingAvatarObjectUrl || '')}" alt="Photo preview" style="position:absolute;left:50%;top:50%;max-width:none;width:auto;height:auto;transform:translate(-50%,-50%);transform-origin:center;user-select:none;-webkit-user-drag:none" />
+          <img id="avatar-crop-bg" src="${esc(pendingAvatarObjectUrl || '')}" alt="" aria-hidden="true" style="position:absolute;inset:-18px;width:calc(100% + 36px);height:calc(100% + 36px);object-fit:cover;filter:blur(18px);opacity:.72;transform:scale(1.08);user-select:none;-webkit-user-drag:none" />
+          <img id="avatar-crop-image" src="${esc(pendingAvatarObjectUrl || '')}" alt="Photo preview" style="position:absolute;left:50%;top:50%;max-width:none;width:auto;height:auto;transform:translate(-50%,-50%) scale(.5);transform-origin:center;user-select:none;-webkit-user-drag:none" />
         </div>
         <label for="avatar-zoom" style="display:block;text-align:left;font-size:13px;margin-bottom:7px">Zoom</label>
-        <input id="avatar-zoom" type="range" min="1" max="3" step="0.01" value="1" style="width:100%" />
+        <input id="avatar-zoom" type="range" min="0.5" max="3" step="0.01" value="0.5" style="width:100%" />
         <div class="count">Your photo is cropped to a square. Maximum upload size: 8 MB.</div>
       </div>`,
     actions: [
@@ -2046,6 +2047,7 @@ function openAvatarCrop() {
   });
 
   const img = document.getElementById('avatar-crop-image');
+  const bg = document.getElementById('avatar-crop-bg');
   const frame = document.getElementById('avatar-crop-frame');
   const zoom = document.getElementById('avatar-zoom');
   if (!img || !frame || !zoom) return;
@@ -2055,6 +2057,7 @@ function openAvatarCrop() {
     pendingAvatarCrop.zoom = z;
     img.style.transform =
       `translate(calc(-50% + ${pendingAvatarCrop.x}px), calc(-50% + ${pendingAvatarCrop.y}px)) scale(${z})`;
+    if (bg) bg.style.transform = 'scale(1.08)';
   };
 
   zoom.addEventListener('input', apply);
@@ -2123,11 +2126,32 @@ async function saveAvatarCrop() {
   const drawW = sourceW * drawScale;
   const drawH = sourceH * drawScale;
 
+  // Fill the canvas first with the same blurred/covered image used behind
+  // the preview. This lets the main photo be shown at the reduced scale
+  // without leaving empty edges in the saved square avatar.
+  const bgScale = baseScale;
+  const bgW = sourceW * bgScale;
+  const bgH = sourceH * bgScale;
+  const bgX = (frameSize - bgW) / 2;
+  const bgY = (frameSize - bgH) / 2;
+
+  const scaleToCanvas = 800 / frameSize;
+
+  ctx.save();
+  ctx.filter = 'blur(18px)';
+  ctx.globalAlpha = 0.72;
+  ctx.drawImage(
+    pendingAvatarImage,
+    (bgX - 18) * scaleToCanvas,
+    (bgY - 18) * scaleToCanvas,
+    (bgW + 36) * scaleToCanvas,
+    (bgH + 36) * scaleToCanvas
+  );
+  ctx.restore();
+
   // Match the exact visual position used by the crop preview.
   const drawX = (frameSize - drawW) / 2 + x;
   const drawY = (frameSize - drawH) / 2 + y;
-
-  const scaleToCanvas = 800 / frameSize;
 
   ctx.drawImage(
     pendingAvatarImage,
