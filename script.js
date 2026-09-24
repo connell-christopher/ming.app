@@ -203,7 +203,8 @@ const people = [
   { id: 'p9', name: 'Kunle Bamgbose', short: 'Kunle', hue: 88, tag: 'Carpenter · Furniture', interests: ['Woodwork', 'Design', 'Football'], bio: 'Tables, shelves, small repairs. Twelve years of sawdust.', off: { e: -1000, n: -1960 }, status: null, activity: 'Taking commissions', visitor: false },
   { id: 'p10', name: 'Priya Menon', short: 'Priya', hue: 222, tag: 'Visiting · Data science', interests: ['Data', 'Yoga', 'Street food'], bio: 'Here for a two-week project. Looking for a good running route and better suya.', off: { e: 800, n: -410 }, status: 'on', activity: 'Visiting for 2 weeks', visitor: true }
 ];
-const byId = id => people.find(p => p.id === id) || null;
+const mingConnectionProfiles = new Map();
+const byId = id => people.find(p => p.id === id) || mingConnectionProfiles.get(id) || null;
 
 const KINDS = {
   service: { label: 'Side hustle', cls: '' },
@@ -268,6 +269,91 @@ let connectionRequests = [
   { id: 'r1', personId: 'p3', message: 'Saw you shoot film too. I have a spare roll of Portra if you ever want to trade.', at: now() - 3 * HOUR },
   { id: 'r2', personId: 'p10', message: 'Visiting for two weeks and trying to find a running route. Any advice welcome.', at: now() - 26 * HOUR }
 ];
+
+async function loadMingConnections() {
+  try {
+    const { data: { session }, error: sessionError } =
+      await supabaseClient.auth.getSession();
+    if (sessionError || !session?.user) return false;
+
+    const { data: rows, error } = await supabaseClient
+      .from('connections')
+      .select('id, requester_id, recipient_id, status, note, created_at')
+      .or(`requester_id.eq.${session.user.id},recipient_id.eq.${session.user.id}`)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('Ming: connections backend is not ready yet.', error.message);
+      return false;
+    }
+
+    const { data: profiles, error: profileError } =
+      await supabaseClient.rpc('get_my_connection_profiles');
+
+    if (profileError) {
+      console.warn('Ming: connection profiles could not be loaded.', profileError.message);
+      return false;
+    }
+
+    mingConnectionProfiles.clear();
+    (profiles || []).forEach(profile => {
+      const interests = Array.isArray(profile.interests) ? profile.interests : [];
+      const tags = Array.isArray(profile.tags) ? profile.tags : [];
+      mingConnectionProfiles.set(profile.id, {
+        id: profile.id,
+        name: profile.display_name || 'Ming user',
+        short: profile.display_name || 'Ming user',
+        tag: profile.headline || tags.join(' · '),
+        interests,
+        bio: profile.bio || '',
+        avatarUrl: profile.avatar_url || '',
+        username: profile.username ? '@' + profile.username.replace(/^@/, '') : '',
+        activity: profile.activity || '',
+        status: null,
+        km: null,
+        visitor: false
+      });
+    });
+
+    const uid = session.user.id;
+    connections = (rows || [])
+      .filter(row => row.status === 'accepted')
+      .map(row => ({
+        id: row.id,
+        personId: row.requester_id === uid ? row.recipient_id : row.requester_id,
+        at: new Date(row.created_at).getTime()
+      }));
+
+    connectionRequests = (rows || [])
+      .filter(row => row.status === 'pending' && row.recipient_id === uid)
+      .map(row => ({
+        id: row.id,
+        personId: row.requester_id,
+        message: row.note || '',
+        at: new Date(row.created_at).getTime()
+      }));
+
+    return true;
+  } catch (error) {
+    console.warn('Ming: connection load failed.', error);
+    return false;
+  }
+}
+
+function connectionStatus(id) {
+  if (isConnected(id)) return 'connected';
+  if (connectionRequests.some(r => r.personId === id)) return 'incoming';
+  return 'none';
+}
+
+function isUuidPerson(id) {
+  return /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id);
+}
+
+function hasOutgoingConnectionRequest(id) {
+  return isUuidPerson(id) && connectionStatus(id) === 'none';
+}
+
 
 let notifications = [
   { id: 'n1', type: 'connect', text: '<b>Maya</b> connected with you.', at: now() - 25 * 60000, read: false },
@@ -1095,7 +1181,10 @@ function openPerson(id) {
   if (!p) return;
   state.activePerson = id;
   $('#person-title').textContent = p.short;
-  const connected = isConnected(id);
+  const status = connectionStatus(id);
+  const connected = status === 'connected';
+  const incoming = status === 'incoming';
+  const outgoing = isUuidPerson(id) && status === 'none';
   const theirUpdates = liveUpdates().filter(u => u.authorId === id);
 
   $('#person-body').innerHTML = `
@@ -1112,8 +1201,8 @@ function openPerson(id) {
       <div><div class="lbl">Right now</div><div class="val">${esc(p.activity)}</div></div>
     </div>
     <div style="display:flex;gap:10px;padding:18px 18px 0">
-      <button class="btn ${connected ? 'btn--soft' : 'btn--primary'}" style="flex:1" data-action="${connected ? 'remove-conn:' + p.id : 'connect:' + p.id}">
-        ${connected ? icon('check') + 'Connected' : icon('users') + 'Connect'}
+      <button class="btn ${connected || outgoing ? 'btn--soft' : 'btn--primary'}" style="flex:1" data-action="${connected ? 'confirm-remove:' + p.id : incoming || outgoing ? 'go-connections' : 'connect:' + p.id}">
+        ${connected ? icon('check') + 'Connected' : incoming ? icon('users') + 'Respond in Connections' : outgoing ? icon('check') + 'Request sent' : icon('users') + 'Connect'}
       </button>
       <button class="btn btn--soft" style="flex:1" data-action="message:${p.id}">${icon('chat')}Message</button>
     </div>
@@ -1189,8 +1278,41 @@ function connectWith(id) {
   });
 }
 
-function sendConnection(id) {
+async function sendConnection(id) {
   const p = byId(id);
+  if (!p) return;
+
+  if (isUuidPerson(id)) {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session?.user) {
+      toast('Please sign in again', 'alert');
+      return;
+    }
+
+    const note = $('#conn-note')?.value.trim() || null;
+    const { error } = await supabaseClient
+      .from('connections')
+      .insert({
+        requester_id: session.user.id,
+        recipient_id: id,
+        note,
+        status: 'pending'
+      });
+
+    if (error) {
+      console.error('Ming: connection request failed:', error.message);
+      toast(/duplicate|unique/i.test(error.message) ? 'A request already exists.' : 'Could not send connection request.', 'alert');
+      return;
+    }
+
+    closeModal();
+    toast(`Connection request sent to ${p.short}`, 'check');
+    await loadMingConnections();
+    if (state.activePerson === id) openPersonRefresh(id);
+    renderConnections();
+    return;
+  }
+
   connections.push({ personId: id, at: now() });
   notifications.unshift({ id: uid('n'), type: 'connect', text: `<b>${esc(p.short)}</b> accepted your connection request.`, at: now(), read: false });
   closeModal();
@@ -2384,7 +2506,13 @@ document.addEventListener('click', async e => {
       break;
 
     case 'go-nearby': setTab('nearby'); break;
-    case 'go-connections': renderConnections(); pushStack('connections'); break;
+    case 'go-connections': {
+      const loaded = await loadMingConnections();
+      renderConnections();
+      pushStack('connections');
+      if (!loaded) toast('Showing local connections until the backend is connected.', 'alert');
+      break;
+    }
     case 'go-messages': renderMessages(); pushStack('messages'); break;
     case 'go-notifications': closeSheet(); renderNotifications(); pushStack('notifications'); break;
     case 'go-updates': $('#my-updates').scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
