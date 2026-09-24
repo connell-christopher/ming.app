@@ -88,6 +88,7 @@ const currentUser = {
   id: 'u_me',
   name: 'Connell Christopher',
   username: '@connell',
+  usernameChangedAt: null,
   hue: 24,
   headline: 'Application Security',
   tags: ['Technology', 'Cybersecurity', 'Software'],
@@ -115,7 +116,7 @@ const currentUser = {
 
     const { data: profile, error } = await supabaseClient
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, created_at, updated_at')
+      .select('id, username, username_changed_at, display_name, avatar_url, bio, created_at, updated_at')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -133,6 +134,8 @@ const currentUser = {
     currentUser.username = profile.username
       ? '@' + profile.username.replace(/^@/, '')
       : currentUser.username;
+
+    currentUser.usernameChangedAt = profile.username_changed_at || null;
 
     currentUser.bio = profile.bio || currentUser.bio;
 
@@ -1549,17 +1552,62 @@ function renderProfile() {
     </div>`;
 }
 
+function usernameChangeAvailable() {
+  if (!currentUser.usernameChangedAt) return true;
+
+  const changedAt = new Date(currentUser.usernameChangedAt).getTime();
+  if (!Number.isFinite(changedAt)) return true;
+
+  return now() >= changedAt + (90 * 24 * HOUR);
+}
+
+function usernameNextChangeDate() {
+  if (!currentUser.usernameChangedAt) return null;
+
+  const changedAt = new Date(currentUser.usernameChangedAt).getTime();
+  if (!Number.isFinite(changedAt)) return null;
+
+  const next = new Date(changedAt);
+  next.setMonth(next.getMonth() + 3);
+  return next;
+}
+
 function editProfile() {
+  const usernameLocked = !usernameChangeAvailable();
+  const nextUsernameChange = usernameNextChangeDate();
+
   openModal({
     title: 'Edit profile',
     lede: 'Keep it human. People nearby see this before they see anything else.',
     fields: `
-      <div class="field"><label for="ep-name">Name</label><input id="ep-name" type="text" value="${esc(currentUser.name)}" /></div>
-      <div class="field"><label for="ep-head">What you do</label><input id="ep-head" type="text" value="${esc(currentUser.headline)}" /></div>
-      <div class="field"><label for="ep-bio">Short bio</label><textarea id="ep-bio" maxlength="220">${esc(currentUser.bio)}</textarea></div>
-      <div class="field"><label>Your area</label>
+      <div class="field">
+        <label for="ep-name">Name</label>
+        <input id="ep-name" type="text" value="${esc(currentUser.name)}" />
+      </div>
+
+      <div class="field">
+        <label for="ep-username">Username</label>
+        <input id="ep-username" type="text" value="${esc(currentUser.username.replace(/^@/, ''))}" maxlength="30" ${usernameLocked ? 'disabled' : ''} />
+        <div class="count">${usernameLocked && nextUsernameChange
+          ? 'Username can be changed again on ' + nextUsernameChange.toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' }) + '.'
+          : 'You can change your username once every 3 months.'}</div>
+      </div>
+
+      <div class="field">
+        <label for="ep-head">What you do</label>
+        <input id="ep-head" type="text" value="${esc(currentUser.headline)}" />
+      </div>
+
+      <div class="field">
+        <label for="ep-bio">Short bio</label>
+        <textarea id="ep-bio" maxlength="220">${esc(currentUser.bio)}</textarea>
+      </div>
+
+      <div class="field">
+        <label>Your area</label>
         <div style="padding:13px 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);font-size:14.5px;color:var(--muted)">${esc(hasLocation() ? areaLabel() : 'Location off')}</div>
-        <div class="count">Set by your device, not by you. Others only ever see a rounded distance.</div></div>`,
+        <div class="count">Set by your device, not by you. Others only ever see a rounded distance.</div>
+      </div>`,
     actions: [{ t: 'Cancel', cls: 'btn--soft', a: 'close-modal' }, { t: 'Save changes', cls: 'btn--primary', a: 'save-profile' }]
   });
 }
@@ -2058,6 +2106,9 @@ document.addEventListener('click', async e => {
     case 'save-profile': {
       const newName = $('#ep-name').value.trim();
       const newBio = $('#ep-bio').value.trim();
+      const requestedUsername = $('#ep-username').value.trim().toLowerCase();
+      const currentUsername = currentUser.username.replace(/^@/, '').toLowerCase();
+      const usernameChanged = requestedUsername !== currentUsername;
 
       if (newName) currentUser.name = newName;
       currentUser.headline = $('#ep-head').value.trim() || currentUser.headline;
@@ -2070,6 +2121,46 @@ document.addEventListener('click', async e => {
         if (!session?.user) {
           toast('Please sign in again', 'alert');
           break;
+        }
+
+        if (usernameChanged) {
+          if (!/^[A-Za-z0-9](?:[A-Za-z0-9_-]{1,28}[A-Za-z0-9])?$/.test(requestedUsername)) {
+            toast('Username must be 3–30 characters and use only letters, numbers, underscores, or hyphens.', 'alert');
+            break;
+          }
+
+          if (!usernameChangeAvailable()) {
+            const next = usernameNextChangeDate();
+            toast(
+              next
+                ? 'Username can be changed again on ' + next.toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' }) + '.'
+                : 'Username can only be changed once every 3 months.',
+              'alert'
+            );
+            break;
+          }
+
+          const { data: usernameResult, error: usernameError } =
+            await supabaseClient.rpc('change_username', {
+              new_username: requestedUsername
+            });
+
+          if (usernameError) {
+            console.error('Ming: username update failed:', usernameError.message);
+
+            if (/already exists|duplicate|unique/i.test(usernameError.message)) {
+              toast('That username is already taken.', 'alert');
+            } else if (/3 months|three months|cooldown/i.test(usernameError.message)) {
+              toast('Username can only be changed once every 3 months.', 'alert');
+            } else {
+              toast('Could not change username.', 'alert');
+            }
+            break;
+          }
+
+          currentUser.username = '@' + requestedUsername;
+          currentUser.usernameChangedAt =
+            usernameResult?.username_changed_at || new Date().toISOString();
         }
 
         const { error } = await supabaseClient
@@ -2090,7 +2181,7 @@ document.addEventListener('click', async e => {
         renderProfile();
         renderHome();
         renderMoonflower();
-        toast('Profile updated', 'check');
+        toast(usernameChanged ? 'Profile and username updated' : 'Profile updated', 'check');
 
       } catch (error) {
         console.error('Ming: profile update failed:', error);
