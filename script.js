@@ -116,7 +116,7 @@ const currentUser = {
 
     const { data: profile, error } = await supabaseClient
       .from('profiles')
-      .select('id, username, username_changed_at, display_name, avatar_url, bio, created_at, updated_at')
+      .select('id, username, display_name, avatar_url, bio, created_at, updated_at')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -135,7 +135,6 @@ const currentUser = {
       ? '@' + profile.username.replace(/^@/, '')
       : currentUser.username;
 
-    currentUser.usernameChangedAt = profile.username_changed_at || null;
 
     currentUser.bio = profile.bio || currentUser.bio;
 
