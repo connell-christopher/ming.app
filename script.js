@@ -408,11 +408,56 @@ function setTab(tab, opts = {}) {
   ensureLoaded(tab);
 }
 
+async function refreshMingCurrentUserProfile() {
+  try {
+    const {
+      data: { session },
+      error: sessionError
+    } = await supabaseClient.auth.getSession();
+
+    if (sessionError || !session?.user) return;
+
+    const { data: profile, error } = await supabaseClient
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, bio, headline, interests, tags, activity, created_at, updated_at')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (error || !profile) {
+      console.warn('Ming: could not refresh current profile.', error?.message || 'Profile not found.');
+      return;
+    }
+
+    currentUser.id = profile.id;
+    currentUser.name = profile.display_name || session.user.user_metadata?.display_name || currentUser.name;
+    currentUser.avatarUrl = profile.avatar_url || '';
+    currentUser.username = profile.username ? '@' + profile.username.replace(/^@/, '') : currentUser.username;
+    currentUser.bio = profile.bio || '';
+    currentUser.headline = profile.headline || '';
+    currentUser.interests = Array.isArray(profile.interests) ? profile.interests : [];
+    currentUser.tags = Array.isArray(profile.tags) ? profile.tags : [];
+    currentUser.activity = profile.activity || '';
+    currentUser.joined = profile.created_at
+      ? 'Joined ' + new Date(profile.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })
+      : '';
+
+    if (state.loaded.profile) renderProfile();
+  } catch (error) {
+    console.warn('Ming: current profile refresh failed.', error);
+  }
+}
+
 function ensureLoaded(tab) {
   if (tab === 'home' && !state.loaded.home) return loadHome();
   if (tab === 'discover' && !state.loaded.discover) return loadDiscover();
   if (tab === 'nearby' && !state.loaded.nearby) return loadNearby();
-  if (tab === 'profile' && !state.loaded.profile) { state.loaded.profile = true; renderProfile(); }
+  if (tab === 'profile') {
+    if (!state.loaded.profile) {
+      state.loaded.profile = true;
+      renderProfile();
+    }
+    refreshMingCurrentUserProfile();
+  }
   if (tab === 'moonflower') renderMoonflower();
 }
 
