@@ -97,6 +97,63 @@ const currentUser = {
   joined: 'Joined March 2025'
 };
 
+/* ------------------------------------------------------------
+   MING CURRENT USER PROFILE
+------------------------------------------------------------ */
+
+(async function loadMingCurrentUserProfile() {
+
+  try {
+    const {
+      data: { session },
+      error: sessionError
+    } = await supabaseClient.auth.getSession();
+
+    if (sessionError || !session?.user) {
+      return;
+    }
+
+    const { data: profile, error } = await supabaseClient
+      .from('profiles')
+      .select('id, username, display_name, avatar_url, bio, created_at, updated_at')
+      .eq('id', session.user.id)
+      .maybeSingle();
+
+    if (error || !profile) {
+      console.warn('Ming: could not load current profile.');
+      return;
+    }
+
+    currentUser.id = profile.id;
+    currentUser.name =
+      profile.display_name ||
+      session.user.user_metadata?.display_name ||
+      currentUser.name;
+
+    currentUser.username = profile.username
+      ? '@' + profile.username.replace(/^@/, '')
+      : currentUser.username;
+
+    currentUser.bio = profile.bio || currentUser.bio;
+
+    const greeting = document.getElementById('greeting');
+    if (greeting) {
+      greeting.textContent = `${greetWord()}, ${currentUser.name}`;
+    }
+
+    const moonTitle = document.getElementById('moon-title');
+    if (moonTitle) {
+      moonTitle.textContent = `Welcome back, ${currentUser.name}.`;
+    }
+
+    console.log('Ming: current profile loaded.');
+
+  } catch (error) {
+    console.warn('Ming: current profile load failed.', error);
+  }
+
+})();
+
 const people = [
   { id: 'p1', name: 'Maya Okafor', short: 'Maya', hue: 340, tag: 'Designer · Entrepreneur', interests: ['Brand design', 'Ceramics', 'Coffee'], bio: 'Building a small design studio. Happy to trade feedback over coffee.', off: { e: -350, n: 600 }, status: 'on', activity: 'Sketching at Neo Café', visitor: false },
   { id: 'p2', name: 'Ibrahim Danjuma', short: 'Ibrahim', hue: 200, tag: 'Developer · Technology', interests: ['Backend', 'Chess', 'Running'], bio: 'Writing Go, breaking builds, fixing them again. Looking for a weekend project partner.', off: { e: 1000, n: -660 }, status: 'on', activity: 'Open to a working session', visitor: false },
@@ -5095,75 +5152,7 @@ function seedNewSpace(space) {
 })();
 
 
-/* ------------------------------------------------------------
-   MING CURRENT USER PROFILE
-   Loads the authenticated user's profile from public.profiles
-   and replaces the remaining demo identity on the live app.
------------------------------------------------------------- */
 
-(async function loadMingCurrentUserProfile() {
-
-  try {
-    const {
-      data: { session },
-      error: sessionError
-    } = await supabaseClient.auth.getSession();
-
-    if (sessionError || !session?.user) {
-      return;
-    }
-
-    const { data: profile, error } = await supabaseClient
-      .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, created_at, updated_at')
-      .eq('id', session.user.id)
-      .maybeSingle();
-
-    if (error) {
-      console.warn('Ming: could not load current profile.');
-      return;
-    }
-
-    if (!profile) {
-      console.warn('Ming: authenticated user has no profile row.');
-      return;
-    }
-
-    currentUser.id = profile.id;
-    currentUser.name =
-      profile.display_name ||
-      session.user.user_metadata?.display_name ||
-      'Ming user';
-
-    currentUser.username = profile.username
-      ? '@' + profile.username.replace(/^@/, '')
-      : '';
-
-    currentUser.bio = profile.bio || currentUser.bio;
-
-    const greeting = document.getElementById('greeting');
-    if (greeting) {
-      greeting.textContent = `${greetWord()}, ${currentUser.name}`;
-    }
-
-    const moonTitle = document.getElementById('moon-title');
-    if (moonTitle) {
-      moonTitle.textContent = `Welcome back, ${currentUser.name}.`;
-    }
-
-    const profileScreen = document.getElementById('screen-profile');
-    if (profileScreen?.classList.contains('is-active')) {
-      state.loaded.profile = false;
-      ensureLoaded('profile');
-    }
-
-    console.log('Ming: current profile loaded.');
-
-  } catch (error) {
-    console.warn('Ming: current profile load failed.');
-  }
-
-})();
 
 
 
