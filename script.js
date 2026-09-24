@@ -99,6 +99,15 @@ const currentUser = {
 };
 
 /* ------------------------------------------------------------
+   MING CURRENT USER PROFILE READY STATE
+------------------------------------------------------------ */
+
+let mingProfileReadyResolve;
+const mingProfileReady = new Promise(resolve => {
+  mingProfileReadyResolve = resolve;
+});
+
+/* ------------------------------------------------------------
    MING CURRENT USER PROFILE
 ------------------------------------------------------------ */
 
@@ -111,6 +120,7 @@ const currentUser = {
     } = await supabaseClient.auth.getSession();
 
     if (sessionError || !session?.user) {
+      mingProfileReadyResolve();
       return;
     }
 
@@ -121,7 +131,8 @@ const currentUser = {
       .maybeSingle();
 
     if (error || !profile) {
-      console.warn('Ming: could not load current profile.');
+      console.warn('Ming: could not load current profile.', error?.message || 'Profile not found.');
+      mingProfileReadyResolve();
       return;
     }
 
@@ -161,9 +172,11 @@ const currentUser = {
     }
 
     console.log('Ming: current profile loaded and active views refreshed.');
+    mingProfileReadyResolve();
 
   } catch (error) {
     console.warn('Ming: current profile load failed.', error);
+    mingProfileReadyResolve();
   }
 
 })();
@@ -2339,7 +2352,10 @@ function tickExpiry() {
   });
 }
 
-function boot() {
+async function boot() {
+  // Wait for the authenticated Supabase profile before the first render.
+  // This prevents the demo currentUser values from winning the render race.
+  await mingProfileReady;
   renderHome();
   setTab('home');
   updateNotifDot();
