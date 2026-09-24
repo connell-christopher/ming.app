@@ -136,17 +136,29 @@ const currentUser = {
 
     currentUser.bio = profile.bio || currentUser.bio;
 
+    /*
+       The app renders its demo UI asynchronously. The profile request can
+       finish before or after that first render, so refresh the active views
+       here after the real profile has arrived. This prevents the demo name
+       from winning a race against Supabase.
+    */
     const greeting = document.getElementById('greeting');
     if (greeting) {
-      greeting.textContent = `${greetWord()}, ${currentUser.name}`;
+      greeting.textContent = `${greetWord()}, ${currentUser.name.split(' ')[0]}`;
     }
 
     const moonTitle = document.getElementById('moon-title');
     if (moonTitle) {
-      moonTitle.textContent = `Welcome back, ${currentUser.name}.`;
+      moonTitle.textContent = `${greetWord()}, ${currentUser.name.split(' ')[0]}.`;
     }
 
-    console.log('Ming: current profile loaded.');
+    if (typeof state !== 'undefined') {
+      if (state.loaded?.home) renderHome();
+      if (state.loaded?.profile) renderProfile();
+      if (state.tab === 'moonflower') renderMoonflower();
+    }
+
+    console.log('Ming: current profile loaded and active views refreshed.');
 
   } catch (error) {
     console.warn('Ming: current profile load failed.', error);
