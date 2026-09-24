@@ -160,13 +160,29 @@ language sql security definer set search_path = '' stable as $$
 with me as (select latitude, longitude from public.profile_locations where user_id=(select auth.uid())),
 candidates as (
   select p.id,p.username,p.display_name,p.avatar_url,p.bio,p.headline,to_jsonb(p.interests) interests,to_jsonb(p.tags) tags,p.activity,p.created_at,l.latitude,l.longitude,me.latitude my_latitude,me.longitude my_longitude
-  from public.profiles p left join public.profile_locations l on l.user_id=p.id cross join me
+  from public.profiles p left join public.profile_locations l on l.user_id=p.id left join me on true
   where p.discoverable=true and p.id<>(select auth.uid())
 ),
 measured as (
   select c.*,
     case when c.latitude is null then null else 6371.0*2.0*asin(sqrt(power(sin(radians(c.latitude-c.my_latitude)/2.0),2)+cos(radians(c.my_latitude))*cos(radians(c.latitude))*power(sin(radians(c.longitude-c.my_longitude)/2.0),2))) end distance_km,
-    case when c.latitude is null then null else mod((degrees(atan2(sin(radians(c.longitude-c.my_longitude))*cos(radians(c.latitude)),cos(radians(c.my_latitude))*sin(radians(c.latitude))-sin(radians(c.my_latitude))*cos(radians(c.latitude))*cos(radians(c.longitude-c.my_longitude)))) + 360.0)::double precision, 360.0::double precision) end bearing_deg
+    case when c.latitude is null then null else case
+      when degrees(atan2(
+        sin(radians(c.longitude-c.my_longitude))*cos(radians(c.latitude)),
+        cos(radians(c.my_latitude))*sin(radians(c.latitude))
+          - sin(radians(c.my_latitude))*cos(radians(c.latitude))*cos(radians(c.longitude-c.my_longitude))
+      )) < 0
+      then degrees(atan2(
+        sin(radians(c.longitude-c.my_longitude))*cos(radians(c.latitude)),
+        cos(radians(c.my_latitude))*sin(radians(c.latitude))
+          - sin(radians(c.my_latitude))*cos(radians(c.latitude))*cos(radians(c.longitude-c.my_longitude))
+      )) + 360.0
+      else degrees(atan2(
+        sin(radians(c.longitude-c.my_longitude))*cos(radians(c.latitude)),
+        cos(radians(c.my_latitude))*sin(radians(c.latitude))
+          - sin(radians(c.my_latitude))*cos(radians(c.latitude))*cos(radians(c.longitude-c.my_longitude))
+      ))
+    end end bearing_deg
   from candidates c
 )
 select id,username,display_name,avatar_url,bio,headline,interests,tags,activity,created_at,distance_km,bearing_deg
