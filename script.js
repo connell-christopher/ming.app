@@ -596,7 +596,10 @@ $$('.scroll[data-scroll]').forEach(sc => {
    state.userLocation holds the exact fix and is used internally
    for distance maths. It is never rendered into the DOM.
 ------------------------------------------------------------ */
-const GEO_OPTS = { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 };
+const GEO_OPTS = { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 };
+const GEO_RETRY_OPTS = { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 };
+const MAX_PUBLISH_ACCURACY_M = 1000;  // Do not publish weak cell/IP-style fixes as nearby location.
+const MAX_ACCEPTABLE_ACCURACY_M = 5000; // Keep a fix for UI diagnostics, but never treat it as precise nearby data.
 const EARTH_R = 6371;                 // km
 const REFRESH_MOVE_M = 60;            // re-render after this much movement
 
@@ -669,8 +672,22 @@ function requestLocation(then) {
   }
   state.locStatus = 'requesting';
   refreshLocationUI();
+
+  // Ask the device for a fresh high-accuracy fix. Phones may initially return
+  // a coarse cell/Wi-Fi position, so retry once before accepting a weak result.
   navigator.geolocation.getCurrentPosition(
-    pos => { acceptFix(pos, true); if (then) then(); },
+    pos => {
+      if (Number.isFinite(pos.coords.accuracy) && pos.coords.accuracy > MAX_PUBLISH_ACCURACY_M) {
+        navigator.geolocation.getCurrentPosition(
+          retry => { acceptFix(retry, true); if (then) then(); },
+          err => { acceptFix(pos, true); if (then) then(); },
+          GEO_RETRY_OPTS
+        );
+        return;
+      }
+      acceptFix(pos, true);
+      if (then) then();
+    },
     err => { handleGeoError(err); if (then) then(); },
     GEO_OPTS
   );
@@ -693,11 +710,13 @@ function stopWatching() {
 
 function acceptFix(pos, announce) {
   const c = pos.coords;
+  const accuracy = Number.isFinite(c.accuracy) ? c.accuracy : Infinity;
   const prev = state.userLocation;
+
   state.userLocation = {
     latitude: c.latitude,
     longitude: c.longitude,
-    accuracy: c.accuracy,
+    accuracy,
     altitude: c.altitude,
     altitudeAccuracy: c.altitudeAccuracy,
     heading: c.heading,
@@ -709,11 +728,30 @@ function acceptFix(pos, announce) {
   startWatching();
 
   const movedKm = prev ? haversineKm(prev, state.userLocation) : Infinity;
+  const publishable = accuracy <= MAX_PUBLISH_ACCURACY_M;
+
   if (announce || movedKm * 1000 > REFRESH_MOVE_M) {
-    publishMingApproxLocation().then(() => loadMingDiscoverableProfiles(state.loaded.nearby ? state.radius : null).then(() => refreshLocationUI()));
-    resolveArea();
+    if (publishable) {
+      publishMingApproxLocation()
+        .then(() => loadMingDiscoverableProfiles(state.loaded.nearby ? state.radius : null))
+        .then(() => refreshLocationUI());
+    } else {
+      // Never turn a weak cell/IP-style fix into a false "nearby" distance.
+      mingLocationPublishKey = '';
+      refreshLocationUI();
+      resolveArea();
+    }
   }
-  if (announce) toast('Location on — your coordinates stay on your device', 'shield');
+
+  if (announce) {
+    if (publishable) {
+      toast('Precise device location enabled', 'shield');
+    } else if (accuracy <= MAX_ACCEPTABLE_ACCURACY_M) {
+      toast('Your device returned a coarse location. Ming will not use it for Nearby yet.', 'pin');
+    } else {
+      toast('Your device returned a very weak location fix. Ming will not publish it.', 'pin');
+    }
+  }
 }
 
 function handleGeoError(err) {
@@ -1014,7 +1052,7 @@ async function loadMingDiscoverableProfiles(radiusKm = null) {
 }
 
 async function publishMingApproxLocation() {
-  if (!hasLocation()) return false;
+  if (!hasLocation() || !Number.isFinite(state.userLocation.accuracy) || state.userLocation.accuracy > MAX_PUBLISH_ACCURACY_M) return false;
   const lat = Math.round(state.userLocation.latitude * 1000) / 1000;
   const lng = Math.round(state.userLocation.longitude * 1000) / 1000;
   const key = lat + ':' + lng;
