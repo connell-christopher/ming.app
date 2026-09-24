@@ -1902,8 +1902,10 @@ function editProfile() {
 ------------------------------------------------------------ */
 let searchTimer = null;
 
-function openSearch() {
+async function openSearch() {
   pushStack('search');
+  renderSearch('loading');
+  await loadMingDiscoverableProfiles();
   renderSearch('idle');
   setTimeout(() => $('#search-input').focus(), 220);
 }
@@ -1918,7 +1920,7 @@ function renderSearch(mode, q = '') {
         </div>
       </div>
       <div class="section">${sectionHead('People near you')}
-        ${people.slice(0, 4).map(p => `
+        ${mingDiscoverPeople.slice(0, 4).map(p => `
           <button class="prow" data-action="person:${p.id}">${avatar(p, 44)}
             <div class="meta"><div class="n">${esc(p.name)}</div><div class="s">${esc(p.tag)}</div></div>
             <div class="right"><div class="d">${esc(distLabel(p.km))}</div></div>
@@ -1932,7 +1934,7 @@ function renderSearch(mode, q = '') {
   }
 
   const t = q.toLowerCase();
-  const rp = people.filter(p => (p.name + p.tag + p.bio + p.interests.join(' ') + p.activity).toLowerCase().includes(t));
+  const rp = mingDiscoverPeople.filter(p => (p.name + ' ' + p.username + ' ' + p.tag + ' ' + p.bio + ' ' + p.interests.join(' ') + ' ' + p.activity).toLowerCase().includes(t));
   const ru = liveUpdates().filter(u => (u.title + u.body + KINDS[u.kind].label).toLowerCase().includes(t));
   const ro = opportunities.filter(o => (o.kind + o.title + o.body).toLowerCase().includes(t));
   const ra = activities.filter(a => (a.title + a.place + a.day).toLowerCase().includes(t));
