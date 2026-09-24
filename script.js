@@ -94,7 +94,7 @@ const currentUser = {
   tags: ['Technology', 'Cybersecurity', 'Software'],
   bio: 'Breaking things carefully so other people can build safely. Usually somewhere with good coffee and bad wifi.',
   interests: [],
-  activity: 'Working from a café until 6',
+  activity: '',
   joined: 'Joined March 2025'
 };
 
@@ -126,7 +126,7 @@ const mingProfileReady = new Promise(resolve => {
 
     const { data: profile, error } = await supabaseClient
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, headline, interests, created_at, updated_at')
+      .select('id, username, display_name, avatar_url, bio, headline, interests, activity, created_at, updated_at')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -150,6 +150,7 @@ const mingProfileReady = new Promise(resolve => {
     currentUser.bio = profile.bio || '';
     currentUser.headline = profile.headline || '';
     currentUser.interests = Array.isArray(profile.interests) ? profile.interests : [];
+    currentUser.activity = profile.activity || '';
 
     /*
        The app renders its demo UI asynchronously. The profile request can
@@ -2198,7 +2199,8 @@ document.addEventListener('click', async e => {
             display_name: currentUser.name,
             bio: currentUser.bio,
             headline: currentUser.headline,
-            interests: currentUser.interests
+            interests: currentUser.interests,
+            activity: currentUser.activity
           })
           .eq('id', session.user.id);
 
@@ -2229,11 +2231,38 @@ document.addEventListener('click', async e => {
         actions: [{ t: 'Cancel', cls: 'btn--soft', a: 'close-modal' }, { t: 'Save', cls: 'btn--primary', a: 'save-activity' }]
       });
       break;
-    case 'save-activity':
-      currentUser.activity = $('#ea-now').value.trim() || currentUser.activity;
-      closeModal(); renderProfile();
-      toast('Updated', 'check');
+    case 'save-activity': {
+      const nextActivity = $('#ea-now').value.trim();
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+
+        if (!session?.user) {
+          toast('Please sign in again', 'alert');
+          break;
+        }
+
+        const { error } = await supabaseClient
+          .from('profiles')
+          .update({ activity: nextActivity })
+          .eq('id', session.user.id);
+
+        if (error) {
+          console.error('Ming: activity update failed:', error.message);
+          toast('Could not update activity', 'alert');
+          break;
+        }
+
+        currentUser.activity = nextActivity;
+        closeModal();
+        renderProfile();
+        toast('Updated', 'check');
+      } catch (error) {
+        console.error('Ming: activity update failed:', error);
+        toast('Could not update activity', 'alert');
+      }
       break;
+    }
 
     case 'privacy': closeSheet(); setTimeout(openPrivacySheet, 160); break;
     case 'settings': closeSheet(); setTimeout(openSettingsSheet, 160); break;
