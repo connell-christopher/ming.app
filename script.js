@@ -91,7 +91,7 @@ const currentUser = {
   usernameChangedAt: null,
   hue: 24,
   headline: 'Application Security',
-  tags: ['Technology', 'Cybersecurity', 'Software'],
+  tags: [],
   bio: 'Breaking things carefully so other people can build safely. Usually somewhere with good coffee and bad wifi.',
   interests: [],
   activity: '',
@@ -126,7 +126,7 @@ const mingProfileReady = new Promise(resolve => {
 
     const { data: profile, error } = await supabaseClient
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, headline, interests, activity, created_at, updated_at')
+      .select('id, username, display_name, avatar_url, bio, headline, interests, tags, activity, created_at, updated_at')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -150,6 +150,7 @@ const mingProfileReady = new Promise(resolve => {
     currentUser.bio = profile.bio || '';
     currentUser.headline = profile.headline || '';
     currentUser.interests = Array.isArray(profile.interests) ? profile.interests : [];
+    currentUser.tags = Array.isArray(profile.tags) ? profile.tags : [];
     currentUser.activity = profile.activity || '';
     currentUser.joined = profile.created_at
       ? 'Joined ' + new Date(profile.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })
@@ -1625,6 +1626,12 @@ function editProfile() {
       </div>
 
       <div class="field">
+        <label for="ep-tags">Tags</label>
+        <input id="ep-tags" type="text" value="${esc(currentUser.tags.join(", "))}" maxlength="200" />
+        <div class="count">Separate tags with commas.</div>
+      </div>
+
+      <div class="field">
         <label for="ep-interests">Interests and services</label>
         <input id="ep-interests" type="text" value="${esc(currentUser.interests.join(", "))}" maxlength="300" />
         <div class="count">Separate interests with commas.</div>
@@ -2133,6 +2140,11 @@ document.addEventListener('click', async e => {
     case 'save-profile': {
       const newName = $('#ep-name').value.trim();
       const newBio = $('#ep-bio').value.trim();
+      const newTags = $('#ep-tags').value
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean)
+        .slice(0, 8);
       const newInterests = $('#ep-interests').value
         .split(',')
         .map(item => item.trim())
@@ -2145,6 +2157,7 @@ document.addEventListener('click', async e => {
       if (newName) currentUser.name = newName;
       currentUser.headline = $('#ep-head').value.trim() || currentUser.headline;
       if (newBio) currentUser.bio = newBio;
+      currentUser.tags = newTags;
       currentUser.interests = newInterests;
 
       try {
@@ -2203,6 +2216,7 @@ document.addEventListener('click', async e => {
             bio: currentUser.bio,
             headline: currentUser.headline,
             interests: currentUser.interests,
+            tags: currentUser.tags,
             activity: currentUser.activity
           })
           .eq('id', session.user.id);
