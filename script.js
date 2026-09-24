@@ -2480,6 +2480,7 @@ document.addEventListener('click', async e => {
           break;
         }
 
+        closeModal();
         await loadMingConnections();
         renderConnections();
         if (state.loaded.profile) renderProfile();
