@@ -126,7 +126,7 @@ const mingProfileReady = new Promise(resolve => {
 
     const { data: profile, error } = await supabaseClient
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, created_at, updated_at')
+      .select('id, username, display_name, avatar_url, bio, headline, created_at, updated_at')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -148,6 +148,7 @@ const mingProfileReady = new Promise(resolve => {
 
 
     currentUser.bio = profile.bio || currentUser.bio;
+    currentUser.headline = profile.headline || currentUser.headline;
 
     /*
        The app renders its demo UI asynchronously. The profile request can
@@ -2182,7 +2183,8 @@ document.addEventListener('click', async e => {
           .from('profiles')
           .update({
             display_name: currentUser.name,
-            bio: currentUser.bio
+            bio: currentUser.bio,
+            headline: currentUser.headline
           })
           .eq('id', session.user.id);
 
