@@ -75,3 +75,50 @@ using (
   ((select auth.uid()) = requester_id or (select auth.uid()) = recipient_id)
   and status = 'accepted'
 );
+
+-- Return only limited profile fields for people connected to the signed-in user.
+-- This avoids weakening the main profiles RLS policy just to render Connections.
+create or replace function public.get_my_connection_profiles()
+returns table (
+  id uuid,
+  username text,
+  display_name text,
+  avatar_url text,
+  bio text,
+  headline text,
+  interests jsonb,
+  tags jsonb,
+  activity text,
+  created_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select
+    p.id,
+    p.username,
+    p.display_name,
+    p.avatar_url,
+    p.bio,
+    p.headline,
+    to_jsonb(p.interests),
+    to_jsonb(p.tags),
+    p.activity,
+    p.created_at
+  from public.profiles p
+  where p.id in (
+    select case
+      when c.requester_id = (select auth.uid()) then c.recipient_id
+      else c.requester_id
+    end
+    from public.connections c
+    where
+      (c.requester_id = (select auth.uid()) or c.recipient_id = (select auth.uid()))
+      and c.status in ('pending', 'accepted')
+  );
+$$;
+
+revoke all on function public.get_my_connection_profiles() from public;
+grant execute on function public.get_my_connection_profiles() to authenticated;
