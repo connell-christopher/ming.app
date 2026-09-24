@@ -269,6 +269,7 @@ let connectionRequests = [
   { id: 'r1', personId: 'p3', message: 'Saw you shoot film too. I have a spare roll of Portra if you ever want to trade.', at: now() - 3 * HOUR },
   { id: 'r2', personId: 'p10', message: 'Visiting for two weeks and trying to find a running route. Any advice welcome.', at: now() - 26 * HOUR }
 ];
+let connectionOutgoingRequests = [];
 
 async function loadMingConnections() {
   try {
@@ -333,6 +334,15 @@ async function loadMingConnections() {
         at: new Date(row.created_at).getTime()
       }));
 
+    connectionOutgoingRequests = (rows || [])
+      .filter(row => row.status === 'pending' && row.requester_id === uid)
+      .map(row => ({
+        id: row.id,
+        personId: row.recipient_id,
+        message: row.note || '',
+        at: new Date(row.created_at).getTime()
+      }));
+
     return true;
   } catch (error) {
     console.warn('Ming: connection load failed.', error);
@@ -351,7 +361,7 @@ function isUuidPerson(id) {
 }
 
 function hasOutgoingConnectionRequest(id) {
-  return isUuidPerson(id) && connectionStatus(id) === 'none';
+  return connectionOutgoingRequests.some(r => r.personId === id);
 }
 
 
@@ -1184,7 +1194,7 @@ function openPerson(id) {
   const status = connectionStatus(id);
   const connected = status === 'connected';
   const incoming = status === 'incoming';
-  const outgoing = isUuidPerson(id) && status === 'none';
+  const outgoing = hasOutgoingConnectionRequest(id);
   const theirUpdates = liveUpdates().filter(u => u.authorId === id);
 
   $('#person-body').innerHTML = `
@@ -2458,6 +2468,26 @@ document.addEventListener('click', async e => {
       break;
     }
     case 'remove-conn': {
+      if (isUuidPerson(arg)) {
+        const { error } = await supabaseClient
+          .from('connections')
+          .delete()
+          .eq('id', connections.find(c => c.personId === arg)?.id || '');
+
+        if (error) {
+          console.error('Ming: removing connection failed:', error.message);
+          toast('Could not remove connection.', 'alert');
+          break;
+        }
+
+        await loadMingConnections();
+        renderConnections();
+        if (state.loaded.profile) renderProfile();
+        if (state.activePerson === arg && state.stack[state.stack.length - 1] === 'person') openPersonRefresh(arg);
+        toast('Connection removed', 'x');
+        break;
+      }
+
       connections = connections.filter(c => c.personId !== arg);
       closeModal();
       renderConnections();
@@ -2466,9 +2496,33 @@ document.addEventListener('click', async e => {
       toast('Connection removed', 'x');
       break;
     }
+
     case 'accept-req': {
       const r = connectionRequests.find(x => x.id === arg);
       if (!r) break;
+
+      if (isUuidPerson(r.personId)) {
+        const { error } = await supabaseClient
+          .from('connections')
+          .update({
+            status: 'accepted',
+            responded_at: new Date().toISOString()
+          })
+          .eq('id', r.id);
+
+        if (error) {
+          console.error('Ming: accepting connection failed:', error.message);
+          toast('Could not accept request.', 'alert');
+          break;
+        }
+
+        await loadMingConnections();
+        renderConnections();
+        if (state.loaded.profile) renderProfile();
+        toast(`You and ${byId(r.personId)?.short || 'this person'} are connected`, 'check');
+        break;
+      }
+
       connections.push({ personId: r.personId, at: now() });
       connectionRequests = connectionRequests.filter(x => x.id !== arg);
       renderConnections();
@@ -2476,11 +2530,35 @@ document.addEventListener('click', async e => {
       toast(`You and ${byId(r.personId).short} are connected`, 'check');
       break;
     }
+
     case 'decline-req': {
+      const r = connectionRequests.find(x => x.id === arg);
+      if (!r) break;
+
+      if (isUuidPerson(r.personId)) {
+        const { error } = await supabaseClient
+          .from('connections')
+          .update({
+            status: 'declined',
+            responded_at: new Date().toISOString()
+          })
+          .eq('id', r.id);
+
+        if (error) {
+          console.error('Ming: declining connection failed:', error.message);
+          toast('Could not dismiss request.', 'alert');
+          break;
+        }
+
+        await loadMingConnections();
+        renderConnections();
+        toast('Request dismissed', 'x');
+        break;
+      }
+
       connectionRequests = connectionRequests.filter(x => x.id !== arg);
       renderConnections();
       toast('Request dismissed', 'x');
-      break;
     }
 
     case 'message': closeSheet(); popStackIfPerson(); openChat(arg); break;
