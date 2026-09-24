@@ -93,7 +93,7 @@ const currentUser = {
   headline: 'Application Security',
   tags: ['Technology', 'Cybersecurity', 'Software'],
   bio: 'Breaking things carefully so other people can build safely. Usually somewhere with good coffee and bad wifi.',
-  interests: ['Security research', 'Football', 'Film photography', 'Jollof debates', 'Long walks', 'Open source'],
+  interests: [],
   activity: 'Working from a café until 6',
   joined: 'Joined March 2025'
 };
@@ -126,7 +126,7 @@ const mingProfileReady = new Promise(resolve => {
 
     const { data: profile, error } = await supabaseClient
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, headline, created_at, updated_at')
+      .select('id, username, display_name, avatar_url, bio, headline, interests, created_at, updated_at')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -149,6 +149,7 @@ const mingProfileReady = new Promise(resolve => {
 
     currentUser.bio = profile.bio || currentUser.bio;
     currentUser.headline = profile.headline || currentUser.headline;
+    currentUser.interests = Array.isArray(profile.interests) ? profile.interests : currentUser.interests;
 
     /*
        The app renders its demo UI asynchronously. The profile request can
@@ -1620,6 +1621,12 @@ function editProfile() {
       </div>
 
       <div class="field">
+        <label for="ep-interests">Interests and services</label>
+        <input id="ep-interests" type="text" value="${esc(currentUser.interests.join(", "))}" maxlength="300" />
+        <div class="count">Separate interests with commas.</div>
+      </div>
+
+      <div class="field">
         <label>Your area</label>
         <div style="padding:13px 14px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-2);font-size:14.5px;color:var(--muted)">${esc(hasLocation() ? areaLabel() : 'Location off')}</div>
         <div class="count">Set by your device, not by you. Others only ever see a rounded distance.</div>
@@ -2122,6 +2129,11 @@ document.addEventListener('click', async e => {
     case 'save-profile': {
       const newName = $('#ep-name').value.trim();
       const newBio = $('#ep-bio').value.trim();
+      const newInterests = $('#ep-interests').value
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean)
+        .slice(0, 12);
       const requestedUsername = $('#ep-username').value.trim().toLowerCase();
       const currentUsername = currentUser.username.replace(/^@/, '').toLowerCase();
       const usernameChanged = requestedUsername !== currentUsername;
@@ -2129,6 +2141,7 @@ document.addEventListener('click', async e => {
       if (newName) currentUser.name = newName;
       currentUser.headline = $('#ep-head').value.trim() || currentUser.headline;
       if (newBio) currentUser.bio = newBio;
+      currentUser.interests = newInterests;
 
       try {
         const { data: { session } } =
