@@ -2056,11 +2056,47 @@ document.addEventListener('click', e => {
 
     case 'edit-profile': closeSheet(); setTimeout(editProfile, 160); break;
     case 'save-profile': {
-      currentUser.name = $('#ep-name').value.trim() || currentUser.name;
+      const newName = $('#ep-name').value.trim();
+      const newBio = $('#ep-bio').value.trim();
+
+      if (newName) currentUser.name = newName;
       currentUser.headline = $('#ep-head').value.trim() || currentUser.headline;
-      currentUser.bio = $('#ep-bio').value.trim() || currentUser.bio;
-      closeModal(); renderProfile(); renderHome(); renderMoonflower();
-      toast('Profile updated', 'check');
+      if (newBio) currentUser.bio = newBio;
+
+      try {
+        const { data: { session } } =
+          await supabaseClient.auth.getSession();
+
+        if (!session?.user) {
+          toast('Please sign in again', 'alert');
+          break;
+        }
+
+        const { error } = await supabaseClient
+          .from('profiles')
+          .update({
+            display_name: currentUser.name,
+            bio: currentUser.bio
+          })
+          .eq('id', session.user.id);
+
+        if (error) {
+          console.error('Ming: profile update failed:', error.message);
+          toast('Could not save profile', 'alert');
+          break;
+        }
+
+        closeModal();
+        renderProfile();
+        renderHome();
+        renderMoonflower();
+        toast('Profile updated', 'check');
+
+      } catch (error) {
+        console.error('Ming: profile update failed:', error);
+        toast('Could not save profile', 'alert');
+      }
+
       break;
     }
     case 'edit-activity':
