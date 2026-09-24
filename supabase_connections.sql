@@ -130,6 +130,7 @@ create table if not exists public.profile_locations (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   latitude double precision not null check (latitude between -90 and 90),
   longitude double precision not null check (longitude between -180 and 180),
+  accuracy_m double precision not null check (accuracy_m > 0),
   updated_at timestamptz not null default now()
 );
 
@@ -140,19 +141,57 @@ drop policy if exists "Users can manage their own approximate location" on publi
 create policy "Users can manage their own approximate location" on public.profile_locations for all to authenticated
 using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 
-create or replace function public.set_my_discovery_location(p_latitude double precision, p_longitude double precision)
-returns void language plpgsql security definer set search_path = '' as $$
+alter table public.profile_locations
+  add column if not exists accuracy_m double precision;
+
+update public.profile_locations
+set accuracy_m = coalesce(accuracy_m, 1000)
+where accuracy_m is null;
+
+alter table public.profile_locations
+  alter column accuracy_m set not null;
+
+drop function if exists public.set_my_discovery_location(double precision, double precision);
+
+create or replace function public.set_my_discovery_location(
+  p_latitude double precision,
+  p_longitude double precision,
+  p_accuracy_m double precision
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $
 begin
-  if (select auth.uid()) is null then raise exception 'Not authenticated'; end if;
-  if p_latitude is null or p_latitude < -90 or p_latitude > 90 or p_longitude is null or p_longitude < -180 or p_longitude > 180 then
-    raise exception 'Invalid coordinates';
+  if (select auth.uid()) is null then
+    raise exception 'Not authenticated';
   end if;
-  insert into public.profile_locations(user_id, latitude, longitude, updated_at)
-  values ((select auth.uid()), round(p_latitude::numeric, 3)::double precision, round(p_longitude::numeric, 3)::double precision, now())
-  on conflict (user_id) do update set latitude=excluded.latitude, longitude=excluded.longitude, updated_at=excluded.updated_at;
-end; $$;
-revoke all on function public.set_my_discovery_location(double precision, double precision) from public;
-grant execute on function public.set_my_discovery_location(double precision, double precision) to authenticated;
+
+  if p_latitude is null or p_latitude < -90 or p_latitude > 90
+     or p_longitude is null or p_longitude < -180 or p_longitude > 180
+     or p_accuracy_m is null or p_accuracy_m <= 0 or p_accuracy_m > 1000 then
+    raise exception 'Location accuracy is too low';
+  end if;
+
+  insert into public.profile_locations(user_id, latitude, longitude, accuracy_m, updated_at)
+  values (
+    (select auth.uid()),
+    round(p_latitude::numeric, 3)::double precision,
+    round(p_longitude::numeric, 3)::double precision,
+    p_accuracy_m,
+    now()
+  )
+  on conflict (user_id) do update set
+    latitude = excluded.latitude,
+    longitude = excluded.longitude,
+    accuracy_m = excluded.accuracy_m,
+    updated_at = excluded.updated_at;
+end;
+$;
+
+revoke all on function public.set_my_discovery_location(double precision, double precision, double precision) from public;
+grant execute on function public.set_my_discovery_location(double precision, double precision, double precision) to authenticated;
 
 create or replace function public.get_discoverable_profiles(p_radius_km double precision default null)
 returns table (id uuid, username text, display_name text, avatar_url text, bio text, headline text, interests jsonb, tags jsonb, activity text, created_at timestamptz, distance_km double precision, bearing_deg double precision)
