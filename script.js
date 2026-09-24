@@ -147,9 +147,9 @@ const mingProfileReady = new Promise(resolve => {
       : currentUser.username;
 
 
-    currentUser.bio = profile.bio || currentUser.bio;
-    currentUser.headline = profile.headline || currentUser.headline;
-    currentUser.interests = Array.isArray(profile.interests) ? profile.interests : currentUser.interests;
+    currentUser.bio = profile.bio || '';
+    currentUser.headline = profile.headline || '';
+    currentUser.interests = Array.isArray(profile.interests) ? profile.interests : [];
 
     /*
        The app renders its demo UI asynchronously. The profile request can
