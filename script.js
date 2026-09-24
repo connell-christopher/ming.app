@@ -25,23 +25,10 @@ const supabaseClient = window.supabase.createClient(
   SUPABASE_PUBLISHABLE_KEY
 );
 
-/* ------------------------------------------------------------
-   SUPABASE CONNECTION TEST
------------------------------------------------------------- */
+const IS_APP_PAGE = document.getElementById('app') !== null;
 
-(async function testSupabaseConnection() {
-  const { error } = await supabaseClient
-    .from('profiles')
-    .select('id')
-    .limit(1);
 
-  if (error) {
-    console.error('Ming Supabase connection test failed:', error.message);
-    return;
-  }
-
-  console.log('Ming Supabase connection successful.');
-})();
+if (IS_APP_PAGE) {
 
 /* ------------------------------------------------------------
    UTILITIES
@@ -2036,9 +2023,6 @@ function popStackIfPerson() {
   if (state.stack[state.stack.length - 1] === 'person') popStack();
 }
 
-/* ------------------------------------------------------------
-   INPUT WIRING
------------------------------------------------------------- */
 /* ------------------------------------------------------------
    INPUT WIRING
 ------------------------------------------------------------ */
@@ -5112,6 +5096,8 @@ function seedNewSpace(space) {
 
 
 
+}
+
 /* ------------------------------------------------------------
    MING AUTH — STRICT FORM VALIDATION + SUPABASE AUTH
 ------------------------------------------------------------ */
@@ -5461,15 +5447,9 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
 
-              /*===================================================
-        =======================================================*/
-      /* ------------------------------------------------------
-   SUPABASE LOGIN
------------------------------------------------------- */
-console.log('LOGIN BUTTON WORKED');
-console.log('supabaseClient:', supabaseClient);
-
-
+        /* ------------------------------------------------------
+           SUPABASE LOGIN
+        ------------------------------------------------------ */
         
 const { error } =
   await supabaseClient.auth.signInWithPassword({
@@ -5501,8 +5481,6 @@ setMessage(
 /* ------------------------------------------------------
    OPEN MING AFTER SUCCESSFUL LOGIN
 ------------------------------------------------------ */
-
-console.log('Ming login successful. Opening app.');
 
 window.location.href = 'app.html';
 
