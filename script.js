@@ -2197,7 +2197,8 @@ document.addEventListener('click', async e => {
           .update({
             display_name: currentUser.name,
             bio: currentUser.bio,
-            headline: currentUser.headline
+            headline: currentUser.headline,
+            interests: currentUser.interests
           })
           .eq('id', session.user.id);
 
