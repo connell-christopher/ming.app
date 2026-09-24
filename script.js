@@ -204,7 +204,9 @@ const people = [
   { id: 'p10', name: 'Priya Menon', short: 'Priya', hue: 222, tag: 'Visiting · Data science', interests: ['Data', 'Yoga', 'Street food'], bio: 'Here for a two-week project. Looking for a good running route and better suya.', off: { e: 800, n: -410 }, status: 'on', activity: 'Visiting for 2 weeks', visitor: true }
 ];
 const mingConnectionProfiles = new Map();
-const byId = id => people.find(p => p.id === id) || mingConnectionProfiles.get(id) || null;
+let mingDiscoverPeople = [];
+let mingLocationPublishKey = '';
+const byId = id => people.find(p => p.id === id) || mingDiscoverPeople.find(p => p.id === id) || mingConnectionProfiles.get(id) || null;
 
 const KINDS = {
   service: { label: 'Side hustle', cls: '' },
@@ -708,7 +710,7 @@ function acceptFix(pos, announce) {
 
   const movedKm = prev ? haversineKm(prev, state.userLocation) : Infinity;
   if (announce || movedKm * 1000 > REFRESH_MOVE_M) {
-    refreshLocationUI();
+    publishMingApproxLocation().then(() => loadMingDiscoverableProfiles(state.loaded.nearby ? state.radius : null).then(() => refreshLocationUI()));
     resolveArea();
   }
   if (announce) toast('Location on — your coordinates stay on your device', 'shield');
@@ -781,7 +783,7 @@ function refreshLocationUI() {
   if (sub) sub.textContent = hasLocation() ? `Around ${areaLabel()}` : 'Location off · distances hidden';
   if (state.loaded.home) { renderHomePeople(); renderHomeOpps(); }
   if (state.loaded.discover) renderDiscover();
-  if (state.loaded.nearby) renderNearby();
+  if (state.loaded.nearby) loadMingDiscoverableProfiles(state.radius).then(() => renderNearby());
   if (state.loaded.profile) renderProfile();
 }
 
@@ -983,8 +985,51 @@ const DISCOVER_FILTERS = [
   { k: 'visitors', t: 'Visitors' }
 ];
 
+async function loadMingDiscoverableProfiles(radiusKm = null) {
+  try {
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError || !session?.user) return false;
+    const { data, error } = await supabaseClient.rpc('get_discoverable_profiles', { p_radius_km: radiusKm });
+    if (error) { console.warn('Ming: real-user discovery is not ready yet.', error.message); return false; }
+    mingDiscoverPeople = (data || []).map(profile => {
+      const name = profile.display_name || 'Ming user';
+      const tags = Array.isArray(profile.tags) ? profile.tags : [];
+      const interests = Array.isArray(profile.interests) ? profile.interests : [];
+      const seed = profile.id + ':' + name;
+      let hue = 0;
+      for (let i = 0; i < seed.length; i++) hue = (hue * 31 + seed.charCodeAt(i)) % 360;
+      return {
+        id: profile.id, name, short: name.split(' ')[0] || name, hue,
+        tag: profile.headline || tags.slice(0, 3).join(' · ') || 'Ming member',
+        interests, bio: profile.bio || '', avatarUrl: profile.avatar_url || '',
+        username: profile.username ? '@' + profile.username.replace(/^@/, '') : '',
+        activity: profile.activity || 'Available on Ming', status: null, visitor: false,
+        km: profile.distance_km == null ? null : Number(profile.distance_km),
+        bearingDeg: profile.bearing_deg == null ? null : Number(profile.bearing_deg), off: null
+      };
+    });
+    mingDiscoverPeople.forEach(p => mingConnectionProfiles.set(p.id, p));
+    return true;
+  } catch (error) { console.warn('Ming: real-user discovery failed.', error); return false; }
+}
+
+async function publishMingApproxLocation() {
+  if (!hasLocation()) return false;
+  const lat = Math.round(state.userLocation.latitude * 1000) / 1000;
+  const lng = Math.round(state.userLocation.longitude * 1000) / 1000;
+  const key = lat + ':' + lng;
+  if (key === mingLocationPublishKey) return true;
+  try {
+    const { error } = await supabaseClient.rpc('set_my_discovery_location', { p_latitude: lat, p_longitude: lng });
+    if (error) { console.warn('Ming: approximate discovery location could not be published.', error.message); return false; }
+    mingLocationPublishKey = key;
+    return true;
+  } catch (error) { console.warn('Ming: approximate discovery location failed.', error); return false; }
+}
+
 async function loadDiscover() {
   state.loaded.discover = true;
+  await loadMingDiscoverableProfiles();
   $('#discover-chips').innerHTML = DISCOVER_FILTERS.map(f =>
     `<button class="chip ${f.k === state.discoverFilter ? 'is-on' : ''}" data-action="filter:${f.k}">${f.t}</button>`).join('');
   $('#discover-body').innerHTML = skeletonRail() + skeletonCards(2);
@@ -1001,13 +1046,13 @@ function renderDiscover() {
 
   if (show('people')) {
     html += `<div class="section">${sectionHead('People', null, { t: 'Nearby', a: 'go-nearby' })}
-      <div class="rail">${people.filter(p => !p.visitor).map(p => `
+      <div class="rail">${mingDiscoverPeople.map(p => `
         <button class="pcard" data-action="person:${p.id}">
           ${ringAvatar(p, 56, p.status === 'on')}
           <div class="name">${esc(p.short)}</div>
           <div class="tag">${esc(p.tag)}</div>
-          <div class="dist">${esc(distLabel(p.km))}</div>
-        </button>`).join('')}</div></div>`;
+          <div class="dist">${esc(p.km == null ? 'Discoverable' : distLabel(p.km))}</div>
+        </button>`).join('') || '<div style="padding:8px 0;color:var(--muted);font-size:13px">No other Ming members are discoverable yet.</div>'}</div></div>`;
   }
 
   if (show('moments')) {
@@ -1076,6 +1121,10 @@ function renderDiscover() {
 ------------------------------------------------------------ */
 async function loadNearby() {
   state.loaded.nearby = true;
+  if (hasLocation()) {
+    await publishMingApproxLocation();
+    await loadMingDiscoverableProfiles(state.radius);
+  }
   $('#nearby-body').innerHTML = `<div style="margin:0 18px"><div class="sk" style="height:330px;border-radius:var(--r-xl)"></div></div>` + skeletonCards(2);
   await sleep(640);
   renderNearby();
@@ -1101,16 +1150,21 @@ function renderNearby() {
     return;
   }
 
-  const inRange = people.filter(p => p.km !== null && p.km <= state.radius).sort((a, b) => a.km - b.km);
+  const inRange = mingDiscoverPeople.filter(p => p.km !== null && p.km <= state.radius).sort((a, b) => a.km - b.km);
   const actPins = activities.filter(a => a.km !== null && a.km <= state.radius).slice(0, 2);
   /* Pin positions come from the offset between two coordinates — a picture of
      relative bearing, never a published coordinate. */
   const mapPos = o => {
-    const k = 45 / Math.max(state.radius, 0.1);
-    return {
-      x: Math.min(93, Math.max(7, 50 + (o.off.e / 1000) * k)),
-      y: Math.min(90, Math.max(8, 50 - (o.off.n / 1000) * k))
-    };
+    if (o.bearingDeg != null && o.km != null) {
+      const angle = o.bearingDeg * Math.PI / 180;
+      const reach = Math.min(42, Math.max(8, (o.km / Math.max(state.radius, 0.1)) * 40));
+      return { x: Math.min(93, Math.max(7, 50 + Math.sin(angle) * reach)), y: Math.min(90, Math.max(8, 50 - Math.cos(angle) * reach)) };
+    }
+    if (o.off) {
+      const k = 45 / Math.max(state.radius, 0.1);
+      return { x: Math.min(93, Math.max(7, 50 + (o.off.e / 1000) * k)), y: Math.min(90, Math.max(8, 50 - (o.off.n / 1000) * k)) };
+    }
+    return { x: 50, y: 50 };
   };
 
   host.innerHTML = `
