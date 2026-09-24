@@ -1880,7 +1880,7 @@ function toast(msg, ic = 'check') {
 /* ------------------------------------------------------------
    ACTIONS (delegated)
 ------------------------------------------------------------ */
-document.addEventListener('click', e => {
+document.addEventListener('click', async e => {
   const openBtn = e.target.closest('[data-open]');
   if (openBtn) {
     const k = openBtn.dataset.open;
