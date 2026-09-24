@@ -1967,6 +1967,7 @@ function closeModal() {
 
 let pendingAvatarObjectUrl = null;
 let pendingAvatarImage = null;
+let pendingAvatarCrop = { x: 0, y: 0, zoom: 1 };
 
 function openAvatarMenu() {
   openModal({
@@ -2024,13 +2025,15 @@ function pickAvatar() {
 }
 
 function openAvatarCrop() {
+  pendingAvatarCrop = { x: 0, y: 0, zoom: 1 };
+
   openModal({
     title: 'Edit photo',
     lede: 'Move and zoom your photo until you like the frame.',
     fields: `
       <div style="text-align:center">
         <div id="avatar-crop-frame" style="width:min(100%,320px);aspect-ratio:1;margin:0 auto 16px;overflow:hidden;border-radius:24px;background:#111;position:relative;touch-action:none">
-          <img id="avatar-crop-image" src="${esc(pendingAvatarObjectUrl || '')}" alt="Photo preview" style="position:absolute;left:50%;top:50%;max-width:none;width:auto;height:auto;transform:translate(-50%,-50%) scale(1);transform-origin:center;user-select:none;-webkit-user-drag:none" />
+          <img id="avatar-crop-image" src="${esc(pendingAvatarObjectUrl || '')}" alt="Photo preview" style="position:absolute;left:50%;top:50%;max-width:none;width:auto;height:auto;transform:translate(-50%,-50%);transform-origin:center;user-select:none;-webkit-user-drag:none" />
         </div>
         <label for="avatar-zoom" style="display:block;text-align:left;font-size:13px;margin-bottom:7px">Zoom</label>
         <input id="avatar-zoom" type="range" min="1" max="3" step="0.01" value="1" style="width:100%" />
@@ -2045,28 +2048,37 @@ function openAvatarCrop() {
   const img = document.getElementById('avatar-crop-image');
   const frame = document.getElementById('avatar-crop-frame');
   const zoom = document.getElementById('avatar-zoom');
-  let x = 0, y = 0, dragging = false, sx = 0, sy = 0, ox = 0, oy = 0;
+  if (!img || !frame || !zoom) return;
 
   const apply = () => {
     const z = Number(zoom.value);
-    img.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px)) scale(${z})`;
+    pendingAvatarCrop.zoom = z;
+    img.style.transform =
+      `translate(calc(-50% + ${pendingAvatarCrop.x}px), calc(-50% + ${pendingAvatarCrop.y}px)) scale(${z})`;
   };
+
   zoom.addEventListener('input', apply);
 
   const start = e => {
-    dragging = true;
     const p = e.touches?.[0] || e;
-    sx = p.clientX; sy = p.clientY; ox = x; oy = y;
+    img._avatarDragging = true;
+    img._avatarStartX = p.clientX;
+    img._avatarStartY = p.clientY;
+    img._avatarOriginX = pendingAvatarCrop.x;
+    img._avatarOriginY = pendingAvatarCrop.y;
   };
+
   const move = e => {
-    if (!dragging) return;
+    if (!img._avatarDragging) return;
     const p = e.touches?.[0] || e;
-    x = ox + p.clientX - sx;
-    y = oy + p.clientY - sy;
+    pendingAvatarCrop.x = img._avatarOriginX + p.clientX - img._avatarStartX;
+    pendingAvatarCrop.y = img._avatarOriginY + p.clientY - img._avatarStartY;
     apply();
     e.preventDefault();
   };
-  const end = () => { dragging = false; };
+
+  const end = () => { img._avatarDragging = false; };
+
   frame.addEventListener('mousedown', start);
   frame.addEventListener('mousemove', move);
   frame.addEventListener('mouseup', end);
@@ -2078,43 +2090,57 @@ function openAvatarCrop() {
 
 async function saveAvatarCrop() {
   if (!pendingAvatarImage) return;
-  const frame = document.getElementById('avatar-crop-frame');
-  const imgEl = document.getElementById('avatar-crop-image');
-  const zoomEl = document.getElementById('avatar-zoom');
-  if (!frame || !imgEl) return;
 
-  const frameRect = frame.getBoundingClientRect();
-  const zoom = Number(zoomEl?.value || 1);
-  const transform = getComputedStyle(imgEl).transform;
-  const matrix = new DOMMatrix(transform);
-  const tx = matrix.m41;
-  const ty = matrix.m42;
+  const frame = document.getElementById('avatar-crop-frame');
+  const zoomEl = document.getElementById('avatar-zoom');
+  if (!frame) return;
+
+  const frameSize = frame.getBoundingClientRect().width;
+  const zoom = Number(zoomEl?.value || pendingAvatarCrop.zoom || 1);
+  const x = Number(pendingAvatarCrop.x || 0);
+  const y = Number(pendingAvatarCrop.y || 0);
 
   const canvas = document.createElement('canvas');
   canvas.width = 800;
   canvas.height = 800;
-  const ctx = canvas.getContext('2d');
 
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    toast('Could not prepare the photo.', 'alert');
+    return;
+  }
+
+  const sourceW = pendingAvatarImage.naturalWidth;
+  const sourceH = pendingAvatarImage.naturalHeight;
+
+  // Scale the source image so it completely covers the square crop frame.
   const baseScale = Math.max(
-    frameRect.width / pendingAvatarImage.naturalWidth,
-    frameRect.height / pendingAvatarImage.naturalHeight
+    frameSize / sourceW,
+    frameSize / sourceH
   );
+
   const drawScale = baseScale * zoom;
-  const renderedW = pendingAvatarImage.naturalWidth * drawScale;
-  const renderedH = pendingAvatarImage.naturalHeight * drawScale;
-  const scaleToCanvas = 800 / frameRect.width;
-  const dx = (frameRect.width - renderedW) / 2 + tx;
-  const dy = (frameRect.height - renderedH) / 2 + ty;
+  const drawW = sourceW * drawScale;
+  const drawH = sourceH * drawScale;
+
+  // Match the exact visual position used by the crop preview.
+  const drawX = (frameSize - drawW) / 2 + x;
+  const drawY = (frameSize - drawH) / 2 + y;
+
+  const scaleToCanvas = 800 / frameSize;
 
   ctx.drawImage(
     pendingAvatarImage,
-    dx * scaleToCanvas,
-    dy * scaleToCanvas,
-    renderedW * scaleToCanvas,
-    renderedH * scaleToCanvas
+    drawX * scaleToCanvas,
+    drawY * scaleToCanvas,
+    drawW * scaleToCanvas,
+    drawH * scaleToCanvas
   );
 
-  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.88));
+  const blob = await new Promise(resolve =>
+    canvas.toBlob(resolve, 'image/jpeg', 0.88)
+  );
+
   if (!blob) {
     toast('Could not prepare the photo.', 'alert');
     return;
@@ -2127,33 +2153,51 @@ async function saveAvatarCrop() {
   }
 
   const path = session.user.id + '/profile.jpg';
-  const { error: uploadError } = await supabaseClient.storage.from('avatars').upload(path, blob, {
-    upsert: true,
-    contentType: 'image/jpeg',
-    cacheControl: '3600'
-  });
+
+  const { error: uploadError } =
+    await supabaseClient.storage.from('avatars').upload(path, blob, {
+      upsert: true,
+      contentType: 'image/jpeg',
+      cacheControl: '3600'
+    });
+
   if (uploadError) {
-    console.error('Ming: avatar upload failed:', uploadError.message);
+    console.error('Ming: avatar upload failed:', uploadError);
     toast('Could not upload photo', 'alert');
     return;
   }
 
-  const { data: publicData } = supabaseClient.storage.from('avatars').getPublicUrl(path);
-  const publicUrl = publicData.publicUrl + '?v=' + Date.now();
-  const { error: profileError } = await supabaseClient.from('profiles')
-    .update({ avatar_url: publicUrl })
-    .eq('id', session.user.id);
+  const { data: publicData } =
+    supabaseClient.storage.from('avatars').getPublicUrl(path);
+
+  const publicUrl =
+    publicData.publicUrl + '?v=' + Date.now();
+
+  const { error: profileError } =
+    await supabaseClient
+      .from('profiles')
+      .update({ avatar_url: publicUrl })
+      .eq('id', session.user.id);
 
   if (profileError) {
-    console.error('Ming: avatar profile update failed:', profileError.message);
+    console.error(
+      'Ming: avatar profile update failed:',
+      profileError.message
+    );
     toast('Could not save photo', 'alert');
     return;
   }
 
   currentUser.avatarUrl = publicUrl;
-  if (pendingAvatarObjectUrl) URL.revokeObjectURL(pendingAvatarObjectUrl);
+
+  if (pendingAvatarObjectUrl) {
+    URL.revokeObjectURL(pendingAvatarObjectUrl);
+  }
+
   pendingAvatarObjectUrl = null;
   pendingAvatarImage = null;
+  pendingAvatarCrop = { x: 0, y: 0, zoom: 1 };
+
   closeModal();
   renderProfile();
   renderHome();
