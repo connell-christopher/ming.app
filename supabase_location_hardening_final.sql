@@ -10,7 +10,7 @@ create table if not exists public.profile_device_locations (
   device_id text not null,
   latitude double precision not null check (latitude between -90 and 90),
   longitude double precision not null check (longitude between -180 and 180),
-  accuracy_m double precision not null check (accuracy_m >= 0 and accuracy_m <= 500),
+  accuracy_m double precision not null check (accuracy_m >= 0 and accuracy_m <= 50000),
   updated_at timestamptz not null default now(),
   primary key (user_id, device_id)
 );
@@ -67,7 +67,7 @@ begin
     raise exception 'Invalid coordinates';
   end if;
 
-  if p_accuracy_m is null or p_accuracy_m > 100 then
+  if p_accuracy_m is null or p_accuracy_m > 50000 then
     raise exception 'Location accuracy is not sufficient for Nearby';
   end if;
 
@@ -142,7 +142,7 @@ as $$
       pdl.updated_at
     from public.profile_device_locations pdl
     where pdl.updated_at >= now() - interval '10 minutes'
-      and pdl.accuracy_m <= 100
+      and pdl.accuracy_m <= 1000
     order by pdl.user_id, pdl.updated_at desc, pdl.accuracy_m asc
   ),
   me as (
@@ -220,7 +220,7 @@ as $$
           end
       end as bearing_deg
     from public.profiles p
-    join fresh_devices fd on fd.user_id = p.id
+    left join fresh_devices fd on fd.user_id = p.id
     left join me on true
     where p.id <> auth.uid()
       and coalesce(p.discoverable, true) = true
