@@ -1,4 +1,4 @@
--- Ming GPS / Nearby hardening
+-- Ming GPS / Nearby hardening 
 -- Run this in Supabase SQL Editor after the existing discovery SQL.
 -- This keeps separate location records per signed-in device so a phone
 -- cannot overwrite a laptop's location.
