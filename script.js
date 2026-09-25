@@ -999,9 +999,21 @@ async function loadMingDiscoverableProfiles(radiusKm = null) {
   try {
     const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
     if (sessionError || !session?.user) return false;
+
+    // Location is a hard requirement for geographic discoverability.
+    // Never show a user in the Nearby/Discoverable list without a usable
+    // distance. Interest discovery can be added separately without mixing
+    // geographic and non-geographic results.
+    if (!hasLocation()) {
+      mingDiscoverPeople = [];
+      return true;
+    }
+
     const { data, error } = await supabaseClient.rpc('get_discoverable_profiles', { p_radius_km: radiusKm });
     if (error) { console.warn('Ming: real-user discovery is not ready yet.', error.message); return false; }
-    mingDiscoverPeople = (data || []).map(profile => {
+    mingDiscoverPeople = (data || [])
+      .filter(profile => profile.distance_km != null && Number.isFinite(Number(profile.distance_km)))
+      .map(profile => {
       const name = profile.display_name || 'Ming user';
       const tags = Array.isArray(profile.tags) ? profile.tags : [];
       const interests = Array.isArray(profile.interests) ? profile.interests : [];
