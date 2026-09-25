@@ -139,8 +139,8 @@ set search_path = public
 as $$
   with me as (
     select
-      coalesce(interests, '[]'::jsonb) as interests,
-      coalesce(tags, '[]'::jsonb) as tags
+      coalesce(to_jsonb(interests), '[]'::jsonb) as interests,
+      coalesce(to_jsonb(tags), '[]'::jsonb) as tags
     from public.profiles
     where id = auth.uid()
   ),
@@ -158,7 +158,7 @@ as $$
       p.created_at,
       (
         select count(*)::integer
-        from jsonb_array_elements_text(coalesce(p.interests, '[]'::jsonb)) candidate_interest
+        from jsonb_array_elements_text(coalesce(to_jsonb(p.interests), '[]'::jsonb)) candidate_interest
         where candidate_interest.value in (
           select value from jsonb_array_elements_text(me.interests)
         )
@@ -166,7 +166,7 @@ as $$
       +
       (
         select count(*)::integer
-        from jsonb_array_elements_text(coalesce(p.tags, '[]'::jsonb)) candidate_tag
+        from jsonb_array_elements_text(coalesce(to_jsonb(p.tags), '[]'::jsonb)) candidate_tag
         where candidate_tag.value in (
           select value from jsonb_array_elements_text(me.tags)
         )
