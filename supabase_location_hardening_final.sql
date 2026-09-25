@@ -117,8 +117,7 @@ returns void
 language plpgsql
 security definer
 set search_path = public
-as $
-begin
+as $$begin
   perform public.set_my_discovery_location(
     p_latitude,
     p_longitude,
