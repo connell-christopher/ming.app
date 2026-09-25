@@ -105,6 +105,38 @@ revoke all on function public.set_my_discovery_location(
   double precision, double precision, double precision, text
 ) from public, anon;
 
+-- Compatibility overload for the current Ming frontend.
+-- The frontend uses the 3-argument RPC. A generic browser slot is used
+-- here until per-device selection is implemented end-to-end.
+create or replace function public.set_my_discovery_location(
+  p_latitude double precision,
+  p_longitude double precision,
+  p_accuracy_m double precision
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  perform public.set_my_discovery_location(
+    p_latitude,
+    p_longitude,
+    p_accuracy_m,
+    'browser'
+  );
+end;
+$;
+
+revoke all on function public.set_my_discovery_location(
+  double precision, double precision, double precision
+) from public, anon;
+
+grant execute on function public.set_my_discovery_location(
+  double precision, double precision, double precision
+) to authenticated;
+
+
 grant execute on function public.set_my_discovery_location(
   double precision, double precision, double precision, text
 ) to authenticated;
