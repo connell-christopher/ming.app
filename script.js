@@ -64,10 +64,11 @@ function lifeLabel(u) {
 }
 /* Display only. Coordinates are never shown; distance is deliberately coarse. */
 function distLabel(km) {
-  if (km === null || km === undefined || !isFinite(km)) return 'Distance hidden';
-  if (km < 0.15) return 'Nearby';
-  if (km < 10) return km.toFixed(1) + ' km away';
-  return Math.round(km) + ' km away';
+  if (km === null || km === undefined || !isFinite(km)) return 'Distance unavailable';
+  const metres = Math.max(0, km * 1000);
+  if (metres < 1000) return Math.round(metres) + ' m away';
+  if (km < 10) return km.toFixed(2) + ' km away';
+  return km.toFixed(1) + ' km away';
 }
 function greetWord() {
   const h = new Date().getHours();
@@ -598,7 +599,9 @@ $$('.scroll[data-scroll]').forEach(sc => {
 ------------------------------------------------------------ */
 const GEO_OPTS = { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 };
 const EARTH_R = 6371;                 // km
-const REFRESH_MOVE_M = 60;            // re-render after this much movement
+const REFRESH_MOVE_M = 10;            // update the local UI after 10m movement
+const LOCATION_REPUBLISH_MIN_MS = 15000; // do not write location more than once per 15s
+let mingLastPublishedAt = 0;
 
 function haversineKm(a, b) {
   const rad = d => d * Math.PI / 180;
@@ -708,9 +711,16 @@ function acceptFix(pos, announce) {
   applyGeoToPeers();
   startWatching();
 
-  const movedKm = prev ? haversineKm(prev, state.userLocation) : Infinity;
-  if (announce || movedKm * 1000 > REFRESH_MOVE_M) {
-    publishMingApproxLocation().then(() => loadMingDiscoverableProfiles(state.loaded.nearby ? state.radius : null).then(() => refreshLocationUI()));
+  const movedM = prev ? haversineKm(prev, state.userLocation) * 1000 : Infinity;
+  const publishDue = (now() - mingLastPublishedAt) >= LOCATION_REPUBLISH_MIN_MS;
+  if (announce || movedM >= REFRESH_MOVE_M) {
+    if (announce || publishDue || movedM >= REFRESH_MOVE_M) {
+      publishMingApproxLocation().then(() => {
+        loadMingDiscoverableProfiles(state.loaded.nearby ? state.radius : null).then(() => refreshLocationUI());
+      });
+    } else {
+      refreshLocationUI();
+    }
     resolveArea();
   }
   if (announce) toast('Location on — your coordinates stay on your device', 'shield');
@@ -1015,14 +1025,15 @@ async function loadMingDiscoverableProfiles(radiusKm = null) {
 
 async function publishMingApproxLocation() {
   if (!hasLocation()) return false;
-  const lat = Math.round(state.userLocation.latitude * 1000) / 1000;
-  const lng = Math.round(state.userLocation.longitude * 1000) / 1000;
-  const key = lat + ':' + lng;
+  const lat = Number(state.userLocation.latitude.toFixed(7));
+  const lng = Number(state.userLocation.longitude.toFixed(7));
+  const key = lat.toFixed(7) + ':' + lng.toFixed(7);
   if (key === mingLocationPublishKey) return true;
   try {
     const { error } = await supabaseClient.rpc('set_my_discovery_location', { p_latitude: lat, p_longitude: lng, p_accuracy_m: Number(state.userLocation.accuracy) });
     if (error) { console.warn('Ming: approximate discovery location could not be published.', error.message); return false; }
     mingLocationPublishKey = key;
+    mingLastPublishedAt = now();
     return true;
   } catch (error) { console.warn('Ming: approximate discovery location failed.', error); return false; }
 }
