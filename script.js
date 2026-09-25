@@ -1020,7 +1020,7 @@ async function publishMingApproxLocation() {
   const key = lat + ':' + lng;
   if (key === mingLocationPublishKey) return true;
   try {
-    const { error } = await supabaseClient.rpc('set_my_discovery_location', { p_latitude: lat, p_longitude: lng });
+    const { error } = await supabaseClient.rpc('set_my_discovery_location', { p_latitude: lat, p_longitude: lng, p_accuracy_m: Number(state.userLocation.accuracy) });
     if (error) { console.warn('Ming: approximate discovery location could not be published.', error.message); return false; }
     mingLocationPublishKey = key;
     return true;
