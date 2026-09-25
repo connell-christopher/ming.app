@@ -630,7 +630,7 @@ function locationLine() {
   switch (state.locStatus) {
     case 'granted': return {
       title: 'Location enabled',
-      sub: state.geo.locality ? `${state.geo.locality} · from your device` : 'Reading your area…'
+      sub: state.geo.locality ? `${state.geo.locality} · from your device` : 'GPS fix acquired · finding your area…'
     };
     case 'requesting': return { title: 'Getting your location…', sub: 'Your device is finding a fix' };
     case 'denied': return { title: 'Location is off', sub: 'Turn on location access to discover people nearby' };
