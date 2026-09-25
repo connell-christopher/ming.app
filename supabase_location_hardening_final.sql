@@ -127,7 +127,6 @@ begin
   );
 end;
 $;
-
 revoke all on function public.set_my_discovery_location(
   double precision, double precision, double precision
 ) from public, anon;
