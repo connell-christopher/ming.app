@@ -598,12 +598,18 @@ $$('.scroll[data-scroll]').forEach(sc => {
 ------------------------------------------------------------ */
 const GEO_OPTS = { enableHighAccuracy: true, maximumAge: 0, timeout: 30000 };
 const GEO_RETRY_OPTS = { enableHighAccuracy: true, maximumAge: 0, timeout: 60000 };
-const MAX_PUBLISH_ACCURACY_M = 250;   // Nearby requires a genuinely useful device fix.
-const MAX_ACCEPTABLE_ACCURACY_M = 1000; // We can display diagnostics, but never publish this as Nearby.
+const MAX_PUBLISH_ACCURACY_M = 100;   // Never publish a weak/coarse fix to Nearby.
+const MAX_ACCEPTABLE_ACCURACY_M = 500; // Keep weaker fixes for diagnostics only.
 const MAX_LOCATION_AGE_MS = 2 * 60 * 1000;
 const MAX_JUMP_M = 3000;              // Reject impossible multi-km jumps between fresh fixes.
+const LOCATION_STABILITY_RADIUS_M = 150;
+const LOCATION_STABILITY_SAMPLES = 3;
+const LOCATION_STABILITY_WINDOW_MS = 30000;
+const LOCATION_PUBLISH_INTERVAL_MS = 60000;
 const EARTH_R = 6371;                 // km
-const REFRESH_MOVE_M = 60;            // re-render after this much movement
+const REFRESH_MOVE_M = 60;            // re-render after this much movement.
+let mingLocationSamples = [];
+let mingLastPublishedAt = 0;
 
 /* One account can be signed in on several devices. Each device must have its
    own location record; otherwise the phone can overwrite the laptop (or vice versa). */
@@ -734,12 +740,51 @@ function stopWatching() {
   state.geoWatchId = null;
 }
 
+function getStableLocationEstimate() {
+  const cutoff = Date.now() - LOCATION_STABILITY_WINDOW_MS;
+  mingLocationSamples = mingLocationSamples
+    .filter(sample => sample.timestamp >= cutoff && sample.accuracy <= MAX_PUBLISH_ACCURACY_M)
+    .slice(-8);
+
+  if (mingLocationSamples.length < LOCATION_STABILITY_SAMPLES) return null;
+
+  const ordered = [...mingLocationSamples].sort((a, b) => a.accuracy - b.accuracy);
+  const anchor = ordered[0];
+  const cluster = mingLocationSamples.filter(sample =>
+    haversineKm(anchor, sample) * 1000 <= LOCATION_STABILITY_RADIUS_M
+  );
+
+  if (cluster.length < LOCATION_STABILITY_SAMPLES) return null;
+
+  const totalWeight = cluster.reduce((sum, sample) => sum + 1 / Math.max(1, sample.accuracy), 0);
+  const estimate = cluster.reduce((acc, sample) => {
+    const weight = (1 / Math.max(1, sample.accuracy)) / totalWeight;
+    acc.latitude += sample.latitude * weight;
+    acc.longitude += sample.longitude * weight;
+    return acc;
+  }, { latitude: 0, longitude: 0 });
+
+  const spreadM = Math.max(...cluster.map(sample =>
+    haversineKm(estimate, sample) * 1000
+  ));
+
+  if (spreadM > LOCATION_STABILITY_RADIUS_M) return null;
+
+  return {
+    latitude: estimate.latitude,
+    longitude: estimate.longitude,
+    accuracy: Math.min(...cluster.map(sample => sample.accuracy)),
+    timestamp: Math.max(...cluster.map(sample => sample.timestamp)),
+    spreadM
+  };
+}
+
 function acceptFix(pos, announce) {
   const c = pos.coords;
   const accuracy = Number.isFinite(c.accuracy) ? c.accuracy : Infinity;
   const timestamp = Number.isFinite(pos.timestamp) ? pos.timestamp : Date.now();
   const age = Math.max(0, Date.now() - timestamp);
-  const prev = state.userLocation;
+  const previous = state.userLocation;
 
   if (!Number.isFinite(c.latitude) || !Number.isFinite(c.longitude)) {
     console.warn('Ming: device returned invalid coordinates.');
@@ -751,8 +796,9 @@ function acceptFix(pos, announce) {
     return;
   }
 
-  if (prev) {
-    const jumpM = haversineKm(prev, { latitude: c.latitude, longitude: c.longitude }) * 1000;
+  const rawFix = { latitude: c.latitude, longitude: c.longitude };
+  if (previous) {
+    const jumpM = haversineKm(previous, rawFix) * 1000;
     if (jumpM > MAX_JUMP_M && age < MAX_LOCATION_AGE_MS) {
       console.warn('Ming: rejected suspicious location jump.', { jumpM, accuracy });
       if (announce) toast('Ming rejected an unstable location reading. Trying again…', 'pin');
@@ -760,47 +806,73 @@ function acceptFix(pos, announce) {
     }
   }
 
-  state.userLocation = {
-    latitude: c.latitude,
-    longitude: c.longitude,
+  if (accuracy > MAX_ACCEPTABLE_ACCURACY_M) {
+    if (!previous) {
+      state.userLocation = {
+        ...rawFix,
+        accuracy,
+        altitude: c.altitude,
+        altitudeAccuracy: c.altitudeAccuracy,
+        heading: c.heading,
+        speed: c.speed,
+        timestamp,
+        stable: false,
+        spreadM: null
+      };
+    }
+    state.locStatus = 'granted';
+    refreshLocationUI();
+    if (announce) toast(`Location is too coarse for Nearby · ±${Math.round(accuracy)} m`, 'pin');
+    return;
+  }
+
+  mingLocationSamples.push({
+    ...rawFix,
     accuracy,
+    timestamp
+  });
+
+  const stable = getStableLocationEstimate();
+
+  state.userLocation = {
+    latitude: stable?.latitude ?? c.latitude,
+    longitude: stable?.longitude ?? c.longitude,
+    accuracy: stable?.accuracy ?? accuracy,
     altitude: c.altitude,
     altitudeAccuracy: c.altitudeAccuracy,
     heading: c.heading,
     speed: c.speed,
-    timestamp
+    timestamp: stable?.timestamp ?? timestamp,
+    stable: !!stable,
+    spreadM: stable?.spreadM ?? null
   };
   state.locStatus = 'granted';
   applyGeoToPeers();
   startWatching();
 
-  const movedKm = prev ? haversineKm(prev, state.userLocation) : Infinity;
-  const publishable = accuracy <= MAX_PUBLISH_ACCURACY_M && age <= MAX_LOCATION_AGE_MS;
+  const movedKm = previous ? haversineKm(previous, state.userLocation) : Infinity;
+  const publishable =
+    !!stable &&
+    stable.accuracy <= MAX_PUBLISH_ACCURACY_M &&
+    Date.now() - stable.timestamp <= MAX_LOCATION_AGE_MS;
 
   if (announce || movedKm * 1000 > REFRESH_MOVE_M) {
     if (publishable) {
       publishMingApproxLocation()
         .then(() => loadMingDiscoverableProfiles(state.loaded.nearby ? state.radius : null))
         .then(() => refreshLocationUI());
+      resolveArea();
     } else {
-      // Never turn a weak cell/IP-style fix into a false "nearby" distance.
       mingLocationPublishKey = '';
       refreshLocationUI();
-      resolveArea();
+      if (announce) toast('Ming is calibrating your device location…', 'pin');
     }
   }
 
-  if (announce) {
-    if (publishable) {
-      toast(`Precise device location enabled · ±${Math.round(accuracy)} m`, 'shield');
-    } else if (accuracy <= MAX_ACCEPTABLE_ACCURACY_M) {
-      toast(`Location is too coarse for Nearby · ±${Math.round(accuracy)} m`, 'pin');
-    } else {
-      toast('Your device returned a very weak location fix. Ming will not publish it.', 'pin');
-    }
+  if (announce && publishable) {
+    toast(`Precise device location verified · ±${Math.round(stable.accuracy)} m`, 'shield');
   }
 }
-
 function handleGeoError(err) {
   if (err.code === 1) { state.locStatus = 'denied'; stopWatching(); }
   else if (err.code === 3) state.locStatus = 'timeout';
@@ -1099,11 +1171,22 @@ async function loadMingDiscoverableProfiles(radiusKm = null) {
 }
 
 async function publishMingApproxLocation() {
-  if (!hasLocation() || !Number.isFinite(state.userLocation.accuracy) || state.userLocation.accuracy > MAX_PUBLISH_ACCURACY_M) return false;
+  if (
+    !hasLocation() ||
+    !state.userLocation.stable ||
+    !Number.isFinite(state.userLocation.accuracy) ||
+    state.userLocation.accuracy > MAX_PUBLISH_ACCURACY_M
+  ) return false;
+
   const lat = Math.round(state.userLocation.latitude * 1000) / 1000;
   const lng = Math.round(state.userLocation.longitude * 1000) / 1000;
-  const key = lat + ':' + lng;
-  if (key === mingLocationPublishKey) return true;
+  const key = mingDeviceId + ':' + lat + ':' + lng;
+
+  if (
+    key === mingLocationPublishKey &&
+    Date.now() - mingLastPublishedAt < LOCATION_PUBLISH_INTERVAL_MS
+  ) return true;
+
   try {
     const { error } = await supabaseClient.rpc('set_my_discovery_location', {
       p_latitude: lat,
@@ -1111,12 +1194,20 @@ async function publishMingApproxLocation() {
       p_accuracy_m: state.userLocation.accuracy,
       p_device_id: mingDeviceId
     });
-    if (error) { console.warn('Ming: approximate discovery location could not be published.', error.message); return false; }
-    mingLocationPublishKey = key;
-    return true;
-  } catch (error) { console.warn('Ming: approximate discovery location failed.', error); return false; }
-}
 
+    if (error) {
+      console.warn('Ming: verified discovery location could not be published.', error.message);
+      return false;
+    }
+
+    mingLocationPublishKey = key;
+    mingLastPublishedAt = Date.now();
+    return true;
+  } catch (error) {
+    console.warn('Ming: verified discovery location failed.', error);
+    return false;
+  }
+}
 async function loadDiscover() {
   state.loaded.discover = true;
   await loadMingDiscoverableProfiles();
