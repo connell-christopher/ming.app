@@ -73,15 +73,26 @@ as $$
           or rd.latitude is null
           or rd.accuracy_m > 5000
         then null
-        else mod(
-          degrees(atan2(
+        else case
+          when degrees(atan2(
             sin(radians(rd.longitude - me.longitude)) * cos(radians(rd.latitude)),
             cos(radians(me.latitude)) * sin(radians(rd.latitude))
               - sin(radians(me.latitude)) * cos(radians(rd.latitude))
               * cos(radians(rd.longitude - me.longitude))
-          )) + 360,
-          360
-        )
+          )) < 0
+          then degrees(atan2(
+            sin(radians(rd.longitude - me.longitude)) * cos(radians(rd.latitude)),
+            cos(radians(me.latitude)) * sin(radians(rd.latitude))
+              - sin(radians(me.latitude)) * cos(radians(rd.latitude))
+              * cos(radians(rd.longitude - me.longitude))
+          )) + 360
+          else degrees(atan2(
+            sin(radians(rd.longitude - me.longitude)) * cos(radians(rd.latitude)),
+            cos(radians(me.latitude)) * sin(radians(rd.latitude))
+              - sin(radians(me.latitude)) * cos(radians(rd.latitude))
+              * cos(radians(rd.longitude - me.longitude))
+          ))
+        end
       end as bearing_deg
     from public.profiles p
     left join recent_devices rd on rd.user_id = p.id
