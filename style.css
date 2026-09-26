@@ -492,6 +492,129 @@ img { display: block; max-width: 100%; }
   background: conic-gradient(from 140deg, var(--coffee), var(--champagne), var(--burgundy), var(--coffee));
 }
 .av-ring.live .av { box-shadow: 0 0 0 2.5px var(--bg); }
+.settings-section-title {
+  margin: 18px 16px 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-control {
+  margin: 0 16px 10px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.settings-control-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.settings-control-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 570;
+}
+
+.settings-control-sub {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.settings-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.settings-status-dot.on {
+  background: var(--sage);
+  box-shadow: 0 0 0 3px rgba(102, 150, 91, .12);
+}
+
+.settings-switch {
+  position: relative;
+  width: 46px;
+  height: 28px;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.settings-switch span {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 1px 3px rgba(0,0,0,.14);
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.settings-switch.on {
+  background: rgba(102, 150, 91, .18);
+  border-color: rgba(102, 150, 91, .35);
+}
+
+.settings-switch.on span {
+  background: var(--sage);
+  transform: translateX(18px);
+}
+
+.settings-info {
+  margin: 0 16px;
+  padding: 12px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-info-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--coffee);
+}
+
+.settings-info-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-info-title {
+  font-size: 13.5px;
+  font-weight: 550;
+}
+
+.settings-info-sub {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
 
 /* ---------- 10. Person card (rail) ---------- */
 .pcard {
