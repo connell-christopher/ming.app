@@ -695,7 +695,13 @@
 
     <div class="thread" id="chat-thread"></div>
 
+    <div id="chat-reply-preview" class="chat-reply-preview" hidden></div>
+
     <form class="composer" id="chat-form">
+
+      <button class="chat-voice-btn" type="button" id="chat-voice" aria-label="Record voice note" title="Voice note">
+        <svg><use href="#i-mic"/></svg>
+      </button>
 
       <textarea
         id="chat-input"
