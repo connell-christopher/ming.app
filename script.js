@@ -3258,13 +3258,23 @@ function tickExpiry() {
 }
 
 async function boot() {
-  // Wait for the authenticated Supabase profile before the first render.
-  // This prevents the demo currentUser values from winning the render race.
+  /*
+     Start device-location acquisition immediately and independently of
+     the Supabase profile request. Location must never wait for profile,
+     avatar, auth metadata, or any other network request.
+  */
+  initLocation();
+
+  // The profile still gates the first authenticated render as before.
   await mingProfileReady;
   renderHome();
   setTab('home');
   updateNotifDot();
-  initLocation();
+
+  /*
+     The location request may already be running or complete by this point.
+     Do not start a duplicate request here.
+  */
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && state.locStatus === 'granted') requestLocation();
   });
