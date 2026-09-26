@@ -97,7 +97,10 @@ const currentUser = {
   bio: 'Breaking things carefully so other people can build safely. Usually somewhere with good coffee and bad wifi.',
   interests: [],
   activity: '',
-  joined: ''
+  joined: '',
+  email: '',
+  emailConfirmed: false,
+  discoverable: true
 };
 
 /* ------------------------------------------------------------
@@ -128,7 +131,7 @@ const mingProfileReady = new Promise(resolve => {
 
     const { data: profile, error } = await supabaseClient
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, headline, interests, tags, activity, created_at, updated_at')
+      .select('id, username, display_name, avatar_url, bio, headline, interests, tags, activity, discoverable, created_at, updated_at')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -156,6 +159,9 @@ const mingProfileReady = new Promise(resolve => {
     currentUser.interests = Array.isArray(profile.interests) ? profile.interests : [];
     currentUser.tags = Array.isArray(profile.tags) ? profile.tags : [];
     currentUser.activity = profile.activity || '';
+    currentUser.discoverable = profile.discoverable !== false;
+    currentUser.email = session.user.email || '';
+    currentUser.emailConfirmed = !!session.user.email_confirmed_at;
     currentUser.joined = profile.created_at
       ? 'Joined ' + new Date(profile.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })
       : '';
@@ -444,7 +450,11 @@ function avatarStyle(hue) {
   return `background:linear-gradient(145deg,hsl(${hue} 42% 66%),hsl(${(hue + 340) % 360} 40% 40%))`;
 }
 function avatar(p, size = 44, opts = {}) {
-  const st = p.status ? `<span class="status ${p.status}"></span>` : '';
+  const ownDiscoverable = p.id === currentUser.id && currentUser.discoverable === true && hasLocation();
+  const statusClass = p.id === currentUser.id
+    ? (ownDiscoverable ? 'on' : '')
+    : (p.status || '');
+  const st = statusClass ? `<span class="status ${statusClass}"></span>` : '';
   const image = p.avatarUrl
     ? `<img src="${esc(p.avatarUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;">`
     : initials(p.short || p.name);
@@ -518,7 +528,7 @@ async function refreshMingCurrentUserProfile() {
 
     const { data: profile, error } = await supabaseClient
       .from('profiles')
-      .select('id, username, display_name, avatar_url, bio, headline, interests, tags, activity, created_at, updated_at')
+      .select('id, username, display_name, avatar_url, bio, headline, interests, tags, activity, discoverable, created_at, updated_at')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -536,6 +546,9 @@ async function refreshMingCurrentUserProfile() {
     currentUser.interests = Array.isArray(profile.interests) ? profile.interests : [];
     currentUser.tags = Array.isArray(profile.tags) ? profile.tags : [];
     currentUser.activity = profile.activity || '';
+    currentUser.discoverable = profile.discoverable !== false;
+    currentUser.email = session.user.email || '';
+    currentUser.emailConfirmed = !!session.user.email_confirmed_at;
     currentUser.joined = profile.created_at
       ? 'Joined ' + new Date(profile.created_at).toLocaleDateString([], { month: 'long', year: 'numeric' })
       : '';
@@ -1025,7 +1038,7 @@ async function loadMingDiscoverableProfiles(radiusKm = null) {
         tag: profile.headline || tags.slice(0, 3).join(' · ') || 'Ming member',
         interests, bio: profile.bio || '', avatarUrl: profile.avatar_url || '',
         username: profile.username ? '@' + profile.username.replace(/^@/, '') : '',
-        activity: profile.activity || 'Available on Ming', status: null, visitor: false,
+        activity: profile.activity || 'Available on Ming', status: 'on', visitor: false,
         km: profile.distance_km == null ? null : Number(profile.distance_km),
         bearingDeg: profile.bearing_deg == null ? null : Number(profile.bearing_deg), off: null
       };
@@ -2141,23 +2154,121 @@ function openPlaceSheet(id) {
 }
 
 function openSettingsSheet() {
+  const discoverableNow = currentUser.discoverable === true && hasLocation();
+  const emailLabel = currentUser.email || 'Email not available';
+  const emailStatus = currentUser.email
+    ? (currentUser.emailConfirmed ? 'Verified email address' : 'Email confirmation pending')
+    : 'Sign in again to refresh account details';
+
   openSheet({
     title: 'Settings',
-    sub: 'This demo keeps everything in your browser.',
+    sub: 'Privacy, account details and simple preferences.',
     body: `
-      <button class="opt" data-action="privacy"><span class="ic">${icon('shield')}</span>
-        <span class="tx"><span class="t" style="display:block">Location and privacy</span><span class="s" style="display:block">Control what people nearby can see</span></span>
-        <span class="go">${icon('chev')}</span></button>
+      <div class="settings-section-title">Privacy and security</div>
+
+      <div class="settings-control">
+        <div class="settings-control-copy">
+          <div class="settings-control-title"><span class="settings-status-dot ${discoverableNow ? 'on' : ''}"></span>Discoverable nearby</div>
+          <div class="settings-control-sub">${discoverableNow ? 'People nearby can discover you.' : (hasLocation() ? 'You are hidden from nearby discovery.' : 'Turn on location to become discoverable.')}</div>
+        </div>
+        <button class="settings-switch ${discoverableNow ? 'on' : ''}" type="button"
+          data-action="toggle-discoverable"
+          aria-pressed="${discoverableNow}"
+          aria-label="${discoverableNow ? 'Turn off nearby discoverability' : 'Turn on nearby discoverability'}">
+          <span></span>
+        </button>
+      </div>
+
+      <div class="settings-info">
+        <div class="settings-info-icon">${icon('pin')}</div>
+        <div>
+          <div class="settings-info-title">Location</div>
+          <div class="settings-info-sub">${hasLocation() ? esc(areaLabel()) + ' · device location enabled' : 'Location is off'}</div>
+        </div>
+      </div>
+
+      <div class="settings-info">
+        <div class="settings-info-icon">${icon('shield')}</div>
+        <div>
+          <div class="settings-info-title">Location privacy</div>
+          <div class="settings-info-sub">Your exact coordinates and address are never shown to other users.</div>
+        </div>
+      </div>
+
+      <div class="settings-section-title">Account</div>
+
+      <div class="settings-info">
+        <div class="settings-info-icon">${icon('user')}</div>
+        <div>
+          <div class="settings-info-title">Username</div>
+          <div class="settings-info-sub">${esc(currentUser.username || 'Not set')}</div>
+        </div>
+      </div>
+
+      <div class="settings-info">
+        <div class="settings-info-icon">${icon('lock')}</div>
+        <div>
+          <div class="settings-info-title">Email</div>
+          <div class="settings-info-sub">${esc(emailLabel)} · ${esc(emailStatus)}</div>
+        </div>
+      </div>
+
+      <div class="settings-section-title">Preferences</div>
+
       <button class="opt" data-action="edit-profile"><span class="ic">${icon('edit')}</span>
-        <span class="tx"><span class="t" style="display:block">Edit profile</span><span class="s" style="display:block">Name, bio and area</span></span>
+        <span class="tx"><span class="t" style="display:block">Edit profile</span><span class="s" style="display:block">Name, bio and profile details</span></span>
         <span class="go">${icon('chev')}</span></button>
+
       <button class="opt" data-action="go-notifications"><span class="ic">${icon('bell')}</span>
         <span class="tx"><span class="t" style="display:block">Notifications</span><span class="s" style="display:block">What you hear about</span></span>
         <span class="go">${icon('chev')}</span></button>
+
       <button class="opt" data-action="about"><span class="ic">${icon('coffee')}</span>
         <span class="tx"><span class="t" style="display:block">About ming</span><span class="s" style="display:block">People. Moments. Possibilities.</span></span>
         <span class="go">${icon('chev')}</span></button>`
   });
+}
+
+async function toggleMingDiscoverability() {
+  if (!hasLocation()) {
+    toast('Turn on location before becoming discoverable', 'pin');
+    return;
+  }
+
+  const next = currentUser.discoverable !== true;
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session?.user) {
+      toast('Please sign in again', 'alert');
+      return;
+    }
+
+    const { error } = await supabaseClient
+      .from('profiles')
+      .update({ discoverable: next })
+      .eq('id', session.user.id);
+
+    if (error) {
+      console.error('Ming: discoverability update failed:', error.message);
+      toast('Could not update discoverability', 'alert');
+      return;
+    }
+
+    currentUser.discoverable = next;
+    if (state.loaded.profile) renderProfile();
+    if (state.loaded.home) renderHome();
+    if (state.loaded.discover) renderDiscover();
+    if (state.loaded.nearby) {
+      await loadMingDiscoverableProfiles(state.radius);
+      renderNearby();
+    }
+    openSettingsSheet();
+    toast(next ? 'You are now discoverable nearby' : 'You are hidden from nearby discovery', next ? 'check' : 'shield');
+  } catch (error) {
+    console.error('Ming: discoverability update failed:', error);
+    toast('Could not update discoverability', 'alert');
+  }
 }
 
 function openPrivacySheet() {
@@ -2932,6 +3043,7 @@ document.addEventListener('click', async e => {
     }
 
     case 'privacy': closeSheet(); setTimeout(openPrivacySheet, 160); break;
+    case 'toggle-discoverable': await toggleMingDiscoverability(); break;
     case 'settings': closeSheet(); setTimeout(openSettingsSheet, 160); break;
     case 'about': closeSheet(); setTimeout(openAboutSheet, 160); break;
 
