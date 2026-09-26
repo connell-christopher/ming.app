@@ -3059,6 +3059,15 @@ document.addEventListener('click', async e => {
       break;
     }
 
+    case 'call': {
+      const p = byId(state.activeChat);
+      if (!p) break;
+      toast(arg === 'video'
+        ? 'Video calling is being prepared for Ming.'
+        : 'Voice calling is being prepared for Ming.', 'info');
+      break;
+    }
+
     case 'moon': openMoonRoom(arg); break;
     case 'moon-add': moonAdd(); break;
     case 'moon-intent': {
