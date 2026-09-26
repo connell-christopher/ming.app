@@ -93,3 +93,55 @@ using (
 grant select, insert, update on public.messages to authenticated;
 
 -- Realtime reactions can be enabled later if desired; current UI reloads reactions immediately.
+
+
+create or replace function public.ming_send_message_v2(
+  p_recipient_id uuid,
+  p_body text,
+  p_message_type text default 'text',
+  p_voice_path text default null,
+  p_voice_duration integer default null,
+  p_reply_to_id uuid default null
+)
+returns public.messages
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_sender_id uuid := auth.uid();
+  v_message public.messages;
+begin
+  if v_sender_id is null then raise exception 'Not authenticated'; end if;
+  if p_recipient_id is null or p_recipient_id = v_sender_id then raise exception 'Invalid recipient'; end if;
+  if not public.ming_users_are_connected(v_sender_id, p_recipient_id) then raise exception 'Users are not connected'; end if;
+
+  if p_message_type = 'text' then
+    if p_body is null or char_length(trim(p_body)) < 1 or char_length(p_body) > 2000 then
+      raise exception 'Message must be between 1 and 2000 characters';
+    end if;
+  elsif p_message_type = 'voice' then
+    if p_voice_path is null then raise exception 'Voice note is missing'; end if;
+  else
+    raise exception 'Unsupported message type';
+  end if;
+
+  if p_reply_to_id is not null and not exists (
+    select 1 from public.messages m
+    where m.id = p_reply_to_id
+      and ((m.sender_id = v_sender_id and m.recipient_id = p_recipient_id)
+        or (m.sender_id = p_recipient_id and m.recipient_id = v_sender_id))
+  ) then
+    raise exception 'Invalid reply target';
+  end if;
+
+  insert into public.messages(sender_id, recipient_id, body, message_type, voice_path, voice_duration, reply_to_id)
+  values(v_sender_id, p_recipient_id, coalesce(trim(p_body), ''), p_message_type, p_voice_path, p_voice_duration, p_reply_to_id)
+  returning * into v_message;
+
+  return v_message;
+end;
+$$;
+
+revoke all on function public.ming_send_message_v2(uuid,text,text,text,integer,uuid) from public;
+grant execute on function public.ming_send_message_v2(uuid,text,text,text,integer,uuid) to authenticated;
