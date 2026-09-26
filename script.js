@@ -1854,7 +1854,14 @@ async function sendMessage(text) {
       return;
     }
 
-    const { data: row, error } = await supabaseClient
+    let row = null;
+    let error = null;
+
+    /* Use the normal INSERT path first. If its RLS check rejects the
+       connection from one side of the conversation, fall back to the
+       server-side SECURITY DEFINER send function already installed in
+       supabase_messages.sql. */
+    const direct = await supabaseClient
       .from('messages')
       .insert({
         sender_id: session.user.id,
@@ -1864,9 +1871,42 @@ async function sendMessage(text) {
       .select('id, sender_id, recipient_id, body, created_at, read_at')
       .single();
 
+    row = direct.data;
+    error = direct.error;
+
     if (error) {
-      console.error('Ming: sending message failed:', error);
-      toast('Could not send message.', 'alert');
+      console.warn('Ming: direct message insert failed; trying secure send RPC.', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+
+      const rpc = await supabaseClient.rpc('ming_send_message', {
+        p_recipient_id: state.activeChat,
+        p_body: text
+      });
+
+      row = rpc.data;
+      error = rpc.error;
+
+      /* PostgREST can return a table row as a one-item array for a
+         table-returning function. Normalize both possible shapes. */
+      if (Array.isArray(row)) row = row[0] || null;
+    }
+
+    if (error || !row) {
+      console.error('Ming: sending message failed.', {
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint
+      });
+
+      const reason = error?.message
+        ? ' ' + error.message
+        : ' Please check your connection and try again.';
+      toast('Could not send message.' + reason, 'alert');
       return;
     }
 
