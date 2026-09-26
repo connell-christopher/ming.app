@@ -365,6 +365,50 @@ function connectionStatus(id) {
   return 'none';
 }
 
+/*
+   Real connection requests are stored in the connections table.
+   Keep the Notifications surface derived from that authoritative data
+   instead of maintaining a second notification table.
+*/
+function syncConnectionRequestNotifications() {
+  const pendingIds = new Set(connectionRequests.map(r => String(r.id)));
+
+  notifications = notifications.filter(n => {
+    if (!String(n.id).startsWith('connreq:')) return true;
+    return pendingIds.has(String(n.id).slice(8));
+  });
+
+  connectionRequests.forEach(r => {
+    const p = byId(r.personId);
+    if (!p) return;
+
+    const id = 'connreq:' + r.id;
+    const existing = notifications.find(n => n.id === id);
+
+    let read = existing?.read === true;
+
+    try {
+      read = read || localStorage.getItem('ming-read-' + id) === '1';
+    } catch (e) {}
+
+    const notification = {
+      id,
+      type: 'request',
+      text: `<b>${esc(p.short || p.name)}</b> wants to connect with you.`,
+      at: r.at,
+      read
+    };
+
+    if (existing) {
+      Object.assign(existing, notification);
+    } else {
+      notifications.push(notification);
+    }
+  });
+
+  notifications.sort((a, b) => b.at - a.at);
+}
+
 function isUuidPerson(id) {
   return /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id);
 }
@@ -1459,7 +1503,7 @@ function connectWith(id) {
   });
 }
 
-async function sendConnection(id) {
+async async function sendConnection(id) {
   const p = byId(id);
   if (!p) return;
 
@@ -2238,7 +2282,11 @@ function renderSearch(mode, q = '') {
 ------------------------------------------------------------ */
 const NOTIF_ICON = { connect: 'users', update: 'spark', message: 'chat', nearby: 'pin', expiry: 'clock', request: 'users' };
 
-function renderNotifications() {
+async function renderNotifications() {
+  // Refresh real connection requests before drawing this screen.
+  await loadMingConnections();
+  syncConnectionRequestNotifications();
+
   const host = $('#notif-body');
   host.innerHTML = notifications.length ? notifications.map(n => `
     <button class="notif" data-action="notif:${n.id}">
@@ -2249,6 +2297,7 @@ function renderNotifications() {
 }
 
 function updateNotifDot() {
+  syncConnectionRequestNotifications();
   const unread = notifications.some(n => !n.read);
   $('#notif-dot').hidden = !unread;
 }
@@ -3020,10 +3069,24 @@ document.addEventListener('click', async e => {
 
     case 'notif': {
       const n = notifications.find(x => x.id === arg);
-      if (n) n.read = true;
-      renderNotifications(); updateNotifDot();
-      if (n && n.type === 'message') { openChat('p2'); }
-      if (n && n.type === 'request') { renderConnections(); pushStack('connections'); }
+      if (n) {
+        n.read = true;
+        if (String(n.id).startsWith('connreq:')) {
+          try { localStorage.setItem('ming-read-' + n.id, '1'); } catch (e) {}
+        }
+      }
+      updateNotifDot();
+
+      if (n && n.type === 'message') {
+        openChat('p2');
+      }
+
+      if (n && n.type === 'request') {
+        await loadMingConnections();
+        renderConnections();
+        pushStack('connections');
+      }
+
       break;
     }
 
@@ -3411,6 +3474,11 @@ async function boot() {
   await mingProfileReady;
   renderHome();
   setTab('home');
+
+  // Load real connection requests early so the notification badge reflects
+  // the authenticated account rather than only the demo notifications.
+  await loadMingConnections();
+  syncConnectionRequestNotifications();
   updateNotifDot();
 
   /*
@@ -3421,6 +3489,23 @@ async function boot() {
     if (!document.hidden && state.locStatus === 'granted') requestLocation();
   });
   setInterval(tickExpiry, 60000);
+
+  // Keep incoming connection requests reasonably fresh while the app is open.
+  setInterval(async () => {
+    const loaded = await loadMingConnections();
+    if (!loaded) return;
+
+    syncConnectionRequestNotifications();
+    updateNotifDot();
+
+    if (state.stack[state.stack.length - 1] === 'notifications') {
+      await renderNotifications();
+    }
+
+    if (state.stack[state.stack.length - 1] === 'connections') {
+      renderConnections();
+    }
+  }, 30000);
 }
 boot();
 
