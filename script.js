@@ -1830,16 +1830,23 @@ async function openChat(personId) {
 
 function renderThread() {
   const c = convoFor(state.activeChat);
-  const typing = chatTyping
-    ? `<div class="typing-state"><span class="typing-dots"><i></i><i></i><i></i></span><span>Typing…</span></div>`
-    : '';
-  $('#chat-thread').innerHTML =
-    `<div class="day-sep">Messages are stored securely for this conversation.</div>` +
-    c.messages.map(m => `
+
+  const messages = c.messages.map(m => `
+    <div class="message-row ${m.me ? 'me' : 'them'}">
       <div class="bub ${m.me ? 'me' : 'them'}">
         <span class="bubble-text">${esc(m.text)}</span>
         <span class="time">${clockTime(m.at)}${m.me ? ` · ${m.read ? 'Read' : 'Sent'}` : ''}</span>
-      </div>`).join('') +
+      </div>
+    </div>
+  `).join('');
+
+  const typing = chatTyping
+    ? `<div class="typing-state"><span class="typing-dots"><i></i><i></i><i></i></span><span>Typing…</span></div>`
+    : '';
+
+  $('#chat-thread').innerHTML =
+    `<div class="day-sep">Messages are stored securely for this conversation.</div>` +
+    messages +
     typing;
 }
 
