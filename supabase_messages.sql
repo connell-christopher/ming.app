@@ -44,7 +44,7 @@ language sql
 security definer
 set search_path = public
 stable
-as $
+as $$
   select exists (
     select 1
     from public.connections c
@@ -55,7 +55,7 @@ as $
         (c.requester_id = p_user_b and c.recipient_id = p_user_a)
       )
   );
-$;
+$$;
 
 revoke all on function public.ming_users_are_connected(uuid, uuid) from public;
 grant execute on function public.ming_users_are_connected(uuid, uuid) to authenticated;
