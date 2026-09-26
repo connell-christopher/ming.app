@@ -32,9 +32,6 @@ using (
   or (select auth.uid()) = recipient_id
 );
 
--- RLS on public.connections can hide the other participant's row from
--- the INSERT policy subquery. Use a narrow SECURITY DEFINER helper so
--- both sides of an accepted connection can message each other.
 create or replace function public.ming_users_are_connected(
   p_user_a uuid,
   p_user_b uuid
@@ -78,7 +75,48 @@ to authenticated
 using ((select auth.uid()) = recipient_id)
 with check ((select auth.uid()) = recipient_id);
 
--- Enable Supabase Realtime for incoming messages.
+-- Stable server-side send path. This avoids client-side INSERT RLS
+-- depending on which side of the connection is currently signed in.
+create or replace function public.ming_send_message(
+  p_recipient_id uuid,
+  p_body text
+)
+returns public.messages
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_sender_id uuid := auth.uid();
+  v_message public.messages;
+begin
+  if v_sender_id is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  if p_recipient_id is null or p_recipient_id = v_sender_id then
+    raise exception 'Invalid recipient';
+  end if;
+
+  if p_body is null or char_length(trim(p_body)) < 1 or char_length(p_body) > 2000 then
+    raise exception 'Message must be between 1 and 2000 characters';
+  end if;
+
+  if not public.ming_users_are_connected(v_sender_id, p_recipient_id) then
+    raise exception 'Users are not connected';
+  end if;
+
+  insert into public.messages (sender_id, recipient_id, body)
+  values (v_sender_id, p_recipient_id, trim(p_body))
+  returning * into v_message;
+
+  return v_message;
+end;
+$$;
+
+revoke all on function public.ming_send_message(uuid, text) from public;
+grant execute on function public.ming_send_message(uuid, text) to authenticated;
+
 do $$
 begin
   alter publication supabase_realtime add table public.messages;
