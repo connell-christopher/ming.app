@@ -586,6 +586,7 @@ function pushStack(id) {
 }
 function popStack() {
   const id = state.stack.pop();
+  if (id === 'chat') stopMingChatRealtime();
   if (id) document.getElementById('screen-' + id).classList.remove('is-active');
   const top = state.stack[state.stack.length - 1];
   const topScreen = top ? document.getElementById('screen-' + top) : null;
@@ -1563,6 +1564,131 @@ async function loadMingMessages() {
 }
 
 let mingMessageChannel = null;
+let mingChatChannel = null;
+let chatTypingTimer = null;
+let chatTyping = false;
+let chatOnline = false;
+
+function chatTopicFor(a, b) {
+  return 'ming:chat:' + [a, b].sort().join(':');
+}
+
+function renderChatPresenceStatus() {
+  const p = byId(state.activeChat);
+  if (!p) return;
+  const base = hasLocation() && p.km != null ? distLabel(p.km) + ' · ' : '';
+  const status = chatTyping ? 'Typing…' : (chatOnline ? 'Online now' : (p.status === 'on' ? 'Active now' : 'Active earlier'));
+  $('#chat-sub').textContent = base + status;
+}
+
+async function stopMingChatRealtime() {
+  if (chatTypingTimer) {
+    clearTimeout(chatTypingTimer);
+    chatTypingTimer = null;
+  }
+  chatTyping = false;
+  chatOnline = false;
+  if (mingChatChannel) {
+    await supabaseClient.removeChannel(mingChatChannel);
+    mingChatChannel = null;
+  }
+}
+
+async function startMingChatRealtime(personId) {
+  await stopMingChatRealtime();
+  if (!isUuidPerson(personId)) {
+    renderChatPresenceStatus();
+    return;
+  }
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user) return;
+
+  await supabaseClient.realtime.setAuth();
+  const topic = chatTopicFor(session.user.id, personId);
+
+  const channel = supabaseClient.channel(topic, {
+    config: {
+      private: true,
+      broadcast: { self: false, ack: false },
+      presence: { key: session.user.id }
+    }
+  });
+
+  channel
+    .on('presence', { event: 'sync' }, () => {
+      const presence = channel.presenceState();
+      chatOnline = Object.prototype.hasOwnProperty.call(presence, personId);
+      renderChatPresenceStatus();
+    })
+    .on('presence', { event: 'join' }, ({ key }) => {
+      if (key === personId) {
+        chatOnline = true;
+        renderChatPresenceStatus();
+      }
+    })
+    .on('presence', { event: 'leave' }, ({ key }) => {
+      if (key === personId) {
+        chatOnline = false;
+        renderChatPresenceStatus();
+      }
+    })
+    .on('broadcast', { event: 'typing' }, ({ payload }) => {
+      if (payload?.from !== personId) return;
+      chatTyping = payload.typing === true;
+      renderChatPresenceStatus();
+      if (chatTypingTimer) clearTimeout(chatTypingTimer);
+      if (chatTyping) {
+        chatTypingTimer = setTimeout(() => {
+          chatTyping = false;
+          renderChatPresenceStatus();
+        }, 2500);
+      }
+      renderThread();
+    });
+
+  mingChatChannel = channel;
+
+  channel.subscribe(async status => {
+    if (status !== 'SUBSCRIBED') {
+      if (status !== 'CLOSED' && status !== 'CHANNEL_ERROR') {
+        console.warn('Ming: chat realtime status:', status);
+      }
+      return;
+    }
+
+    await channel.track({
+      userId: session.user.id,
+      online_at: new Date().toISOString()
+    });
+    renderChatPresenceStatus();
+  });
+}
+
+async function setMingTyping(isTyping) {
+  if (!mingChatChannel || !isUuidPerson(state.activeChat)) return;
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user) return;
+
+  await mingChatChannel.send({
+    type: 'broadcast',
+    event: 'typing',
+    payload: {
+      from: session.user.id,
+      to: state.activeChat,
+      typing: !!isTyping
+    }
+  });
+
+  if (isTyping) {
+    if (chatTypingTimer) clearTimeout(chatTypingTimer);
+    chatTypingTimer = setTimeout(() => setMingTyping(false), 1200);
+  } else if (chatTypingTimer) {
+    clearTimeout(chatTypingTimer);
+    chatTypingTimer = null;
+  }
+}
 
 async function markMingConversationRead(personId) {
   const { data: { session } } = await supabaseClient.auth.getSession();
@@ -1628,6 +1754,24 @@ async function subscribeMingMessages() {
         updateNotifDot();
       }
     )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+        filter: 'sender_id=eq.' + session.user.id
+      },
+      payload => {
+        const row = payload.new;
+        const c = conversations.find(x => x.personId === row.recipient_id);
+        const m = c?.messages.find(x => x.id === row.id);
+        if (!m) return;
+        m.read = !!row.read_at;
+        if (state.activeChat === row.recipient_id) renderThread();
+        if (state.loaded.messages) renderMessages();
+      }
+    )
     .subscribe();
 }
 
@@ -1675,7 +1819,10 @@ async function openChat(personId) {
   state.activeChat = personId;
   $('#chat-av').innerHTML = avatar(p, 36);
   $('#chat-name').textContent = p.short;
-  $('#chat-sub').textContent = `${hasLocation() && p.km != null ? distLabel(p.km) + ' · ' : ''}${p.status === 'on' ? 'Active now' : 'Active earlier'}`;
+  chatTyping = false;
+  chatOnline = false;
+  renderChatPresenceStatus();
+  await startMingChatRealtime(personId);
   renderThread();
   pushStack('chat');
   setTimeout(() => { const t = $('#chat-thread'); if (t) t.scrollTop = t.scrollHeight; }, 60);
@@ -1683,9 +1830,17 @@ async function openChat(personId) {
 
 function renderThread() {
   const c = convoFor(state.activeChat);
+  const typing = chatTyping
+    ? `<div class="typing-state"><span class="typing-dots"><i></i><i></i><i></i></span><span>Typing…</span></div>`
+    : '';
   $('#chat-thread').innerHTML =
     `<div class="day-sep">Messages are stored securely for this conversation.</div>` +
-    c.messages.map(m => `<div class="bub ${m.me ? 'me' : 'them'}">${esc(m.text)}<span class="time">${clockTime(m.at)}</span></div>`).join('');
+    c.messages.map(m => `
+      <div class="bub ${m.me ? 'me' : 'them'}">
+        ${esc(m.text)}
+        <span class="time">${clockTime(m.at)}${m.me ? ` · ${m.read ? 'Read' : 'Sent'}` : ''}</span>
+      </div>`).join('') +
+    typing;
 }
 
 async function sendMessage(text) {
@@ -3384,11 +3539,17 @@ $('#search-clear').addEventListener('click', () => { searchInput.value = ''; run
 /* Chat composer */
 const chatInput = $('#chat-input'), chatSend = $('#chat-send');
 function autoGrow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 110) + 'px'; }
-chatInput.addEventListener('input', () => { chatSend.disabled = !chatInput.value.trim(); autoGrow(chatInput); });
+chatInput.addEventListener('input', () => {
+  chatSend.disabled = !chatInput.value.trim();
+  autoGrow(chatInput);
+  if (chatInput.value.trim()) setMingTyping(true);
+  else setMingTyping(false);
+});
 $('#chat-form').addEventListener('submit', e => {
   e.preventDefault();
   const v = chatInput.value.trim();
   if (!v) return;
+  setMingTyping(false);
   chatInput.value = ''; chatInput.style.height = 'auto'; chatSend.disabled = true;
   sendMessage(v);
 });
