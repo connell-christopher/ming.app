@@ -1837,6 +1837,7 @@ async function openChat(personId) {
   chatOnline = false;
   renderChatPresenceStatus();
   await startMingChatRealtime(personId);
+  await loadChatReactions(c);
   renderThread();
   pushStack('chat');
   setTimeout(() => { const t = $('#chat-thread'); if (t) t.scrollTop = t.scrollHeight; }, 60);
