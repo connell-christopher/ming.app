@@ -1855,14 +1855,18 @@ async function sendMessage(text) {
     }
 
     const { data: row, error } = await supabaseClient
-      .rpc('ming_send_message', {
-        p_recipient_id: state.activeChat,
-        p_body: text
-      });
+      .from('messages')
+      .insert({
+        sender_id: session.user.id,
+        recipient_id: state.activeChat,
+        body: text
+      })
+      .select('id, sender_id, recipient_id, body, created_at, read_at')
+      .single();
 
     if (error) {
-      console.error('Ming: sending message failed:', error.message);
-      toast(error.message || 'Could not send message.', 'alert');
+      console.error('Ming: sending message failed:', error);
+      toast('Could not send message.', 'alert');
       return;
     }
 
