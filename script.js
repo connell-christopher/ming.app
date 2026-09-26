@@ -2239,6 +2239,31 @@ function renderSearch(mode, q = '') {
 ------------------------------------------------------------ */
 const NOTIF_ICON = { connect: 'users', update: 'spark', message: 'chat', nearby: 'pin', expiry: 'clock', request: 'users' };
 
+async function syncConnectionRequestNotifications() {
+  const loaded = await loadMingConnections();
+  if (!loaded) return;
+
+  const pendingIds = new Set(connectionRequests.map(r => r.id));
+  notifications = notifications.filter(n =>
+    !String(n.id).startsWith('connreq_') || pendingIds.has(String(n.id).slice(8))
+  );
+
+  connectionRequests.forEach(r => {
+    const notificationId = 'connreq_' + r.id;
+    if (notifications.some(n => n.id === notificationId)) return;
+
+    const p = byId(r.personId);
+    const name = p?.short || p?.name || 'Someone';
+    notifications.unshift({
+      id: notificationId,
+      type: 'request',
+      text: `<b>${esc(name)}</b> wants to connect with you.`,
+      at: r.at,
+      read: false
+    });
+  });
+}
+
 function renderNotifications() {
   const host = $('#notif-body');
   host.innerHTML = notifications.length ? notifications.map(n => `
@@ -2253,7 +2278,6 @@ function updateNotifDot() {
   const unread = notifications.some(n => !n.read);
   $('#notif-dot').hidden = !unread;
 }
-
 /* ------------------------------------------------------------
    BOTTOM SHEETS
 ------------------------------------------------------------ */
@@ -3005,7 +3029,14 @@ document.addEventListener('click', async e => {
       break;
     }
     case 'go-messages': { const ready = await loadMingMessages(); await subscribeMingMessages(); renderMessages(); pushStack('messages'); if (!ready) toast('Messaging is not connected yet. Run supabase_messages.sql once.', 'alert'); break; }
-    case 'go-notifications': closeSheet(); renderNotifications(); pushStack('notifications'); break;
+    case 'go-notifications': {
+      closeSheet();
+      await syncConnectionRequestNotifications();
+      renderNotifications();
+      updateNotifDot();
+      pushStack('notifications');
+      break;
+    }
     case 'go-updates': $('#my-updates').scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
 
     case 'enable-location': closeSheet(); requestLocation(() => { if (state.tab !== 'nearby') return; }); break;
@@ -3410,6 +3441,7 @@ async function boot() {
 
   // The profile still gates the first authenticated render as before.
   await mingProfileReady;
+  await syncConnectionRequestNotifications();
   renderHome();
   setTab('home');
   updateNotifDot();
