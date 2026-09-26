@@ -1453,9 +1453,9 @@ input[type="range"]::-moz-range-thumb {
 
 .chat-bubble {
   position: relative;
-  flex: 0 1 auto;
-  display: inline-block;
-  width: auto;
+  flex: 0 0 auto;
+  display: block;
+  width: max-content;
   max-width: min(78%, 520px);
   min-width: 0;
   height: auto;
@@ -1512,6 +1512,7 @@ input[type="range"]::-moz-range-thumb {
 
 .chat-bubble__text {
   display: block;
+  width: max-content;
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
