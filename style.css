@@ -1454,6 +1454,29 @@ input[type="range"]::-moz-range-thumb {
   justify-content: flex-end;
 }
 
+/* The app already has a global .me class for the map location marker.
+   Override those map-marker positioning rules inside chat so a sent
+   message remains a normal flow element instead of becoming absolute. */
+.message-row > .bub.me {
+  position: static;
+  left: auto;
+  top: auto;
+  transform: none;
+  width: fit-content;
+  height: auto;
+  z-index: auto;
+  border-radius: 20px;
+}
+
+.message-row > .bub.them {
+  position: static;
+  left: auto;
+  top: auto;
+  transform: none;
+  height: auto;
+  z-index: auto;
+}
+
 .bub {
   display: block;
   width: fit-content;
