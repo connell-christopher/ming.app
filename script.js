@@ -1523,7 +1523,7 @@ async function loadMingMessages() {
 
     const { data: rows, error } = await supabaseClient
       .from('messages')
-      .select('id, sender_id, recipient_id, body, created_at, read_at')
+      .select('id, sender_id, recipient_id, body, created_at, read_at, message_type, voice_path, voice_duration, reply_to_id')
       .or(`sender_id.eq.${session.user.id},recipient_id.eq.${session.user.id}`)
       .order('created_at', { ascending: true });
 
@@ -1548,7 +1548,11 @@ async function loadMingMessages() {
         me: row.sender_id === session.user.id,
         text: row.body,
         at: new Date(row.created_at).getTime(),
-        read: !!row.read_at
+        read: !!row.read_at,
+        type: row.message_type || 'text',
+        voicePath: row.voice_path || '',
+        voiceDuration: row.voice_duration || 0,
+        replyToId: row.reply_to_id || null
       });
 
       if (row.recipient_id === session.user.id && !row.read_at) c.unread += 1;
@@ -1568,6 +1572,11 @@ let mingChatChannel = null;
 let chatTypingTimer = null;
 let chatTyping = false;
 let chatOnline = false;
+let chatReplyTarget = null;
+let chatRecording = null;
+let chatRecordChunks = [];
+let chatRecordStartedAt = 0;
+const chatVoiceUrls = new Map();
 
 function chatTopicFor(a, b) {
   return 'ming:chat:' + [a, b].sort().join(':');
@@ -1737,7 +1746,12 @@ async function subscribeMingMessages() {
           me: false,
           text: row.body,
           at: new Date(row.created_at).getTime(),
-          read: false
+          read: false,
+          type: row.message_type || 'text',
+          voicePath: row.voice_path || '',
+          voiceDuration: row.voice_duration || 0,
+          replyToId: row.reply_to_id || null,
+          reactions: []
         });
 
         if (state.activeChat === row.sender_id) {
@@ -1828,17 +1842,100 @@ async function openChat(personId) {
   setTimeout(() => { const t = $('#chat-thread'); if (t) t.scrollTop = t.scrollHeight; }, 60);
 }
 
+function setChatReply(messageId) {
+  const c = convoFor(state.activeChat);
+  const m = c.messages.find(x => x.id === messageId);
+  if (!m) return;
+  chatReplyTarget = m;
+  const preview = $('#chat-reply-preview');
+  if (preview) {
+    preview.hidden = false;
+    preview.innerHTML = `
+      <button type="button" aria-label="Cancel reply" data-action="chat-cancel-reply">×</button>
+      <strong>Replying to ${m.me ? 'your message' : esc(byId(state.activeChat)?.short || 'them')}</strong>
+      ${m.type === 'voice' ? '🎙️ Voice note' : esc((m.text || '').slice(0, 140))}
+    `;
+  }
+  $('#chat-input')?.focus();
+  $$('.chat-message-row').forEach(row => row.classList.remove('is-replying'));
+  const row = document.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`);
+  if (row) {
+    row.classList.add('is-replying');
+    row.scrollIntoView({ behavior:'smooth', block:'center' });
+  }
+}
+
+function clearChatReply() {
+  chatReplyTarget = null;
+  const preview = $('#chat-reply-preview');
+  if (preview) {
+    preview.hidden = true;
+    preview.innerHTML = '';
+  }
+}
+
+async function loadChatReactions(c) {
+  if (!isUuidPerson(c.personId) || !c.messages.length) return;
+  const ids = c.messages.filter(m => m.id && !String(m.id).startsWith('m_')).map(m => m.id);
+  if (!ids.length) return;
+  const { data, error } = await supabaseClient
+    .from('message_reactions')
+    .select('message_id,user_id,emoji')
+    .in('message_id', ids);
+  if (error) return;
+  const grouped = new Map();
+  (data || []).forEach(r => {
+    const a = grouped.get(r.message_id) || [];
+    a.push(r);
+    grouped.set(r.message_id, a);
+  });
+  c.messages.forEach(m => {
+    m.reactions = grouped.get(m.id) || [];
+  });
+}
+
+async function ensureVoiceUrls(c) {
+  if (!c?.messages) return;
+  const paths = c.messages.map(m => m.voicePath).filter(Boolean).filter(p => !chatVoiceUrls.has(p));
+  if (!paths.length) return;
+  await Promise.all(paths.map(async path => {
+    const { data } = await supabaseClient.storage.from('ming-voice').createSignedUrl(path, 3600);
+    if (data?.signedUrl) chatVoiceUrls.set(path, data.signedUrl);
+  }));
+}
+
+function renderVoiceMessage(m) {
+  const src = m.voicePath ? chatVoiceUrls.get(m.voicePath) : '';
+  const seconds = Math.max(0, Number(m.voiceDuration || 0));
+  if (!src) return `<div class="chat-voice-note"><span>🎙️</span><span>Voice note</span><span class="chat-voice-duration">${seconds}s</span></div>`;
+  return `<div class="chat-voice-note">
+    <button type="button" data-voice-src="${esc(src)}" aria-label="Play voice note">▶</button>
+    <span>Voice note</span>
+    <span class="chat-voice-duration">${seconds}s</span>
+  </div>`;
+}
+
 function renderThread() {
   const c = convoFor(state.activeChat);
 
-  const messages = c.messages.map(m => `
-    <div class="chat-message-row ${m.me ? 'chat-message-row--outgoing' : 'chat-message-row--incoming'}">
-      <div class="chat-bubble">
-        <span class="chat-bubble__text">${esc(m.text)}</span>
+  const messages = c.messages.map(m => {
+    const reply = m.replyToId ? c.messages.find(x => x.id === m.replyToId) : null;
+    const reactions = (m.reactions || []).reduce((acc, r) => {
+      const key = r.emoji;
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+    return `
+    <div class="chat-message-row ${m.me ? 'chat-message-row--outgoing' : 'chat-message-row--incoming'}"
+         data-message-id="${esc(m.id)}">
+      <div class="chat-bubble" data-message-id="${esc(m.id)}">
+        ${reply ? `<span class="chat-bubble__reply"><strong>${reply.me ? 'You' : esc(byId(state.activeChat)?.short || 'Them')}</strong>${reply.type === 'voice' ? '🎙️ Voice note' : esc((reply.text || '').slice(0, 110))}</span>` : ''}
+        ${m.type === 'voice' ? renderVoiceMessage(m) : `<span class="chat-bubble__text">${esc(m.text)}</span>`}
         <span class="chat-bubble__time">${clockTime(m.at)}${m.me ? ` · ${m.read ? 'Read' : 'Sent'}` : ''}</span>
+        ${Object.entries(reactions).length ? `<span class="chat-reactions">${Object.entries(reactions).map(([emoji,count]) => `<span class="chat-reaction">${emoji} ${count > 1 ? count : ''}</span>`).join('')}</span>` : ''}
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   const typing = chatTyping
     ? `<div class="typing-state"><span class="typing-dots"><i></i><i></i><i></i></span><span>Typing…</span></div>`
@@ -1848,11 +1945,89 @@ function renderThread() {
     `<div class="day-sep">Messages are stored securely for this conversation.</div>` +
     messages +
     typing;
+
+  ensureVoiceUrls(c).then(() => {
+    if (state.stack[state.stack.length - 1] === 'chat') {
+      const missing = c.messages.some(m => m.voicePath && chatVoiceUrls.has(m.voicePath));
+      if (missing) renderThread();
+    }
+  });
 }
 
-async function sendMessage(text) {
+function openMessageActions(messageId) {
+  const c = convoFor(state.activeChat);
+  const m = c.messages.find(x => x.id === messageId);
+  if (!m) return;
+  const emojis = ['❤️','😂','😮','😢','😡','👍'];
+  openSheet({
+    title: 'Message',
+    sub: 'Choose an action',
+    body: `
+      <div class="chat-action-grid">
+        <button data-action="chat-reply:${esc(messageId)}">↩️<br>Reply</button>
+        <button data-action="chat-copy:${esc(messageId)}">📋<br>Copy</button>
+        <button data-action="chat-forward:${esc(messageId)}">↗️<br>Forward</button>
+        <button data-action="chat-react:${esc(messageId)}">😊<br>React</button>
+      </div>
+      <div class="chat-emoji-grid">${emojis.map(e => `<button data-action="chat-add-reaction:${esc(messageId)}:${encodeURIComponent(e)}">${e}</button>`).join('')}</div>`
+  });
+}
+
+async function copyChatMessage(messageId) {
+  const c = convoFor(state.activeChat);
+  const m = c.messages.find(x => x.id === messageId);
+  if (!m) return;
+  if (m.type === 'voice') {
+    toast('Voice notes cannot be copied as text.', 'alert');
+    return;
+  }
+  await navigator.clipboard?.writeText(m.text || '');
+  closeSheet();
+  toast('Message copied', 'check');
+}
+
+function forwardChatMessage(messageId) {
+  const source = convoFor(state.activeChat).messages.find(x => x.id === messageId);
+  if (!source || source.type === 'voice') {
+    toast('Forwarding voice notes is coming next.', 'alert');
+    return;
+  }
+  const options = conversations.filter(c => c.personId !== state.activeChat).map(c => {
+    const p = byId(c.personId);
+    return p ? `<button class="opt" data-action="forward-to:${esc(c.personId)}:${encodeURIComponent(source.text || '')}"><span class="tx"><span class="t">${esc(p.short)}</span><span class="s">Forward message</span></span><span class="go">›</span></button>` : '';
+  }).join('');
+  openSheet({ title:'Forward message', sub:'Choose a conversation', body: options || '<p class="center-note">No other conversations yet.</p>' });
+}
+
+async function addChatReaction(messageId, emoji) {
+  const c = convoFor(state.activeChat);
+  const m = c.messages.find(x => x.id === messageId);
+  if (!m || !isUuidPerson(state.activeChat)) return;
+  const { data:{session} } = await supabaseClient.auth.getSession();
+  if (!session?.user) return;
+  const existing = (m.reactions || []).find(r => r.user_id === session.user.id && r.emoji === emoji);
+  let error;
+  if (existing) {
+    ({ error } = await supabaseClient.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', session.user.id).eq('emoji', emoji));
+    m.reactions = (m.reactions || []).filter(r => !(r.user_id === session.user.id && r.emoji === emoji));
+  } else {
+    const { data, error: insertError } = await supabaseClient.from('message_reactions').insert({ message_id:messageId, user_id:session.user.id, emoji }).select('message_id,user_id,emoji').single();
+    error = insertError;
+    if (!error && data) m.reactions = [...(m.reactions || []), data];
+  }
+  if (error) {
+    toast('Could not update reaction.', 'alert');
+    return;
+  }
+  closeSheet();
+  renderThread();
+}
+
+async function sendMessage(text, options = {}) {
   const p = byId(state.activeChat);
   if (!p || !text) return;
+
+  const replyToId = options.replyToId || chatReplyTarget?.id || null;
 
   if (isUuidPerson(state.activeChat)) {
     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -1864,79 +2039,132 @@ async function sendMessage(text) {
     let row = null;
     let error = null;
 
-    /* Use the normal INSERT path first. If its RLS check rejects the
-       connection from one side of the conversation, fall back to the
-       server-side SECURITY DEFINER send function already installed in
-       supabase_messages.sql. */
     const direct = await supabaseClient
       .from('messages')
       .insert({
         sender_id: session.user.id,
         recipient_id: state.activeChat,
-        body: text
+        body: text,
+        message_type: 'text',
+        reply_to_id: replyToId
       })
-      .select('id, sender_id, recipient_id, body, created_at, read_at')
+      .select('id, sender_id, recipient_id, body, created_at, read_at, message_type, voice_path, voice_duration, reply_to_id')
       .single();
 
     row = direct.data;
     error = direct.error;
 
     if (error) {
-      console.warn('Ming: direct message insert failed; trying secure send RPC.', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint
-      });
-
-      const rpc = await supabaseClient.rpc('ming_send_message', {
+      const rpc = await supabaseClient.rpc('ming_send_message_v2', {
         p_recipient_id: state.activeChat,
-        p_body: text
+        p_body: text,
+        p_message_type: 'text',
+        p_voice_path: null,
+        p_voice_duration: null,
+        p_reply_to_id: replyToId
       });
-
-      row = rpc.data;
+      row = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
       error = rpc.error;
-
-      /* PostgREST can return a table row as a one-item array for a
-         table-returning function. Normalize both possible shapes. */
-      if (Array.isArray(row)) row = row[0] || null;
     }
 
     if (error || !row) {
-      console.error('Ming: sending message failed.', {
-        code: error?.code,
-        message: error?.message,
-        details: error?.details,
-        hint: error?.hint
-      });
-
-      const reason = error?.message
-        ? ' ' + error.message
-        : ' Please check your connection and try again.';
-      toast('Could not send message.' + reason, 'alert');
+      toast('Could not send message. ' + (error?.message || ''), 'alert');
       return;
     }
 
     const c = convoFor(state.activeChat);
     c.messages.push({
-      id: row.id,
-      me: true,
-      text: row.body,
-      at: new Date(row.created_at).getTime(),
-      read: !!row.read_at
+      id: row.id, me:true, text:row.body, at:new Date(row.created_at).getTime(),
+      read:!!row.read_at, type:row.message_type || 'text',
+      voicePath:row.voice_path || '', voiceDuration:row.voice_duration || 0,
+      replyToId:row.reply_to_id || null, reactions:[]
     });
+    clearChatReply();
     renderThread();
-    const t = $('#chat-thread');
-    if (t) t.scrollTop = t.scrollHeight;
+    const t=$('#chat-thread'); if(t) t.scrollTop=t.scrollHeight;
     return;
   }
 
-  // Local demo conversations remain available for the prototype users.
-  const c = convoFor(state.activeChat);
-  c.messages.push({ id: uid('m'), me: true, text, at: now(), read: true });
+  const c=convoFor(state.activeChat);
+  c.messages.push({id:uid('m'),me:true,text,at:now(),read:true,type:'text',replyToId});
+  clearChatReply();
   renderThread();
-  const t = $('#chat-thread');
-  if (t) t.scrollTop = t.scrollHeight;
+  const t=$('#chat-thread'); if(t) t.scrollTop=t.scrollHeight;
+}
+
+async function recordVoiceNote() {
+  if (chatRecording) {
+    chatRecording.stop();
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    toast('Voice notes are not supported in this browser.', 'alert');
+    return;
+  }
+  if (!isUuidPerson(state.activeChat)) {
+    toast('Voice notes need a connected Ming conversation.', 'alert');
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+    chatRecordChunks = [];
+    chatRecordStartedAt = Date.now();
+    chatRecording = new MediaRecorder(stream, { mimeType:mime });
+    $('#chat-voice')?.classList.add('is-recording');
+    $('#chat-input').placeholder = 'Recording voice note… tap mic to stop';
+    chatRecording.ondataavailable = e => { if (e.data.size) chatRecordChunks.push(e.data); };
+    chatRecording.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      $('#chat-voice')?.classList.remove('is-recording');
+      $('#chat-input').placeholder = 'Message';
+      const duration = Math.max(1, Math.round((Date.now() - chatRecordStartedAt) / 1000));
+      const blob = new Blob(chatRecordChunks, { type:mime });
+      chatRecording = null;
+      chatRecordChunks = [];
+      await uploadVoiceNote(blob, duration);
+    };
+    chatRecording.start();
+  } catch (e) {
+    toast('Microphone permission was not granted.', 'alert');
+  }
+}
+
+async function uploadVoiceNote(blob, duration) {
+  const { data:{session} } = await supabaseClient.auth.getSession();
+  if (!session?.user) return;
+  const path = `${session.user.id}/${crypto.randomUUID()}.webm`;
+  const { error:uploadError } = await supabaseClient.storage.from('ming-voice').upload(path, blob, { contentType:blob.type, upsert:false });
+  if (uploadError) {
+    toast('Could not upload voice note. Run supabase_message_extras.sql first.', 'alert');
+    return;
+  }
+
+  const replyToId = chatReplyTarget?.id || null;
+  const direct = await supabaseClient.from('messages').insert({
+    sender_id:session.user.id, recipient_id:state.activeChat, body:'',
+    message_type:'voice', voice_path:path, voice_duration:duration, reply_to_id:replyToId
+  }).select('id,sender_id,recipient_id,body,created_at,read_at,message_type,voice_path,voice_duration,reply_to_id').single();
+
+  let row=direct.data, error=direct.error;
+  if(error) {
+    const rpc=await supabaseClient.rpc('ming_send_message_v2',{
+      p_recipient_id:state.activeChat,p_body:'',p_message_type:'voice',
+      p_voice_path:path,p_voice_duration:duration,p_reply_to_id:replyToId
+    });
+    row=Array.isArray(rpc.data)?rpc.data[0]:rpc.data; error=rpc.error;
+  }
+  if(error||!row) {
+    toast('Could not save voice note.', 'alert');
+    return;
+  }
+
+  const c=convoFor(state.activeChat);
+  c.messages.push({id:row.id,me:true,text:'',at:new Date(row.created_at).getTime(),read:false,type:'voice',voicePath:path,voiceDuration:duration,replyToId:row.reply_to_id||null,reactions:[]});
+  clearChatReply();
+  renderThread();
+  const t=$('#chat-thread'); if(t) t.scrollTop=t.scrollHeight;
 }
 
 /* ------------------------------------------------------------
@@ -3598,10 +3826,89 @@ $('#chat-form').addEventListener('submit', e => {
   if (!v) return;
   setMingTyping(false);
   chatInput.value = ''; chatInput.style.height = 'auto'; chatSend.disabled = true;
-  sendMessage(v);
+  sendMessage(v, { replyToId: chatReplyTarget?.id || null });
 });
+$('#chat-voice').addEventListener('click', recordVoiceNote);
 chatInput.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#chat-form').requestSubmit(); }
+});
+
+/* Chat message gestures: long-press for actions, horizontal swipe-right for reply. */
+let chatPressTimer = null;
+let chatGesture = null;
+
+document.addEventListener('pointerdown', e => {
+  const row = e.target.closest('.chat-message-row');
+  if (!row) return;
+  if (e.target.closest('button,input')) return;
+  chatGesture = { row, startX:e.clientX, startY:e.clientY, moved:false };
+  chatPressTimer = setTimeout(() => {
+    if (!chatGesture?.moved) openMessageActions(row.dataset.messageId);
+  }, 520);
+});
+
+document.addEventListener('pointermove', e => {
+  if (!chatGesture) return;
+  const dx=e.clientX-chatGesture.startX, dy=e.clientY-chatGesture.startY;
+  if (Math.abs(dx)>8 || Math.abs(dy)>8) chatGesture.moved=true;
+  if (chatGesture.moved) clearTimeout(chatPressTimer);
+  if (Math.abs(dx)>8 && Math.abs(dx)>Math.abs(dy)) {
+    const x=Math.max(0,Math.min(72,dx));
+    chatGesture.row.style.transform=`translateX(${x}px)`;
+    chatGesture.row.classList.add('is-swiping');
+  }
+});
+
+document.addEventListener('pointerup', e => {
+  if (!chatGesture) return;
+  clearTimeout(chatPressTimer);
+  const {row,startX,startY}=chatGesture;
+  const dx=e.clientX-startX, dy=e.clientY-startY;
+  row.classList.remove('is-swiping');
+  row.style.transform='';
+  if (dx>60 && Math.abs(dx)>Math.abs(dy)*1.2) {
+    setChatReply(row.dataset.messageId);
+    toast('Replying to message', 'reply');
+  }
+  chatGesture=null;
+});
+
+document.addEventListener('pointercancel', () => {
+  clearTimeout(chatPressTimer);
+  if (chatGesture?.row) {
+    chatGesture.row.classList.remove('is-swiping');
+    chatGesture.row.style.transform='';
+  }
+  chatGesture=null;
+});
+
+document.addEventListener('click', async e => {
+  const voiceBtn=e.target.closest('[data-voice-src]');
+  if (voiceBtn) {
+    e.stopPropagation();
+    const src=voiceBtn.dataset.voiceSrc;
+    let audio=voiceBtn._audio;
+    if (!audio) { audio=new Audio(src); voiceBtn._audio=audio; }
+    if (audio.paused) { await audio.play(); voiceBtn.textContent='⏸'; }
+    else { audio.pause(); voiceBtn.textContent='▶'; }
+    audio.onended=()=>voiceBtn.textContent='▶';
+    return;
+  }
+  const b=e.target.closest('[data-action^="chat-"]');
+  if (!b) return;
+  const [verb,arg,arg2]=b.dataset.action.split(':');
+  if(verb==='chat-reply'){ closeSheet(); setChatReply(arg); }
+  if(verb==='chat-cancel-reply'){ clearChatReply(); }
+  if(verb==='chat-copy'){ copyChatMessage(arg); }
+  if(verb==='chat-forward'){ forwardChatMessage(arg); }
+  if(verb==='chat-react'){ /* emoji row already visible */ }
+  if(verb==='chat-add-reaction'){ addChatReaction(arg, decodeURIComponent(arg2||'')); }
+  if(verb==='forward-to'){
+    const text=decodeURIComponent(arg2||'');
+    closeSheet();
+    openChat(arg);
+    setTimeout(()=>sendMessage(text),250);
+  }
 });
 
 /* Moonflower composer */
