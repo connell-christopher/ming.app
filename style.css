@@ -1452,7 +1452,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .chat-bubble {
-  position: static;
+  position: relative;
   flex: 0 0 auto;
   display: block;
   width: fit-content;
@@ -1460,11 +1460,9 @@ input[type="range"]::-moz-range-thumb {
   min-width: 0;
   height: auto;
   margin: 0;
-  padding: 10px 14px;
-  border: 0;
-  border-radius: 20px;
-  background: var(--coffee-dark);
-  color: #FBF6F0;
+  padding: 11px 14px 9px;
+  border: 1px solid transparent;
+  border-radius: 18px;
   font-size: 14.5px;
   line-height: 1.45;
   overflow-wrap: anywhere;
@@ -1473,14 +1471,43 @@ input[type="range"]::-moz-range-thumb {
   box-sizing: border-box;
   transform: none;
   animation: bubIn 220ms var(--ease-out) both;
+  box-shadow: 0 5px 18px rgba(45, 28, 18, .10);
 }
 
 .chat-message-row--incoming .chat-bubble {
-  border-bottom-left-radius: 7px;
+  background: #2A211D;
+  color: #F9F3ED;
+  border-color: rgba(255, 255, 255, .06);
+  border-bottom-left-radius: 5px;
+  box-shadow: 0 5px 18px rgba(20, 14, 10, .14);
 }
 
 .chat-message-row--outgoing .chat-bubble {
-  border-bottom-right-radius: 7px;
+  background: linear-gradient(135deg, #8B5A3C 0%, #6F432C 100%);
+  color: #FFF8F1;
+  border-color: rgba(241, 210, 174, .18);
+  border-bottom-right-radius: 5px;
+  box-shadow: 0 7px 22px rgba(111, 67, 44, .22);
+}
+
+.chat-message-row--incoming .chat-bubble::after,
+.chat-message-row--outgoing .chat-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  width: 10px;
+  height: 10px;
+  background: inherit;
+}
+
+.chat-message-row--incoming .chat-bubble::after {
+  left: -5px;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+.chat-message-row--outgoing .chat-bubble::after {
+  right: -5px;
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
 }
 
 .chat-bubble__text {
@@ -1494,10 +1521,11 @@ input[type="range"]::-moz-range-thumb {
 
 .chat-bubble__time {
   display: block;
-  margin-top: 4px;
-  font-size: 10.5px;
+  margin-top: 5px;
+  font-size: 10px;
   line-height: 1.2;
-  opacity: .6;
+  opacity: .58;
+  text-align: right;
 }
 
 @keyframes bubIn {
