@@ -1437,14 +1437,14 @@ input[type="range"]::-moz-range-thumb {
 }
 .thread > .bub {
   flex: 0 0 auto;
+  width: fit-content;
   align-self: flex-start;
-  margin-right: auto;
+  margin: 0;
 }
 
 .thread > .bub.me {
   align-self: flex-end;
-  margin-left: auto;
-  margin-right: 0;
+  margin: 0;
 }
 
 .bub {
