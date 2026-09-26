@@ -2157,7 +2157,8 @@ async function uploadVoiceNote(blob, duration) {
     row=Array.isArray(rpc.data)?rpc.data[0]:rpc.data; error=rpc.error;
   }
   if(error||!row) {
-    toast('Could not save voice note.', 'alert');
+    await supabaseClient.storage.from('ming-voice').remove([path]).catch(() => {});
+    toast(error?.message || 'Could not save voice note.', 'alert');
     return;
   }
 
