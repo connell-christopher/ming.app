@@ -3003,7 +3003,7 @@ document.addEventListener('click', async e => {
       if (!loaded) toast('Showing local connections until the backend is connected.', 'alert');
       break;
     }
-    case 'go-messages': renderMessages(); pushStack('messages'); break;
+    case 'go-messages': { const ready = await loadMingMessages(); await subscribeMingMessages(); renderMessages(); pushStack('messages'); if (!ready) toast('Messaging is not connected yet. Run supabase_messages.sql once.', 'alert'); break; }
     case 'go-notifications': closeSheet(); renderNotifications(); pushStack('notifications'); break;
     case 'go-updates': $('#my-updates').scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
 
