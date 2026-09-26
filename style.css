@@ -1421,17 +1421,26 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .thread {
-  flex: 1 1 auto;
+  flex: 1 1 0;
+  min-height: 0;
   min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 16px 16px 8px;
+  padding: 16px 16px 12px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: 9px;
+}
+.thread > .day-sep {
+  flex: 0 0 auto;
+}
+.thread > .bub {
+  flex: 0 0 auto;
+  align-self: flex-start;
 }
 .bub {
+  display: block;
   width: fit-content;
   max-width: min(78%, 520px);
   min-width: 0;
@@ -1443,6 +1452,14 @@ input[type="range"]::-moz-range-thumb {
   word-break: break-word;
   white-space: pre-wrap;
   animation: bubIn 220ms var(--ease-out) both;
+}
+.bub .bubble-text {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 @keyframes bubIn { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
 .bub.them {
