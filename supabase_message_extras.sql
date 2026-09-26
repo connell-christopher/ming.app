@@ -13,6 +13,14 @@ alter table public.messages
   add column if not exists voice_duration integer,
   add column if not exists reply_to_id uuid references public.messages(id) on delete set null;
 
+alter table public.messages
+  add constraint messages_body_type_check
+  check (
+    (message_type = 'text' and char_length(trim(body)) between 1 and 2000)
+    or
+    (message_type = 'voice' and char_length(body) = 0)
+  );
+
 create index if not exists messages_reply_to_idx
 on public.messages(reply_to_id);
 
