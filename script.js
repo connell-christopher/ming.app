@@ -610,7 +610,23 @@ $$('.scroll[data-scroll]').forEach(sc => {
    state.userLocation holds the exact fix and is used internally
    for distance maths. It is never rendered into the DOM.
 ------------------------------------------------------------ */
-const GEO_OPTS = { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 };
+/* 
+   Location is intentionally acquired in two stages:
+   1) Fast/network-assisted fix first, so mobile users get into Ming quickly.
+   2) High-accuracy watch continues in the background and quietly improves the fix.
+   This avoids making the first screen wait for a cold GPS lock.
+*/
+const GEO_FAST_OPTS = {
+  enableHighAccuracy: false,
+  maximumAge: 120000,
+  timeout: 5000
+};
+const GEO_PRECISE_OPTS = {
+  enableHighAccuracy: true,
+  maximumAge: 0,
+  timeout: 10000
+};
+const GEO_OPTS = GEO_PRECISE_OPTS;
 const EARTH_R = 6371;                 // km
 const REFRESH_MOVE_M = 10;            // update the local UI after 10m movement
 const LOCATION_REPUBLISH_MIN_MS = 15000; // do not write location more than once per 15s
@@ -681,24 +697,64 @@ function requestLocation(then) {
   if (!('geolocation' in navigator)) {
     state.locStatus = 'unavailable';
     toast('This device cannot provide a location', 'x');
-    refreshLocationUI(); if (then) then(); return;
+    refreshLocationUI();
+    if (then) then();
+    return;
   }
+
   state.locStatus = 'requesting';
   refreshLocationUI();
+
+  /*
+     First ask for the quickest usable position. On phones this can come
+     from a recent/cached network-assisted location instead of waiting for
+     a fresh GPS lock. As soon as it arrives, Ming can calculate distance,
+     publish the discovery location and render Nearby.
+  */
   navigator.geolocation.getCurrentPosition(
-    pos => { acceptFix(pos, true); if (then) then(); },
-    err => { handleGeoError(err); if (then) then(); },
-    GEO_OPTS
+    pos => {
+      acceptFix(pos, true);
+      if (then) then();
+    },
+    fastErr => {
+      /*
+         A fast request is allowed to fail without turning location off.
+         Fall back to a fresh high-accuracy request before reporting an
+         actual location failure to the user.
+      */
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          acceptFix(pos, true);
+          if (then) then();
+        },
+        err => {
+          handleGeoError(err);
+          if (then) then();
+        },
+        GEO_PRECISE_OPTS
+      );
+    },
+    GEO_FAST_OPTS
   );
 }
 
-/* Keep the fix current instead of freezing it at first use. */
+/* 
+   Keep the fix current after the fast first fix. The browser/device can
+   improve accuracy in the background without blocking the initial UI.
+*/
 function startWatching() {
   if (state.geoWatchId !== null || !('geolocation' in navigator)) return;
   state.geoWatchId = navigator.geolocation.watchPosition(
     pos => acceptFix(pos, false),
-    err => handleGeoError(err),
-    GEO_OPTS
+    err => {
+      /*
+         A watch timeout/unavailable event should not erase a location
+         that was already acquired successfully. The next watch update
+         can recover automatically.
+      */
+      if (err && err.code === 1) handleGeoError(err);
+    },
+    GEO_PRECISE_OPTS
   );
 }
 function stopWatching() {
@@ -710,6 +766,7 @@ function stopWatching() {
 function acceptFix(pos, announce) {
   const c = pos.coords;
   const prev = state.userLocation;
+
   state.userLocation = {
     latitude: c.latitude,
     longitude: c.longitude,
@@ -720,23 +777,47 @@ function acceptFix(pos, announce) {
     speed: c.speed,
     timestamp: pos.timestamp
   };
+
   state.locStatus = 'granted';
+
+  /*
+     Do not wait for reverse geocoding or the Supabase discovery write
+     before updating the interface. The first valid coordinate is enough
+     to start nearby-distance calculations immediately.
+  */
   applyGeoToPeers();
+  refreshLocationUI();
   startWatching();
 
   const movedM = prev ? haversineKm(prev, state.userLocation) * 1000 : Infinity;
   const publishDue = (now() - mingLastPublishedAt) >= LOCATION_REPUBLISH_MIN_MS;
+
   if (announce || movedM >= REFRESH_MOVE_M) {
     if (announce || publishDue || movedM >= REFRESH_MOVE_M) {
+      /*
+         Publishing and discovery loading happen in the background.
+         The UI is already usable while these network calls complete.
+      */
       publishMingApproxLocation().then(() => {
-        loadMingDiscoverableProfiles(state.loaded.nearby ? state.radius : null).then(() => refreshLocationUI());
+        return loadMingDiscoverableProfiles(state.loaded.nearby ? state.radius : null);
+      }).then(() => {
+        refreshLocationUI();
+      }).catch(() => {
+        /* Keep the local GPS fix even if the backend is temporarily slow. */
       });
-    } else {
-      refreshLocationUI();
     }
+
+    /*
+       Reverse geocoding is deliberately non-blocking. The UI initially
+       uses "Your area", then replaces it with the readable locality when
+       the geocoder responds.
+    */
     resolveArea();
   }
-  if (announce) toast('Location on — your coordinates stay on your device', 'shield');
+
+  if (announce) {
+    toast('Location on — your coordinates stay on your device', 'shield');
+  }
 }
 
 function handleGeoError(err) {
@@ -756,7 +837,7 @@ async function resolveArea() {
   const stamp = state.userLocation.timestamp;
   try {
     const ctrl = new AbortController();
-    const kill = setTimeout(() => ctrl.abort(), 8000);
+    const kill = setTimeout(() => ctrl.abort(), 5000);
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&lat=${latitude}&lon=${longitude}`,
       { signal: ctrl.signal, headers: { 'Accept': 'application/json' } }
