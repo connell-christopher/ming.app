@@ -1832,10 +1832,10 @@ function renderThread() {
   const c = convoFor(state.activeChat);
 
   const messages = c.messages.map(m => `
-    <div class="message-row ${m.me ? 'me' : 'them'}">
-      <div class="bub ${m.me ? 'me' : 'them'}">
-        <span class="bubble-text">${esc(m.text)}</span>
-        <span class="time">${clockTime(m.at)}${m.me ? ` · ${m.read ? 'Read' : 'Sent'}` : ''}</span>
+    <div class="chat-message-row ${m.me ? 'chat-message-row--outgoing' : 'chat-message-row--incoming'}">
+      <div class="chat-bubble">
+        <span class="chat-bubble__text">${esc(m.text)}</span>
+        <span class="chat-bubble__time">${clockTime(m.at)}${m.me ? ` · ${m.read ? 'Read' : 'Sent'}` : ''}</span>
       </div>
     </div>
   `).join('');
