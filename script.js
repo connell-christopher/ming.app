@@ -1837,7 +1837,7 @@ function renderThread() {
     `<div class="day-sep">Messages are stored securely for this conversation.</div>` +
     c.messages.map(m => `
       <div class="bub ${m.me ? 'me' : 'them'}">
-        ${esc(m.text)}
+        <span class="bubble-text">${esc(m.text)}</span>
         <span class="time">${clockTime(m.at)}${m.me ? ` · ${m.read ? 'Read' : 'Sent'}` : ''}</span>
       </div>`).join('') +
     typing;
@@ -1855,18 +1855,14 @@ async function sendMessage(text) {
     }
 
     const { data: row, error } = await supabaseClient
-      .from('messages')
-      .insert({
-        sender_id: session.user.id,
-        recipient_id: state.activeChat,
-        body: text
-      })
-      .select('id, sender_id, recipient_id, body, created_at, read_at')
-      .single();
+      .rpc('ming_send_message', {
+        p_recipient_id: state.activeChat,
+        p_body: text
+      });
 
     if (error) {
       console.error('Ming: sending message failed:', error.message);
-      toast('Could not send message.', 'alert');
+      toast(error.message || 'Could not send message.', 'alert');
       return;
     }
 
