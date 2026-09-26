@@ -1463,6 +1463,27 @@ input[type="range"]::-moz-range-thumb {
 .typing i:nth-child(3) { animation-delay: .3s; }
 @keyframes typ { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 
+.chat-call-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.chat-call-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--muted);
+}
+.chat-call-btn:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+.chat-call-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
 .composer {
   flex: 0 0 auto;
   display: flex;
