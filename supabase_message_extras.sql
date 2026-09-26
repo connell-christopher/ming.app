@@ -1,4 +1,29 @@
 -- Ming message extras: replies, reactions, and private voice notes
+-- Voice messages intentionally have an empty body. Replace the original text-only body check
+-- with a type-aware check so text messages stay validated while voice messages are allowed.
+do $$
+declare
+  v_constraint text;
+begin
+  select conname into v_constraint
+  from pg_constraint
+  where conrelid = 'public.messages'::regclass
+    and contype = 'c'
+    and pg_get_constraintdef(oid) ilike '%char_length%trim%body%';
+
+  if v_constraint is not null then
+    execute format('alter table public.messages drop constraint %I', v_constraint);
+  end if;
+end $$;
+
+alter table public.messages
+  add constraint messages_body_type_check
+  check (
+    (message_type = 'text' and char_length(trim(body)) between 1 and 2000)
+    or
+    (message_type = 'voice' and char_length(body) = 0)
+  );
+
 alter table public.messages
   add column if not exists message_type text not null default 'text'
     check (message_type in ('text','voice')),
