@@ -32,6 +32,34 @@ using (
   or (select auth.uid()) = recipient_id
 );
 
+-- RLS on public.connections can hide the other participant's row from
+-- the INSERT policy subquery. Use a narrow SECURITY DEFINER helper so
+-- both sides of an accepted connection can message each other.
+create or replace function public.ming_users_are_connected(
+  p_user_a uuid,
+  p_user_b uuid
+)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $
+  select exists (
+    select 1
+    from public.connections c
+    where c.status = 'accepted'
+      and (
+        (c.requester_id = p_user_a and c.recipient_id = p_user_b)
+        or
+        (c.requester_id = p_user_b and c.recipient_id = p_user_a)
+      )
+  );
+$;
+
+revoke all on function public.ming_users_are_connected(uuid, uuid) from public;
+grant execute on function public.ming_users_are_connected(uuid, uuid) to authenticated;
+
 drop policy if exists "Connected users can send messages" on public.messages;
 create policy "Connected users can send messages"
 on public.messages
@@ -39,16 +67,7 @@ for insert
 to authenticated
 with check (
   (select auth.uid()) = sender_id
-  and exists (
-    select 1
-    from public.connections c
-    where c.status = 'accepted'
-      and (
-        (c.requester_id = sender_id and c.recipient_id = recipient_id)
-        or
-        (c.requester_id = recipient_id and c.recipient_id = sender_id)
-      )
-  )
+  and public.ming_users_are_connected(sender_id, recipient_id)
 );
 
 drop policy if exists "Recipients can mark messages read" on public.messages;
