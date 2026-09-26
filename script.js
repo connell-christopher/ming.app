@@ -1876,7 +1876,7 @@ async function sendMessage(text) {
       me: true,
       text: row.body,
       at: new Date(row.created_at).getTime(),
-      read: true
+      read: !!row.read_at
     });
     renderThread();
     const t = $('#chat-thread');
