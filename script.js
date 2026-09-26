@@ -824,7 +824,7 @@ async function loadHome() {
 
 function renderHome() {
   $('#greeting').textContent = `${greetWord()}, ${currentUser.name.split(' ')[0]}`;
-  $('#home-avatar').innerHTML = avatar(currentUser, 44, { status: false });
+  $('#home-avatar').innerHTML = avatar(currentUser, 44);
   renderHomeLocation();
   renderHomePeople();
   renderHomeFeed();
