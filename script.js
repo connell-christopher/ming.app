@@ -1514,6 +1514,122 @@ function openPersonRefresh(id) {
 /* ------------------------------------------------------------
    MESSAGING
 ------------------------------------------------------------ */
+async function loadMingMessages() {
+  try {
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError || !session?.user) return false;
+
+    const { data: rows, error } = await supabaseClient
+      .from('messages')
+      .select('id, sender_id, recipient_id, body, created_at, read_at')
+      .or(`sender_id.eq.${session.user.id},recipient_id.eq.${session.user.id}`)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.warn('Ming: messages backend is not ready yet.', error.message);
+      return false;
+    }
+
+    const byConversation = new Map();
+
+    (rows || []).forEach(row => {
+      const otherId = row.sender_id === session.user.id ? row.recipient_id : row.sender_id;
+      const c = byConversation.get(otherId) || {
+        id: 'c_' + otherId,
+        personId: otherId,
+        unread: 0,
+        messages: []
+      };
+
+      c.messages.push({
+        id: row.id,
+        me: row.sender_id === session.user.id,
+        text: row.body,
+        at: new Date(row.created_at).getTime(),
+        read: !!row.read_at
+      });
+
+      if (row.recipient_id === session.user.id && !row.read_at) c.unread += 1;
+      byConversation.set(otherId, c);
+    });
+
+    conversations = Array.from(byConversation.values());
+    return true;
+  } catch (error) {
+    console.warn('Ming: message load failed.', error);
+    return false;
+  }
+}
+
+let mingMessageChannel = null;
+
+async function markMingConversationRead(personId) {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user || !isUuidPerson(personId)) return;
+
+  const { error } = await supabaseClient
+    .from('messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('recipient_id', session.user.id)
+    .eq('sender_id', personId)
+    .is('read_at', null);
+
+  if (error) console.warn('Ming: could not mark messages read.', error.message);
+}
+
+async function subscribeMingMessages() {
+  if (mingMessageChannel) return;
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user) return;
+
+  mingMessageChannel = supabaseClient
+    .channel('ming-messages-' + session.user.id)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: 'recipient_id=eq.' + session.user.id
+      },
+      payload => {
+        const row = payload.new;
+        const p = byId(row.sender_id);
+        if (!p) return;
+
+        let c = conversations.find(x => x.personId === row.sender_id);
+        if (!c) {
+          c = { id: 'c_' + row.sender_id, personId: row.sender_id, unread: 0, messages: [] };
+          conversations.unshift(c);
+        }
+
+        if (c.messages.some(m => m.id === row.id)) return;
+
+        c.messages.push({
+          id: row.id,
+          me: false,
+          text: row.body,
+          at: new Date(row.created_at).getTime(),
+          read: false
+        });
+
+        if (state.activeChat === row.sender_id) {
+          markMingConversationRead(row.sender_id);
+          c.unread = 0;
+          renderThread();
+          const t = $('#chat-thread');
+          if (t) t.scrollTop = t.scrollHeight;
+        } else {
+          c.unread += 1;
+        }
+
+        if (state.loaded.messages) renderMessages();
+        updateNotifDot();
+      }
+    )
+    .subscribe();
+}
+
 function convoFor(personId) {
   let c = conversations.find(x => x.personId === personId);
   if (!c) {
@@ -1531,6 +1647,7 @@ function renderMessages() {
   });
   $('#messages-body').innerHTML = list.length ? list.map(c => {
     const p = byId(c.personId);
+    if (!p) return '';
     const last = c.messages[c.messages.length - 1];
     return `<button class="convo ${c.unread ? 'unread' : ''}" data-action="chat:${c.personId}">
       ${avatar(p, 48)}
@@ -1543,55 +1660,80 @@ function renderMessages() {
   }).join('') : emptyState('No conversations yet.', 'Connect with someone nearby to start a conversation.', { t: 'Find people', a: 'go-nearby' });
 }
 
-function openChat(personId) {
+async function openChat(personId) {
   const p = byId(personId);
+  if (!p) return;
+
+  if (isUuidPerson(personId)) {
+    await loadMingMessages();
+    await markMingConversationRead(personId);
+  }
+
   const c = convoFor(personId);
   c.unread = 0;
   state.activeChat = personId;
   $('#chat-av').innerHTML = avatar(p, 36);
   $('#chat-name').textContent = p.short;
-  $('#chat-sub').textContent = `${hasLocation() ? distLabel(p.km) + ' · ' : ''}${p.status === 'on' ? 'Active now' : 'Active earlier'}`;
+  $('#chat-sub').textContent = `${hasLocation() && p.km != null ? distLabel(p.km) + ' · ' : ''}${p.status === 'on' ? 'Active now' : 'Active earlier'}`;
   renderThread();
   pushStack('chat');
-  setTimeout(() => { const t = $('#chat-thread'); t.scrollTop = t.scrollHeight; }, 60);
+  setTimeout(() => { const t = $('#chat-thread'); if (t) t.scrollTop = t.scrollHeight; }, 60);
 }
 
 function renderThread() {
   const c = convoFor(state.activeChat);
   $('#chat-thread').innerHTML =
-    `<div class="day-sep">Messages disappear only if you delete them</div>` +
+    `<div class="day-sep">Messages are stored securely for this conversation.</div>` +
     c.messages.map(m => `<div class="bub ${m.me ? 'me' : 'them'}">${esc(m.text)}<span class="time">${clockTime(m.at)}</span></div>`).join('');
 }
 
-function sendMessage(text) {
+async function sendMessage(text) {
+  const p = byId(state.activeChat);
+  if (!p || !text) return;
+
+  if (isUuidPerson(state.activeChat)) {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session?.user) {
+      toast('Please sign in again', 'alert');
+      return;
+    }
+
+    const { data: row, error } = await supabaseClient
+      .from('messages')
+      .insert({
+        sender_id: session.user.id,
+        recipient_id: state.activeChat,
+        body: text
+      })
+      .select('id, sender_id, recipient_id, body, created_at, read_at')
+      .single();
+
+    if (error) {
+      console.error('Ming: sending message failed:', error.message);
+      toast('Could not send message.', 'alert');
+      return;
+    }
+
+    const c = convoFor(state.activeChat);
+    c.messages.push({
+      id: row.id,
+      me: true,
+      text: row.body,
+      at: new Date(row.created_at).getTime(),
+      read: true
+    });
+    renderThread();
+    const t = $('#chat-thread');
+    if (t) t.scrollTop = t.scrollHeight;
+    return;
+  }
+
+  // Local demo conversations remain available for the prototype users.
   const c = convoFor(state.activeChat);
-  c.messages.push({ me: true, text, at: now() });
+  c.messages.push({ id: uid('m'), me: true, text, at: now(), read: true });
   renderThread();
   const t = $('#chat-thread');
-  t.scrollTop = t.scrollHeight;
-
-  const typing = document.createElement('div');
-  typing.className = 'bub them';
-  typing.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
-  setTimeout(() => {
-    t.appendChild(typing);
-    t.scrollTop = t.scrollHeight;
-  }, 400);
-
-  const p = byId(state.activeChat);
-  const replies = [
-    'Sounds good — I am around this evening.',
-    'Ha, yes. Let me check and come back to you.',
-    `I am about ${distLabel(p.km).replace(' away', '')} from you, so that works.`,
-    'Send me the details and I will be there.',
-    'Honestly, that is the best idea I have heard today.'
-  ];
-  setTimeout(() => {
-    typing.remove();
-    c.messages.push({ me: false, text: replies[Math.floor(Math.random() * replies.length)], at: now() });
-    renderThread();
-    t.scrollTop = t.scrollHeight;
-  }, 1700);
+  if (t) t.scrollTop = t.scrollHeight;
 }
 
 /* ------------------------------------------------------------
