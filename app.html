@@ -881,6 +881,49 @@
     aria-hidden="true"
   ></div>
 
+  <!-- MING CALL OVERLAY -->
+  <div class="ming-call-overlay" id="call-overlay" hidden aria-live="polite">
+    <div class="ming-call-stage">
+      <div class="ming-call-top">
+        <div>
+          <div class="ming-call-eyebrow" id="call-title">Voice call</div>
+          <div class="ming-call-name" id="call-name">Ming user</div>
+          <div class="ming-call-status" id="call-status"></div>
+        </div>
+      </div>
+
+      <div class="ming-call-media">
+        <div class="ming-call-avatar" id="call-avatar"></div>
+        <video id="call-remote-video" class="ming-call-remote-video" autoplay playsinline hidden></video>
+        <video id="call-local-video" class="ming-call-local-video" autoplay playsinline muted hidden></video>
+        <audio id="call-remote-audio" autoplay hidden></audio>
+      </div>
+
+      <div class="ming-call-actions" id="call-incoming-actions" hidden>
+        <button type="button" class="ming-call-action ming-call-action--decline" data-action="call-decline" aria-label="Decline call">
+          <svg><use href="#i-phone"/></svg>
+          <span>Decline</span>
+        </button>
+        <button type="button" class="ming-call-action ming-call-action--accept" data-action="call-accept" aria-label="Accept call">
+          <svg><use href="#i-phone"/></svg>
+          <span>Accept</span>
+        </button>
+      </div>
+
+      <div class="ming-call-actions" id="call-active-actions" hidden>
+        <button type="button" class="ming-call-control" id="call-mute" data-action="call-mute" aria-label="Mute microphone" aria-pressed="false">
+          <svg><use href="#i-mic"/></svg>
+        </button>
+        <button type="button" class="ming-call-control" id="call-camera" data-action="call-camera" aria-label="Toggle camera" aria-pressed="false" hidden>
+          <svg><use href="#i-video"/></svg>
+        </button>
+        <button type="button" class="ming-call-control ming-call-control--end" data-action="call-end" aria-label="End call">
+          <svg><use href="#i-phone"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 
