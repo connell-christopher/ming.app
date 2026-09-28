@@ -1821,6 +1821,14 @@ async function ensureMingCallServiceWorker() {
   }
 }
 
+
+
+/* Handle a call notification opened from the service worker. */
+navigator.serviceWorker?.addEventListener('message', event => {
+  if (event.data?.type !== 'ming-call-open') return;
+  void restorePendingMingCall();
+});
+
 async function ensureMingPushReady({ prompt = false } = {}) {
   if (mingPushReady) return true;
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') return false;
