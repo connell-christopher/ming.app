@@ -4,6 +4,9 @@ alter table public.messages
   drop constraint if exists message_body_check;
 
 alter table public.messages
+  drop constraint if exists messages_body_check;
+
+alter table public.messages
   drop constraint if exists messages_body_type_check;
 
 alter table public.messages
@@ -108,7 +111,6 @@ using (
 grant select, insert, update on public.messages to authenticated;
 
 -- Realtime reactions can be enabled later if desired; current UI reloads reactions immediately.
-
 
 create or replace function public.ming_send_message_v2(
   p_recipient_id uuid,
