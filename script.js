@@ -1895,25 +1895,6 @@ async function loadChatReactions(c) {
   });
 }
 
-async function ensureVoiceUrls(c) {
-  if (!c?.messages) return;
-  const paths = c.messages.map(m => m.voicePath).filter(Boolean).filter(p => !chatVoiceUrls.has(p));
-  if (!paths.length) return;
-
-  await Promise.all(paths.map(async path => {
-    const { data, error } = await supabaseClient
-      .storage
-      .from('ming-voice')
-      .createSignedUrl(path, 3600);
-
-    if (data?.signedUrl) {
-      chatVoiceUrls.set(path, data.signedUrl);
-    } else if (error) {
-      console.warn('Ming: voice URL unavailable:', error.message);
-    }
-  }));
-}
-
 function renderVoiceMessage(m) {
   const seconds = Math.max(0, Number(m.voiceDuration || 0));
   if (!m.voicePath) {
@@ -1957,12 +1938,6 @@ function renderThread() {
     messages +
     typing;
 
-  ensureVoiceUrls(c).then(() => {
-    if (state.stack[state.stack.length - 1] === 'chat') {
-      const missing = c.messages.some(m => m.voicePath && chatVoiceUrls.has(m.voicePath));
-      if (missing) renderThread();
-    }
-  });
 }
 
 function openMessageActions(messageId) {
