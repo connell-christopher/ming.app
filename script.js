@@ -1899,18 +1899,28 @@ async function ensureVoiceUrls(c) {
   if (!c?.messages) return;
   const paths = c.messages.map(m => m.voicePath).filter(Boolean).filter(p => !chatVoiceUrls.has(p));
   if (!paths.length) return;
+
   await Promise.all(paths.map(async path => {
-    const { data } = await supabaseClient.storage.from('ming-voice').createSignedUrl(path, 3600);
-    if (data?.signedUrl) chatVoiceUrls.set(path, data.signedUrl);
+    const { data, error } = await supabaseClient
+      .storage
+      .from('ming-voice')
+      .createSignedUrl(path, 3600);
+
+    if (data?.signedUrl) {
+      chatVoiceUrls.set(path, data.signedUrl);
+    } else if (error) {
+      console.warn('Ming: voice URL unavailable:', error.message);
+    }
   }));
 }
 
 function renderVoiceMessage(m) {
-  const src = m.voicePath ? chatVoiceUrls.get(m.voicePath) : '';
   const seconds = Math.max(0, Number(m.voiceDuration || 0));
-  if (!src) return `<div class="chat-voice-note"><span>🎙️</span><span>Voice note</span><span class="chat-voice-duration">${seconds}s</span></div>`;
+  if (!m.voicePath) {
+    return `<div class="chat-voice-note"><span>🎙️</span><span>Voice note</span><span class="chat-voice-duration">${seconds}s</span></div>`;
+  }
   return `<div class="chat-voice-note">
-    <button type="button" data-voice-src="${esc(src)}" aria-label="Play voice note">▶</button>
+    <button type="button" data-voice-path="${esc(m.voicePath)}" aria-label="Play voice note">▶</button>
     <span>Voice note</span>
     <span class="chat-voice-duration">${seconds}s</span>
   </div>`;
@@ -3885,15 +3895,57 @@ document.addEventListener('pointercancel', () => {
 });
 
 document.addEventListener('click', async e => {
-  const voiceBtn=e.target.closest('[data-voice-src]');
+  const voiceBtn=e.target.closest('[data-voice-path]');
   if (voiceBtn) {
     e.stopPropagation();
-    const src=voiceBtn.dataset.voiceSrc;
-    let audio=voiceBtn._audio;
-    if (!audio) { audio=new Audio(src); voiceBtn._audio=audio; }
-    if (audio.paused) { await audio.play(); voiceBtn.textContent='⏸'; }
-    else { audio.pause(); voiceBtn.textContent='▶'; }
-    audio.onended=()=>voiceBtn.textContent='▶';
+
+    const path = voiceBtn.dataset.voicePath;
+    if (!path) return;
+
+    try {
+      let audio = voiceBtn._audio;
+
+      if (!audio) {
+        const { data, error } = await supabaseClient
+          .storage
+          .from('ming-voice')
+          .createSignedUrl(path, 3600);
+
+        if (error || !data?.signedUrl) {
+          console.error('Ming: could not create voice playback URL:', error?.message || 'No signed URL returned.');
+          toast('Could not load this voice note.', 'alert');
+          return;
+        }
+
+        audio = new Audio();
+        audio.preload = 'auto';
+        audio.src = data.signedUrl;
+        voiceBtn._audio = audio;
+
+        audio.addEventListener('ended', () => {
+          voiceBtn.textContent = '▶';
+        });
+
+        audio.addEventListener('error', () => {
+          console.error('Ming: voice playback failed.', audio.error?.message || audio.error?.code || 'Unknown audio error');
+          voiceBtn.textContent = '▶';
+          toast('This voice note could not be played.', 'alert');
+        });
+      }
+
+      if (audio.paused) {
+        voiceBtn.textContent = '…';
+        await audio.play();
+        voiceBtn.textContent = '⏸';
+      } else {
+        audio.pause();
+        voiceBtn.textContent = '▶';
+      }
+    } catch (error) {
+      console.error('Ming: voice playback failed:', error);
+      voiceBtn.textContent = '▶';
+      toast('This voice note could not be played.', 'alert');
+    }
     return;
   }
   const b=e.target.closest('[data-action^="chat-"]');
