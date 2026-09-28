@@ -1602,9 +1602,23 @@ let mingPushReady = false;
 const MING_VAPID_PUBLIC_KEY = 'BPuZKvSfz_hshjbbaEz08rJo5cyzfP4JW2qSYkIiRuJ_QVkFjYBD62RqbcExYtNX1S9Z_Jk4hoPb697FYSghvYc';
 
 const MING_RTC_CONFIG = {
+  iceCandidatePoolSize: 10,
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'stun:stun1.l.google.com:19302' },
+
+    // TURN is required when the two devices cannot establish a
+    // direct WebRTC path because of NAT/firewall restrictions.
+    // OpenRelay is used here as the immediate connectivity fallback.
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turns:openrelay.metered.ca:443?transport=tcp'
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
   ]
 };
 
