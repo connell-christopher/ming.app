@@ -1582,6 +1582,485 @@ function chatTopicFor(a, b) {
   return 'ming:chat:' + [a, b].sort().join(':');
 }
 
+/* ------------------------------------------------------------
+   MING CALLING — WebRTC + Supabase Realtime signaling
+------------------------------------------------------------ */
+let mingCallInboxChannel = null;
+let mingCallPeerChannel = null;
+let mingCallPeerSubscribed = false;
+let mingCallPeerId = null;
+let mingCall = null;
+let mingIncomingCall = null;
+let mingCallTimer = null;
+let mingCallStartedAt = 0;
+let mingCallRemoteStream = null;
+let mingCallPendingIce = [];
+
+const MING_RTC_CONFIG = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
+
+function callTopicFor(userId) {
+  return 'ming:call:' + userId;
+}
+
+function setCallStatus(text) {
+  const el = $('#call-status');
+  if (el) el.textContent = text || '';
+}
+
+function setCallTitle(text) {
+  const el = $('#call-title');
+  if (el) el.textContent = text || '';
+}
+
+function formatCallDuration(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = String(total % 60).padStart(2, '0');
+  return minutes + ':' + seconds;
+}
+
+function updateCallTimer() {
+  if (!mingCallStartedAt) return;
+  setCallStatus(formatCallDuration(Date.now() - mingCallStartedAt));
+}
+
+function startCallTimer() {
+  if (mingCallTimer) clearInterval(mingCallTimer);
+  mingCallStartedAt = Date.now();
+  updateCallTimer();
+  mingCallTimer = setInterval(updateCallTimer, 1000);
+}
+
+function stopCallTimer() {
+  if (mingCallTimer) clearInterval(mingCallTimer);
+  mingCallTimer = null;
+  mingCallStartedAt = 0;
+}
+
+function setCallControls({ incoming = false, active = false } = {}) {
+  $('#call-incoming-actions')?.toggleAttribute('hidden', !incoming);
+  $('#call-active-actions')?.toggleAttribute('hidden', !active);
+}
+
+function renderCallMode(kind) {
+  const overlay = $('#call-overlay');
+  if (!overlay) return;
+  overlay.dataset.callKind = kind || 'voice';
+  const isVideo = kind === 'video';
+  $('#call-remote-video')?.toggleAttribute('hidden', !isVideo);
+  $('#call-local-video')?.toggleAttribute('hidden', !isVideo);
+  $('#call-remote-audio')?.toggleAttribute('hidden', isVideo);
+  $('#call-avatar')?.toggleAttribute('hidden', isVideo && !!mingCall?.connected);
+  $('#call-camera')?.toggleAttribute('hidden', !isVideo);
+}
+
+function showCallOverlay({ incoming = false, active = false, kind = 'voice', personId = null } = {}) {
+  const overlay = $('#call-overlay');
+  if (!overlay) return;
+  const p = personId ? byId(personId) : null;
+  $('#call-name').textContent = p?.short || 'Ming user';
+  const av = $('#call-avatar');
+  if (av && p) av.innerHTML = avatar(p, 72, { status: false });
+  setCallControls({ incoming, active });
+  renderCallMode(kind);
+  overlay.hidden = false;
+  document.body.classList.add('call-open');
+}
+
+function hideCallOverlay() {
+  const overlay = $('#call-overlay');
+  if (overlay) overlay.hidden = true;
+  document.body.classList.remove('call-open');
+  setCallControls();
+}
+
+function attachCallMedia(stream, kind) {
+  const localVideo = $('#call-local-video');
+  if (localVideo) localVideo.srcObject = stream;
+  if (kind === 'video' && localVideo) localVideo.play().catch(() => {});
+}
+
+function resetCallMedia() {
+  ['call-local-video', 'call-remote-video', 'call-remote-audio'].forEach(id => {
+    const el = $('#' + id);
+    if (el) el.srcObject = null;
+  });
+}
+
+function stopLocalCallStream() {
+  if (!mingCall?.localStream) return;
+  mingCall.localStream.getTracks().forEach(track => track.stop());
+  mingCall.localStream = null;
+}
+
+async function closeCallPeerChannel() {
+  if (mingCallPeerChannel) await supabaseClient.removeChannel(mingCallPeerChannel);
+  mingCallPeerChannel = null;
+  mingCallPeerId = null;
+  mingCallPeerSubscribed = false;
+}
+
+async function ensureCallPeerChannel(targetId) {
+  if (!isUuidPerson(targetId)) return false;
+  if (mingCallPeerChannel && mingCallPeerId === targetId && mingCallPeerSubscribed) return true;
+  await closeCallPeerChannel();
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user) return false;
+  await supabaseClient.realtime.setAuth();
+
+  const channel = supabaseClient.channel(callTopicFor(targetId), {
+    config: { private: true, broadcast: { self: false, ack: false } }
+  });
+
+  mingCallPeerChannel = channel;
+  mingCallPeerId = targetId;
+  mingCallPeerSubscribed = false;
+
+  await new Promise(resolve => {
+    channel.subscribe(status => {
+      if (status === 'SUBSCRIBED') {
+        mingCallPeerSubscribed = true;
+        resolve();
+      } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
+        resolve();
+      }
+    });
+  });
+
+  return mingCallPeerSubscribed;
+}
+
+async function sendCallSignal(targetId, payload) {
+  if (!(await ensureCallPeerChannel(targetId)) || !mingCallPeerChannel) return false;
+  const { error } = await mingCallPeerChannel.send({
+    type: 'broadcast',
+    event: 'call',
+    payload
+  });
+  if (error) {
+    console.warn('Ming: call signal failed.', error.message);
+    return false;
+  }
+  return true;
+}
+
+async function endMingCall({ notify = true, reason = 'ended' } = {}) {
+  const call = mingCall;
+  const incoming = mingIncomingCall;
+
+  if (notify && call?.remoteId && call?.callId) {
+    await sendCallSignal(call.remoteId, {
+      type: reason === 'declined' ? 'decline' : 'hangup',
+      callId: call.callId,
+      from: currentUser.id,
+      to: call.remoteId
+    });
+  }
+
+  if (call?.pc) {
+    try { call.pc.close(); } catch (_) {}
+  }
+  stopLocalCallStream();
+  mingCallRemoteStream?.getTracks().forEach(track => track.stop());
+  mingCallRemoteStream = null;
+  mingCallPendingIce = [];
+  mingIncomingCall = null;
+  mingCall = null;
+  stopCallTimer();
+  resetCallMedia();
+  hideCallOverlay();
+
+  if (reason === 'failed') toast('Call could not connect.', 'alert');
+  else if (reason === 'declined') toast('Call declined.', 'info');
+  else if (incoming) toast('Call ended.', 'info');
+
+  if (!call && !incoming) return;
+  await closeCallPeerChannel();
+}
+
+function setupCallPeer({ remoteId, callId, kind, role }) {
+  const pc = new RTCPeerConnection(MING_RTC_CONFIG);
+
+  pc.onicecandidate = event => {
+    if (!event.candidate) return;
+    sendCallSignal(remoteId, {
+      type: 'ice',
+      callId,
+      from: currentUser.id,
+      to: remoteId,
+      candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate
+    });
+  };
+
+  pc.ontrack = event => {
+    const stream = event.streams?.[0] || new MediaStream([event.track]);
+    mingCallRemoteStream = stream;
+    const remoteVideo = $('#call-remote-video');
+    const remoteAudio = $('#call-remote-audio');
+    if (kind === 'video' && remoteVideo) {
+      remoteVideo.srcObject = stream;
+      remoteVideo.play().catch(() => {});
+    }
+    if (remoteAudio) {
+      remoteAudio.srcObject = stream;
+      remoteAudio.play().catch(() => {});
+    }
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'connected') {
+      if (mingCall) mingCall.connected = true;
+      setCallStatus('Connected');
+      startCallTimer();
+      renderCallMode(kind);
+    } else if (pc.connectionState === 'connecting') {
+      setCallStatus('Connecting…');
+    } else if (pc.connectionState === 'failed') {
+      endMingCall({ notify: true, reason: 'failed' });
+    } else if (pc.connectionState === 'disconnected') {
+      setCallStatus('Reconnecting…');
+    }
+  };
+
+  return pc;
+}
+
+async function getCallMedia(kind) {
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error('Media devices are not supported.');
+  return navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    video: kind === 'video'
+      ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+      : false
+  });
+}
+
+async function startMingCall(kind) {
+  const remoteId = state.activeChat;
+  if (!isUuidPerson(remoteId)) {
+    toast('Calls are available for connected Ming conversations.', 'alert');
+    return;
+  }
+  if (mingCall || mingIncomingCall) {
+    toast('You are already handling a call.', 'info');
+    return;
+  }
+
+  try {
+    setCallTitle(kind === 'video' ? 'Video call' : 'Voice call');
+    setCallStatus('Requesting permission…');
+    showCallOverlay({ active: true, kind, personId: remoteId });
+
+    const stream = await getCallMedia(kind);
+    const callId = crypto.randomUUID();
+    mingCall = { callId, remoteId, kind, role: 'caller', localStream: stream, pc: null, connected: false };
+
+    attachCallMedia(stream, kind);
+    setCallStatus('Calling…');
+
+    if (!(await ensureCallPeerChannel(remoteId))) throw new Error('Call signaling unavailable.');
+
+    const pc = setupCallPeer({ remoteId, callId, kind, role: 'caller' });
+    mingCall.pc = pc;
+    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    if (!(await sendCallSignal(remoteId, {
+      type: 'offer',
+      callId,
+      from: currentUser.id,
+      to: remoteId,
+      kind,
+      offer: pc.localDescription
+    }))) throw new Error('Could not send call invitation.');
+  } catch (error) {
+    console.warn('Ming: outgoing call failed.', error);
+    await endMingCall({ notify: false, reason: 'failed' });
+  }
+}
+
+async function acceptMingCall() {
+  const incoming = mingIncomingCall;
+  if (!incoming) return;
+
+  try {
+    const stream = await getCallMedia(incoming.kind);
+    mingCall = {
+      callId: incoming.callId,
+      remoteId: incoming.from,
+      kind: incoming.kind,
+      role: 'callee',
+      localStream: stream,
+      pc: null,
+      connected: false
+    };
+    mingIncomingCall = null;
+
+    setCallTitle(incoming.kind === 'video' ? 'Video call' : 'Voice call');
+    showCallOverlay({ active: true, kind: incoming.kind, personId: incoming.from });
+    setCallStatus('Connecting…');
+    attachCallMedia(stream, incoming.kind);
+
+    if (!(await ensureCallPeerChannel(incoming.from))) throw new Error('Call signaling unavailable.');
+
+    const pc = setupCallPeer({
+      remoteId: incoming.from,
+      callId: incoming.callId,
+      kind: incoming.kind,
+      role: 'callee'
+    });
+    mingCall.pc = pc;
+    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+    await pc.setRemoteDescription(new RTCSessionDescription(incoming.offer));
+    for (const candidate of mingCallPendingIce.splice(0)) {
+      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) {}
+    }
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    await sendCallSignal(incoming.from, {
+      type: 'answer',
+      callId: incoming.callId,
+      from: currentUser.id,
+      to: incoming.from,
+      answer: pc.localDescription
+    });
+  } catch (error) {
+    console.warn('Ming: accepting call failed.', error);
+    await endMingCall({ notify: true, reason: 'failed' });
+  }
+}
+
+async function declineMingCall() {
+  const incoming = mingIncomingCall;
+  if (!incoming) return;
+  await sendCallSignal(incoming.from, {
+    type: 'decline',
+    callId: incoming.callId,
+    from: currentUser.id,
+    to: incoming.from
+  });
+  mingIncomingCall = null;
+  hideCallOverlay();
+  setCallControls();
+  toast('Call declined.', 'info');
+}
+
+async function handleMingCallSignal(payload) {
+  if (!payload?.type || payload.to !== currentUser.id) return;
+
+  if (payload.type === 'offer') {
+    if (mingCall || mingIncomingCall) {
+      await sendCallSignal(payload.from, {
+        type: 'busy',
+        callId: payload.callId,
+        from: currentUser.id,
+        to: payload.from
+      });
+      return;
+    }
+    mingIncomingCall = payload;
+    showCallOverlay({ incoming: true, kind: payload.kind || 'voice', personId: payload.from });
+    setCallTitle(payload.kind === 'video' ? 'Incoming video call' : 'Incoming voice call');
+    setCallStatus('Incoming call');
+    return;
+  }
+
+  if (!mingCall || payload.callId !== mingCall.callId) return;
+
+  if (payload.type === 'answer' && mingCall.role === 'caller') {
+    try {
+      await mingCall.pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+      for (const candidate of mingCallPendingIce.splice(0)) {
+        try { await mingCall.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) {}
+      }
+      setCallStatus('Connecting…');
+    } catch (error) {
+      console.warn('Ming: applying call answer failed.', error);
+      await endMingCall({ notify: true, reason: 'failed' });
+    }
+    return;
+  }
+
+  if (payload.type === 'ice') {
+    if (mingCall.pc?.remoteDescription) {
+      try { await mingCall.pc.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch (_) {}
+    } else {
+      mingCallPendingIce.push(payload.candidate);
+    }
+    return;
+  }
+
+  if (payload.type === 'decline') {
+    await endMingCall({ notify: false, reason: 'declined' });
+    return;
+  }
+
+  if (payload.type === 'busy') {
+    await endMingCall({ notify: false, reason: 'declined' });
+    toast('They are already on another call.', 'info');
+    return;
+  }
+
+  if (payload.type === 'hangup') {
+    await endMingCall({ notify: false, reason: 'ended' });
+  }
+}
+
+async function startMingCallInbox() {
+  if (mingCallInboxChannel) return;
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user) return;
+
+  await supabaseClient.realtime.setAuth();
+  const channel = supabaseClient.channel(callTopicFor(session.user.id), {
+    config: { private: true, broadcast: { self: false, ack: false } }
+  });
+  channel.on('broadcast', { event: 'call' }, ({ payload }) => {
+    handleMingCallSignal(payload).catch(error => console.warn('Ming: call signal handling failed.', error));
+  });
+  mingCallInboxChannel = channel;
+  channel.subscribe(status => {
+    if (status !== 'SUBSCRIBED' && status !== 'CLOSED' && status !== 'CHANNEL_ERROR') {
+      console.warn('Ming: call realtime status:', status);
+    }
+  });
+}
+
+function toggleMingCallMute() {
+  const track = mingCall?.localStream?.getAudioTracks?.()[0];
+  if (!track) return;
+  track.enabled = !track.enabled;
+  const btn = $('#call-mute');
+  if (btn) {
+    btn.classList.toggle('is-off', !track.enabled);
+    btn.setAttribute('aria-pressed', String(!track.enabled));
+    btn.innerHTML = icon(track.enabled ? 'mic' : 'mic-off');
+  }
+}
+
+function toggleMingCallCamera() {
+  const track = mingCall?.localStream?.getVideoTracks?.()[0];
+  if (!track) return;
+  track.enabled = !track.enabled;
+  const btn = $('#call-camera');
+  if (btn) {
+    btn.classList.toggle('is-off', !track.enabled);
+    btn.setAttribute('aria-pressed', String(!track.enabled));
+    btn.innerHTML = icon(track.enabled ? 'video' : 'video-off');
+  }
+}
+
 function renderChatPresenceStatus() {
   const p = byId(state.activeChat);
   if (!p) return;
@@ -3476,14 +3955,14 @@ document.addEventListener('click', async e => {
       break;
     }
 
-    case 'call': {
-      const p = byId(state.activeChat);
-      if (!p) break;
-      toast(arg === 'video'
-        ? 'Video calling is being prepared for Ming.'
-        : 'Voice calling is being prepared for Ming.', 'info');
+    case 'call':
+      await startMingCall(arg === 'video' ? 'video' : 'voice');
       break;
-    }
+    case 'call-accept': await acceptMingCall(); break;
+    case 'call-decline': await declineMingCall(); break;
+    case 'call-end': await endMingCall({ notify: true, reason: 'ended' }); break;
+    case 'call-mute': toggleMingCallMute(); break;
+    case 'call-camera': toggleMingCallCamera(); break;
 
     case 'moon': openMoonRoom(arg); break;
     case 'moon-add': moonAdd(); break;
@@ -3995,6 +4474,7 @@ async function boot() {
   // The profile still gates the first authenticated render as before.
   await mingProfileReady;
   await syncConnectionRequestNotifications();
+  startMingCallInbox();
   renderHome();
   setTab('home');
   updateNotifDot();
