@@ -1583,6 +1583,146 @@ input[type="range"]::-moz-range-thumb {
   gap: 2px;
   flex: 0 0 auto;
 }
+
+/* ------------------------------------------------------------
+   MING CALL OVERLAY
+------------------------------------------------------------ */
+body.call-open { overflow: hidden; }
+
+.ming-call-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 10, 8, .92);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.ming-call-overlay[hidden] { display: none; }
+
+.ming-call-stage {
+  position: relative;
+  width: min(100%, 520px);
+  min-height: min(760px, calc(100dvh - 36px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 28px 22px 24px;
+  border: 1px solid rgba(241,210,174,.16);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(139,90,60,.24), transparent 36%),
+    linear-gradient(160deg, rgba(42,33,29,.98), rgba(15,10,8,.99));
+  box-shadow: 0 30px 100px rgba(0,0,0,.42);
+  color: #fff8f1;
+}
+
+.ming-call-top { text-align: center; }
+.ming-call-eyebrow {
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  opacity: .55;
+}
+.ming-call-name {
+  margin-top: 6px;
+  font-size: 24px;
+  font-weight: 650;
+}
+.ming-call-status {
+  min-height: 18px;
+  margin-top: 5px;
+  font-size: 12px;
+  opacity: .62;
+}
+
+.ming-call-media {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+  margin: 20px 0;
+  overflow: hidden;
+  border-radius: 24px;
+}
+
+.ming-call-avatar {
+  display: grid;
+  place-items: center;
+}
+.ming-call-avatar .av {
+  box-shadow: 0 18px 55px rgba(0,0,0,.35);
+}
+
+.ming-call-remote-video {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  object-fit: cover;
+  border-radius: 24px;
+  background: #090706;
+}
+.ming-call-local-video {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: 118px;
+  height: 166px;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 16px;
+  background: #090706;
+  box-shadow: 0 12px 30px rgba(0,0,0,.35);
+}
+
+.ming-call-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+}
+.ming-call-action {
+  width: 76px;
+  height: 76px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(0,0,0,.28);
+}
+.ming-call-action svg { width: 25px; height: 25px; }
+.ming-call-action span { font-size: 10px; }
+.ming-call-action--accept { background: #587b4d; }
+.ming-call-action--decline { background: #8b3543; }
+.ming-call-action--accept svg { transform: rotate(0deg); }
+
+.ming-call-control {
+  width: 54px;
+  height: 54px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,.09);
+  color: #fff8f1;
+  cursor: pointer;
+}
+.ming-call-control svg { width: 20px; height: 20px; }
+.ming-call-control.is-off {
+  background: rgba(255,255,255,.18);
+}
+.ming-call-control--end {
+  background: #8b3543;
+  border-color: transparent;
+}
 .chat-call-btn {
   width: 38px;
   height: 38px;
