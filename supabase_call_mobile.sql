@@ -32,9 +32,9 @@ with check (
     from public.connections c
     where c.status = 'accepted'
       and (
-        (c.requester_id = (select auth.uid()) and c.recipient_id = recipient_id)
+        (c.requester_id = (select auth.uid()) and c.recipient_id = public.ming_call_invites.recipient_id)
         or
-        (c.recipient_id = (select auth.uid()) and c.requester_id = recipient_id)
+        (c.recipient_id = (select auth.uid()) and c.requester_id = public.ming_call_invites.recipient_id)
       )
   )
 );
