@@ -1599,7 +1599,7 @@ let mingCallOutgoingIce = [];
 let mingServiceWorkerRegistration = null;
 let mingPushReady = false;
 
-const MING_VAPID_PUBLIC_KEY = 'BAsIbe7CsideVRCfAdz7AgksOzjfI34CNrXWAZM6kABHqKail_t9_HA52tXg85001gnOWLh-W3RVionoWF2dxxs';
+const MING_VAPID_PUBLIC_KEY = 'BPuZKvSfz_hshjbbaEz08rJo5cyzfP4JW2qSYkIiRuJ_QVkFjYBD62RqbcExYtNX1S9Z_Jk4hoPb697FYSghvYc';
 
 const MING_RTC_CONFIG = {
   iceServers: [
