@@ -1802,6 +1802,171 @@ async function sendCallSignal(targetId, payload) {
   return true;
 }
 
+function urlBase64ToUint8Array(value) {
+  const padding = '='.repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
+}
+
+async function ensureMingCallServiceWorker() {
+  if (!('serviceWorker' in navigator)) return null;
+  if (mingServiceWorkerRegistration) return mingServiceWorkerRegistration;
+  try {
+    mingServiceWorkerRegistration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
+    return mingServiceWorkerRegistration;
+  } catch (error) {
+    console.warn('Ming: service worker registration failed.', error);
+    return null;
+  }
+}
+
+async function ensureMingPushReady({ prompt = false } = {}) {
+  if (mingPushReady) return true;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') return false;
+
+  try {
+    const registration = await ensureMingCallServiceWorker();
+    if (!registration) return false;
+
+    let permission = Notification.permission;
+    if (permission === 'default' && prompt) permission = await Notification.requestPermission();
+    if (permission !== 'granted') return false;
+
+    const existing = await registration.pushManager.getSubscription();
+    const subscription = existing || await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(MING_VAPID_PUBLIC_KEY)
+    });
+    const json = subscription.toJSON();
+    const keys = json.keys || {};
+
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session?.user || !subscription.endpoint || !keys.p256dh || !keys.auth) return false;
+
+    const { error } = await supabaseClient.from('ming_push_subscriptions').upsert({
+      user_id: session.user.id,
+      endpoint: subscription.endpoint,
+      p256dh: keys.p256dh,
+      auth: keys.auth,
+      user_agent: navigator.userAgent.slice(0, 500),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'endpoint' });
+
+    if (error) {
+      console.warn('Ming: could not save push subscription.', error.message);
+      return false;
+    }
+
+    mingPushReady = true;
+    return true;
+  } catch (error) {
+    console.warn('Ming: push setup failed.', error);
+    return false;
+  }
+}
+
+async function showMingIncomingCallNotification(payload) {
+  if (!payload?.callId || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  if (!document.hidden) return;
+  try {
+    const registration = await ensureMingCallServiceWorker();
+    if (!registration) return;
+    await registration.showNotification(
+      payload.kind === 'video' ? 'Incoming video call' : 'Incoming voice call',
+      {
+        body: (byId(payload.from)?.short || 'Someone') + ' is calling you on Ming',
+        icon: './favicon.ico',
+        badge: './favicon.ico',
+        tag: 'ming-call-' + payload.callId,
+        renotify: true,
+        requireInteraction: true,
+        vibrate: [180, 100, 180, 100, 360],
+        data: { type: 'ming-call', callId: payload.callId }
+      }
+    );
+  } catch (error) {
+    console.warn('Ming: incoming call notification failed.', error);
+  }
+}
+
+async function createMingCallInvite(payload) {
+  if (!payload?.callId || !isUuidPerson(payload.from) || !isUuidPerson(payload.to) || !payload.offer) return false;
+  const { error } = await supabaseClient.from('ming_call_invites').insert({
+    call_id: payload.callId,
+    caller_id: payload.from,
+    recipient_id: payload.to,
+    kind: payload.kind || 'voice',
+    offer: payload.offer,
+    status: 'pending',
+    expires_at: new Date(Date.now() + 90 * 1000).toISOString()
+  });
+  if (error) {
+    console.warn('Ming: call invite persistence failed.', error.message);
+    return false;
+  }
+  return true;
+}
+
+async function updateMingCallInvite(callId, status) {
+  if (!callId) return;
+  await supabaseClient.from('ming_call_invites')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('call_id', callId);
+}
+
+async function sendMingCallPush(payload) {
+  if (!payload?.to || !payload?.callId) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session?.access_token) return;
+    await fetch(SUPABASE_URL + '/functions/v1/send-call-push', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token
+      },
+      body: JSON.stringify({
+        recipientId: payload.to,
+        callId: payload.callId,
+        kind: payload.kind || 'voice',
+        callerName: currentUser.name || 'Someone'
+      })
+    });
+  } catch (error) {
+    console.warn('Ming: call push request failed.', error);
+  }
+}
+
+async function restorePendingMingCall() {
+  if (!isUuidPerson(currentUser.id) || mingCall || mingIncomingCall) return;
+  try {
+    const { data: rows, error } = await supabaseClient
+      .from('ming_call_invites')
+      .select('call_id, caller_id, kind, offer, expires_at')
+      .eq('recipient_id', currentUser.id)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (error || !rows?.length) return;
+
+    const row = rows[0];
+    mingIncomingCall = {
+      callId: row.call_id,
+      from: row.caller_id,
+      to: currentUser.id,
+      kind: row.kind,
+      offer: row.offer
+    };
+    showCallOverlay({ incoming: true, kind: row.kind || 'voice', personId: row.caller_id });
+    setCallTitle(row.kind === 'video' ? 'Incoming video call' : 'Incoming voice call');
+    setCallStatus('Incoming call');
+  } catch (error) {
+    console.warn('Ming: pending call restore failed.', error);
+  }
+}
+
 async function endMingCall({ notify = true, reason = 'ended' } = {}) {
   const call = mingCall;
   const incoming = mingIncomingCall;
