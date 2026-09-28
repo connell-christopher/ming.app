@@ -1595,6 +1595,7 @@ let mingCallTimer = null;
 let mingCallStartedAt = 0;
 let mingCallRemoteStream = null;
 let mingCallPendingIce = [];
+let mingCallOutgoingIce = [];
 
 const MING_RTC_CONFIG = {
   iceServers: [
@@ -1770,6 +1771,7 @@ async function endMingCall({ notify = true, reason = 'ended' } = {}) {
   mingCallRemoteStream?.getTracks().forEach(track => track.stop());
   mingCallRemoteStream = null;
   mingCallPendingIce = [];
+  mingCallOutgoingIce = [];
   mingIncomingCall = null;
   mingCall = null;
   stopCallTimer();
@@ -1789,12 +1791,17 @@ function setupCallPeer({ remoteId, callId, kind, role }) {
 
   pc.onicecandidate = event => {
     if (!event.candidate) return;
+    const candidate = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
+    if (role === 'caller' && mingCall?.role === 'caller' && !mingCall.remoteDescriptionReady) {
+      mingCallOutgoingIce.push(candidate);
+      return;
+    }
     sendCallSignal(remoteId, {
       type: 'ice',
       callId,
       from: currentUser.id,
       to: remoteId,
-      candidate: event.candidate.toJSON ? event.candidate.toJSON() : event.candidate
+      candidate
     });
   };
 
@@ -1981,8 +1988,18 @@ async function handleMingCallSignal(payload) {
   if (payload.type === 'answer' && mingCall.role === 'caller') {
     try {
       await mingCall.pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+      mingCall.remoteDescriptionReady = true;
       for (const candidate of mingCallPendingIce.splice(0)) {
         try { await mingCall.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) {}
+      }
+      for (const candidate of mingCallOutgoingIce.splice(0)) {
+        await sendCallSignal(mingCall.remoteId, {
+          type: 'ice',
+          callId: mingCall.callId,
+          from: currentUser.id,
+          to: mingCall.remoteId,
+          candidate
+        });
       }
       setCallStatus('Connecting…');
     } catch (error) {
