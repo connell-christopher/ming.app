@@ -1980,6 +1980,10 @@ async function endMingCall({ notify = true, reason = 'ended' } = {}) {
     });
   }
 
+  if (call?.callId) {
+    await updateMingCallInvite(call.callId, reason === 'declined' ? 'declined' : 'ended');
+  }
+
   if (call?.pc) {
     try { call.pc.close(); } catch (_) {}
   }
@@ -2096,14 +2100,17 @@ async function startMingCall(kind) {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
-    if (!(await sendCallSignal(remoteId, {
+    const offerPayload = {
       type: 'offer',
       callId,
       from: currentUser.id,
       to: remoteId,
       kind,
       offer: pc.localDescription
-    }))) throw new Error('Could not send call invitation.');
+    };
+    await createMingCallInvite(offerPayload);
+    void sendMingCallPush(offerPayload);
+    if (!(await sendCallSignal(remoteId, offerPayload))) throw new Error('Could not send call invitation.');
   } catch (error) {
     console.warn('Ming: outgoing call failed.', error);
     await endMingCall({ notify: false, reason: 'failed' });
@@ -2126,6 +2133,7 @@ async function acceptMingCall() {
       connected: false
     };
     mingIncomingCall = null;
+    await updateMingCallInvite(incoming.callId, 'accepted');
 
     setCallTitle(incoming.kind === 'video' ? 'Video call' : 'Voice call');
     showCallOverlay({ active: true, kind: incoming.kind, personId: incoming.from });
@@ -2167,6 +2175,7 @@ async function acceptMingCall() {
 async function declineMingCall() {
   const incoming = mingIncomingCall;
   if (!incoming) return;
+  await updateMingCallInvite(incoming.callId, 'declined');
   await sendCallSignal(incoming.from, {
     type: 'decline',
     callId: incoming.callId,
@@ -2193,6 +2202,7 @@ async function handleMingCallSignal(payload) {
       return;
     }
     mingIncomingCall = payload;
+    await showMingIncomingCallNotification(payload);
     showCallOverlay({ incoming: true, kind: payload.kind || 'voice', personId: payload.from });
     setCallTitle(payload.kind === 'video' ? 'Incoming video call' : 'Incoming voice call');
     setCallStatus('Incoming call');
@@ -2549,6 +2559,7 @@ async function openChat(personId) {
   chatOnline = false;
   renderChatPresenceStatus();
   await startMingChatRealtime(personId);
+  void ensureMingPushReady({ prompt: true });
   await loadChatReactions(c);
   renderThread();
   pushStack('chat');
@@ -4708,6 +4719,7 @@ async function boot() {
   await mingProfileReady;
   await syncConnectionRequestNotifications();
   startMingCallInbox();
+  await restorePendingMingCall();
   renderHome();
   setTab('home');
   updateNotifDot();
