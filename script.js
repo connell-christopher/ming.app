@@ -1608,6 +1608,11 @@ function callTopicFor(userId) {
   return 'ming:call:' + userId;
 }
 
+function callSessionTopicFor(callId, a, b) {
+  const users = [String(a || ''), String(b || '')].sort();
+  return 'ming:call:' + callId + ':' + users[0] + ':' + users[1];
+}
+
 function setCallStatus(text) {
   const el = $('#call-status');
   if (el) el.textContent = text || '';
@@ -1706,29 +1711,33 @@ async function closeCallPeerChannel() {
   mingCallPeerSubscribed = false;
 }
 
-async function ensureCallPeerChannel(targetId) {
-  if (!isUuidPerson(targetId)) return false;
-  if (mingCallPeerChannel && mingCallPeerId === targetId && mingCallPeerSubscribed) return true;
+async function ensureCallPeerChannel(targetId, callId = null) {
+  if (!isUuidPerson(targetId) || !isUuidPerson(currentUser.id)) return false;
+  const sessionCallId = callId || mingCall?.callId;
+  if (!sessionCallId) return false;
+  const topic = callSessionTopicFor(sessionCallId, currentUser.id, targetId);
+  if (mingCallPeerChannel && mingCallPeerId === topic && mingCallPeerSubscribed) return true;
   await closeCallPeerChannel();
 
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (!session?.user) return false;
   await supabaseClient.realtime.setAuth();
 
-  const channel = supabaseClient.channel(callTopicFor(targetId), {
+  const channel = supabaseClient.channel(topic, {
     config: { private: true, broadcast: { self: false, ack: false } }
   });
 
   mingCallPeerChannel = channel;
-  mingCallPeerId = targetId;
+  mingCallPeerId = topic;
   mingCallPeerSubscribed = false;
 
   await new Promise(resolve => {
-    channel.subscribe(status => {
+    channel.subscribe((status, error) => {
       if (status === 'SUBSCRIBED') {
         mingCallPeerSubscribed = true;
         resolve();
       } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
+        console.warn('Ming: call peer channel failed.', status, error || '');
         resolve();
       }
     });
@@ -1738,7 +1747,7 @@ async function ensureCallPeerChannel(targetId) {
 }
 
 async function sendCallSignal(targetId, payload) {
-  if (!(await ensureCallPeerChannel(targetId)) || !mingCallPeerChannel) return false;
+  if (!(await ensureCallPeerChannel(targetId, payload?.callId)) || !mingCallPeerChannel) return false;
   const { error } = await mingCallPeerChannel.send({
     type: 'broadcast',
     event: 'call',
@@ -1916,7 +1925,7 @@ async function acceptMingCall() {
     setCallStatus('Connecting…');
     attachCallMedia(stream, incoming.kind);
 
-    if (!(await ensureCallPeerChannel(incoming.from))) throw new Error('Call signaling unavailable.');
+    if (!(await ensureCallPeerChannel(incoming.from, incoming.callId))) throw new Error('Call signaling unavailable.');
 
     const pc = setupCallPeer({
       remoteId: incoming.from,
