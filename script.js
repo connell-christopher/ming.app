@@ -1596,6 +1596,10 @@ let mingCallStartedAt = 0;
 let mingCallRemoteStream = null;
 let mingCallPendingIce = [];
 let mingCallOutgoingIce = [];
+let mingServiceWorkerRegistration = null;
+let mingPushReady = false;
+
+const MING_VAPID_PUBLIC_KEY = 'BAsIbe7CsideVRCfAdz7AgksOzjfI34CNrXWAZM6kABHqKail_t9_HA52tXg85001gnOWLh-W3RVionoWF2dxxs';
 
 const MING_RTC_CONFIG = {
   iceServers: [
@@ -1746,7 +1750,45 @@ async function ensureCallPeerChannel(targetId, callId = null) {
   return mingCallPeerSubscribed;
 }
 
+async function sendCallInboxSignal(targetId, payload) {
+  if (!isUuidPerson(targetId) || !payload?.callId) return false;
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user) return false;
+
+  await supabaseClient.realtime.setAuth();
+  const channel = supabaseClient.channel(callTopicFor(targetId), {
+    config: { private: true, broadcast: { self: false, ack: false } }
+  });
+
+  let subscribed = false;
+  await new Promise(resolve => {
+    channel.subscribe((status, error) => {
+      if (status === 'SUBSCRIBED') {
+        subscribed = true;
+        resolve();
+      } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
+        console.warn('Ming: call inbox send channel failed.', status, error || '');
+        resolve();
+      }
+    });
+  });
+
+  if (!subscribed) {
+    await supabaseClient.removeChannel(channel);
+    return false;
+  }
+
+  const { error } = await channel.send({ type: 'broadcast', event: 'call', payload });
+  await supabaseClient.removeChannel(channel);
+  if (error) {
+    console.warn('Ming: call inbox signal failed.', error.message);
+    return false;
+  }
+  return true;
+}
+
 async function sendCallSignal(targetId, payload) {
+  if (payload?.type === 'offer') return sendCallInboxSignal(targetId, payload);
   if (!(await ensureCallPeerChannel(targetId, payload?.callId)) || !mingCallPeerChannel) return false;
   const { error } = await mingCallPeerChannel.send({
     type: 'broadcast',
