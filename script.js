@@ -1998,6 +1998,34 @@ async function endMingCall({ notify = true, reason = 'ended' } = {}) {
 function setupCallPeer({ remoteId, callId, kind, role }) {
   const pc = new RTCPeerConnection(MING_RTC_CONFIG);
 
+  // Keep ICE diagnostics visible in the console instead of collapsing every
+  // WebRTC failure into the same generic "could not connect" message.
+  pc.oniceconnectionstatechange = () => {
+    console.log('Ming: ICE state', {
+      callId,
+      role,
+      state: pc.iceConnectionState,
+      gathering: pc.iceGatheringState,
+      connection: pc.connectionState
+    });
+
+    if (pc.iceConnectionState === 'checking') {
+      setCallStatus('Connecting…');
+    } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+      setCallStatus('Connected');
+    }
+  };
+
+  pc.onicecandidateerror = event => {
+    console.warn('Ming: ICE candidate error', {
+      callId,
+      role,
+      url: event.url,
+      errorCode: event.errorCode,
+      errorText: event.errorText
+    });
+  };
+
   pc.onicecandidate = event => {
     if (!event.candidate) return;
     const candidate = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
