@@ -6424,6 +6424,11 @@ const NATURES = {
     promise: 'Turn a group into an operating room — briefs, tasks, roles and decisions stay together.',
     features: ['Briefs & announcements', 'Tasks & ownership', 'Roles & permissions', 'Immutable activity log'],
     swatch: 'linear-gradient(135deg,#14171D,#2A313A 58%,#C5A572)',
+    palettes: [
+      { name:'Boardroom', colors:['#11151B','#2A313A','#C5A572'] },
+      { name:'Ledger', colors:['#17211F','#31524A','#B9D0C5'] },
+      { name:'Studio', colors:['#1B1A20','#4A3F52','#D6B4C7'] }
+    ],
     tabs: [['brief', 'Brief', 'sp-doc'], ['work', 'Work', 'sp-list'], ['people', 'People', 'users'], ['log', 'Log', 'clock']]
   },
   friendly: {
@@ -6433,6 +6438,11 @@ const NATURES = {
     promise: 'A warm private room for the people you already choose.',
     features: ['Shared moments', 'Polls & decisions', 'Events & plans', 'Member-first home'],
     swatch: 'linear-gradient(135deg,#F5E5D6,#D19A72 62%,#875137)',
+    palettes: [
+      { name:'Sunroom', colors:['#FFF4E8','#E8B58E','#9A5C43'] },
+      { name:'Garden', colors:['#EEF6E9','#A9C98F','#557C55'] },
+      { name:'Bonfire', colors:['#FFF0DF','#D78A63','#7A3F32'] }
+    ],
     tabs: [['home', 'Home', 'home'], ['moments', 'Moments', 'sp-camera'], ['events', 'Events', 'cal'], ['people', 'People', 'users']]
   },
   casual: {
@@ -6442,6 +6452,11 @@ const NATURES = {
     promise: 'Make a temporary room for what is happening now — then let it fade.',
     features: ['Expiring posts', 'Nearby context', 'Meeting points', 'Auto-closing Spaces'],
     swatch: 'linear-gradient(135deg,#E8F3EE,#83C4AA 60%,#0F7058)',
+    palettes: [
+      { name:'Sidewalk', colors:['#F2F0EA','#B7B1A3','#5C5A52'] },
+      { name:'Concrete', colors:['#ECEEEF','#A8B0B5','#59636A'] },
+      { name:'Notebook', colors:['#F5F0E7','#C8BBA4','#776A57'] }
+    ],
     tabs: [['now', 'Now', 'sp-bolt'], ['around', 'Around', 'pin'], ['people', 'People', 'users']]
   },
   silly: {
@@ -6451,6 +6466,11 @@ const NATURES = {
     promise: 'A safe little corner where being ridiculous is the whole point.',
     features: ['Daily prompts', 'Sticker wall', 'Mini games', 'Friendly scoreboard'],
     swatch: 'linear-gradient(135deg,#FFF0C9,#FF9C6D 54%,#F04D30)',
+    palettes: [
+      { name:'Banana', colors:['#FFF6B7','#FFB86B','#F05A47'] },
+      { name:'Bubblegum', colors:['#FFE7F1','#FF91C2','#7A4E86'] },
+      { name:'Arcade', colors:['#E8FFF9','#70E0C2','#5144A8'] }
+    ],
     tabs: [['chaos', 'Chaos', 'sp-bolt'], ['wall', 'Wall', 'sp-grid'], ['game', 'Game', 'sp-game'], ['people', 'People', 'users']]
   },
   romantic: {
@@ -6460,6 +6480,11 @@ const NATURES = {
     promise: 'Give a relationship its own quiet place, separate from the rest of Ming.',
     features: ['Private memories', 'Shared plans', 'Lists for two', 'Always invitation-only'],
     swatch: 'linear-gradient(135deg,#211517,#633438 60%,#C98B6B)',
+    palettes: [
+      { name:'Velvet', colors:['#241318','#713844','#D59A83'] },
+      { name:'Rose', colors:['#FFF0F1','#D98D9C','#813C55'] },
+      { name:'Moonlit', colors:['#171727','#49436E','#C9A6C8'] }
+    ],
     tabs: [['us', 'Us', 'sp-heart2'], ['memories', 'Memories', 'sp-camera'], ['plans', 'Plans', 'cal'], ['lists', 'Lists', 'sp-list']]
   },
   marketplace: {
@@ -6469,6 +6494,11 @@ const NATURES = {
     promise: 'Keep listings, buyers, sellers and the transaction trail inside one accountable room.',
     features: ['Listings & sellers', 'Orders & status', 'Evidence & disputes', 'Escrow-ready flow'],
     swatch: 'linear-gradient(135deg,#E9F0EC,#88B4A0 55%,#1B6047)',
+    palettes: [
+      { name:'Mercantile', colors:['#F3F0E7','#B79B6C','#4D3924'] },
+      { name:'Night Market', colors:['#111A18','#35675A','#D4B46A'] },
+      { name:'Gallery', colors:['#F4F3EF','#9BA8A5','#394B48'] }
+    ],
     tabs: [['market', 'Market', 'sp-store'], ['orders', 'Orders', 'sp-box'], ['sellers', 'Sellers', 'users'], ['cases', 'Cases', 'sp-scale']]
   }
 };
@@ -6848,13 +6878,14 @@ const WZ_RENDER = {
     <h2>Set the atmosphere</h2>
     <p class="lede">A ${NATURES[w.nature].label} Space already has its own environment. Pick the cover that fits yours.</p>
     <div class="nature-grid" style="grid-template-columns:1fr 1fr 1fr">
-      ${[0, 40, 90, 160, 215, 280, 320, 350, null].map(h => `
-        <button class="nature-card" style="min-height:76px;padding:0;overflow:hidden" aria-pressed="${w.hue === h}" data-sp="wz-hue:${h}">
-          <span class="swatch" style="margin:0;height:100%;border:0;background:${h === null ? NATURES[w.nature].swatch : `linear-gradient(140deg,hsl(${h} 42% 78%),hsl(${(h + 320) % 360} 38% 44%))`}"></span>
+      ${(NATURES[w.nature].palettes || []).map(p => `
+        <button class="nature-card" style="min-height:76px;padding:0;overflow:hidden;position:relative" aria-pressed="${w.theme && w.theme.name === p.name}" data-sp="wz-theme:${esc(p.name)}">
+          <span class="swatch" style="margin:0;height:100%;border:0;background:linear-gradient(140deg,${p.colors[0]},${p.colors[1]} 58%,${p.colors[2]})"></span>
+          <span class="t" style="position:absolute;left:10px;bottom:8px;color:white;font-weight:700;text-shadow:0 1px 6px rgba(0,0,0,.5)">${esc(p.name)}</span>
           <span class="tick">${icon('check')}</span>
         </button>`).join('')}
     </div>
-    <p class="lede" style="margin-top:14px">The first swatch is this nature's own palette.</p>`,
+    <p class="lede" style="margin-top:14px">Every Space nature has its own three-color family. Other Space types cannot use these palettes.</p>`,
 
   members: w => `
     <h2>Who is in it?</h2>
@@ -6906,6 +6937,7 @@ const WZ_RENDER = {
     <div style="margin-top:18px">
       ${[
         ['Nature', NATURES[w.nature].label],
+        ['Color', w.theme?.name || 'Nature default'],
         ['Name', w.name],
         ['Purpose', w.description || '—'],
         ['Privacy', { private: 'Invitation only', approval: 'Invitation, with approval', discoverable: 'Discoverable nearby' }[w.privacy]],
@@ -6976,7 +7008,7 @@ $('#wz-next').addEventListener('click', async () => {
     privacy: w.nature === 'romantic' ? 'private' : w.privacy,
     requireApproval: w.privacy === 'approval' || w.requireApproval,
     maxMembers: w.maxMembers, hue: w.hue, locationLinked: w.locationLinked,
-    ttlDays: w.ttlDays, features: w.features,
+    ttlDays: w.ttlDays, theme: w.theme, features: w.features,
     inviteTtlHours: w.inviteTtlHours || null, inviteMaxUses: w.inviteMaxUses || null
   });
   if (!res.ok) { toast(res.error, 'x'); return; }
@@ -7883,6 +7915,7 @@ document.addEventListener('click', async e => {
     case 'wz-nature': wzSet({ nature: a }); break;
     case 'wz-privacy': wzSet({ privacy: a }); break;
     case 'wz-hue': wzSet({ hue: a === 'null' ? null : +a }); break;
+    case 'wz-theme': { const palette = (NATURES[sp.wizard.nature]?.palettes || []).find(p => p.name === a); if (palette) wzSet({ theme: palette, hue: null }); break; }
     case 'wz-ttlh': wzSet({ inviteTtlHours: +a }); break;
     case 'wz-maxuses': wzSet({ inviteMaxUses: +a || null }); break;
     case 'wz-toggle': captureWizardInputs(); wzSet({ [a]: !sp.wizard[a] }); break;
