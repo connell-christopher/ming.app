@@ -1900,7 +1900,7 @@ async function loadMingMessages() {
 
     const { data: rows, error } = await supabaseClient
       .from('messages')
-      .select('id, sender_id, recipient_id, body, created_at, read_at, message_type, voice_path, voice_duration, reply_to_id')
+      .select('id, sender_id, recipient_id, body, created_at, read_at, message_type, voice_path, voice_duration, reply_to_id, attachment_path, attachment_name, attachment_mime, attachment_size')
       .or(`sender_id.eq.${session.user.id},recipient_id.eq.${session.user.id}`)
       .order('created_at', { ascending: true });
 
@@ -1929,7 +1929,11 @@ async function loadMingMessages() {
         type: row.message_type || 'text',
         voicePath: row.voice_path || '',
         voiceDuration: row.voice_duration || 0,
-        replyToId: row.reply_to_id || null
+        replyToId: row.reply_to_id || null,
+        attachmentPath: row.attachment_path || '',
+        attachmentName: row.attachment_name || '',
+        attachmentMime: row.attachment_mime || '',
+        attachmentSize: Number(row.attachment_size || 0)
       });
 
       if (row.recipient_id === session.user.id && !row.read_at) c.unread += 1;
@@ -2052,6 +2056,14 @@ let chatRecording = null;
 let chatRecordChunks = [];
 let chatRecordStartedAt = 0;
 const chatVoiceUrls = new Map();
+const MING_CHAT_MAX_FILE_BYTES=15*1024*1024;
+const MING_CHAT_ALLOWED_MIME=new Set(['image/jpeg','image/png','image/webp','image/gif','application/pdf','text/plain','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation']);
+let pendingChatAttachment=null;
+function clearChatAttachment(){pendingChatAttachment=null;const i=$('#chat-attachment-input');if(i)i.value='';const h=$('#chat-attachment-preview');if(h){h.hidden=true;h.innerHTML='';}}
+function showChatAttachmentPreview(file){const h=$('#chat-attachment-preview');if(!h)return;h.hidden=false;h.innerHTML='<div class="chat-attachment-preview__inner"><span class="chat-attachment-preview__icon">'+icon(file.type.startsWith('image/')?'spark':'note')+'</span><span class="chat-attachment-preview__copy"><strong>'+esc(file.name)+'</strong><small>'+esc(formatChatFileSize(file.size))+' · Ready to send</small></span><button type="button" class="chat-attachment-preview__remove" id="chat-attachment-remove" aria-label="Remove attachment">'+icon('x')+'</button></div>';$('#chat-attachment-remove')?.addEventListener('click',clearChatAttachment);}
+async function chooseChatAttachment(file){if(!file)return;if(!MING_CHAT_ALLOWED_MIME.has(file.type)){toast('That file type is not supported in Ming chat.','alert');return;}if(file.size>MING_CHAT_MAX_FILE_BYTES){toast('Attachments must be 15 MB or smaller.','alert');return;}pendingChatAttachment=file;showChatAttachmentPreview(file);}
+async function sendStoredChatAttachment(file,options={}){const p=byId(state.activeChat);if(!p||!isUuidPerson(state.activeChat))return false;const {data:{session}}=await supabaseClient.auth.getSession();if(!session?.user){toast('Please sign in again','alert');return false;}const type=file.type.startsWith('image/')?'image':'file';const safeName=file.name.replace(/[^a-zA-Z0-9._-]+/g,'_').slice(0,90)||'attachment';const path=session.user.id+'/'+crypto.randomUUID()+'-'+safeName;const {error:uploadError}=await supabaseClient.storage.from('ming-message-files').upload(path,file,{contentType:file.type||'application/octet-stream',cacheControl:'3600',upsert:false});if(uploadError){toast('Could not upload attachment. Run supabase_message_attachments.sql first.','alert');return false;}const replyToId=options.replyToId||chatReplyTarget?.id||null;let row=null,error=null;const direct=await supabaseClient.from('messages').insert({sender_id:session.user.id,recipient_id:state.activeChat,body:'',message_type:type,attachment_path:path,attachment_name:file.name,attachment_mime:file.type||'application/octet-stream',attachment_size:file.size,reply_to_id:replyToId}).select('id,sender_id,recipient_id,body,created_at,read_at,message_type,voice_path,voice_duration,reply_to_id,attachment_path,attachment_name,attachment_mime,attachment_size').single();row=direct.data;error=direct.error;if(error){const rpc=await supabaseClient.rpc('ming_send_message_v3',{p_recipient_id:state.activeChat,p_body:'',p_message_type:type,p_voice_path:null,p_voice_duration:null,p_reply_to_id:replyToId,p_attachment_path:path,p_attachment_name:file.name,p_attachment_mime:file.type||'application/octet-stream',p_attachment_size:file.size});row=Array.isArray(rpc.data)?rpc.data[0]:rpc.data;error=rpc.error;}if(error||!row){await supabaseClient.storage.from('ming-message-files').remove([path]).catch(()=>{});toast(error?.message||'Could not send attachment.','alert');return false;}const c=convoFor(state.activeChat);c.messages.push({id:row.id,me:true,text:'',at:new Date(row.created_at).getTime(),read:!!row.read_at,type,voicePath:'',voiceDuration:0,replyToId:row.reply_to_id||null,attachmentPath:path,attachmentName:file.name,attachmentMime:file.type||'',attachmentSize:file.size,reactions:[]});clearChatAttachment();clearChatReply();renderThread();const t=$('#chat-thread');if(t)t.scrollTop=t.scrollHeight;return true;}
+
 
 function chatTopicFor(a, b) {
   return 'ming:chat:' + [a, b].sort().join(':');
@@ -2961,6 +2973,10 @@ async function subscribeMingMessages() {
           voicePath: row.voice_path || '',
           voiceDuration: row.voice_duration || 0,
           replyToId: row.reply_to_id || null,
+          attachmentPath: row.attachment_path || '',
+          attachmentName: row.attachment_name || '',
+          attachmentMime: row.attachment_mime || '',
+          attachmentSize: Number(row.attachment_size || 0),
           reactions: []
         });
 
@@ -3107,6 +3123,16 @@ async function loadChatReactions(c) {
   });
 }
 
+function renderChatAttachment(m) {
+  const path=m.attachmentPath||''; const name=m.attachmentName||'Attachment'; const mime=m.attachmentMime||'';
+  if(!path)return '';
+  if(m.type==='image')return '<button type="button" class="chat-attachment chat-attachment--image" data-chat-attachment="'+esc(path)+'" aria-label="Open image"><span class="chat-attachment-loading">Loading image…</span><img alt="'+esc(name)+'" data-chat-attachment-image hidden /></button>';
+  const size=m.attachmentSize?formatChatFileSize(m.attachmentSize):'';
+  return '<button type="button" class="chat-attachment chat-attachment--file" data-chat-attachment="'+esc(path)+'" data-chat-attachment-download="true"><span class="chat-attachment-file-icon">'+icon('note')+'</span><span class="chat-attachment-file-copy"><strong>'+esc(name)+'</strong><small>'+esc(mime||'File')+(size?' · '+esc(size):'')+'</small></span><span class="go">'+icon('chev')+'</span></button>';
+}
+function formatChatFileSize(bytes){const n=Number(bytes||0);if(!n)return '';if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(0)+' KB';return (n/1048576).toFixed(1)+' MB';}
+async function hydrateChatAttachments(){for(const node of $('[data-chat-attachment]')){const path=node.dataset.chatAttachment;if(!path)continue;const {data,error}=await supabaseClient.storage.from('ming-message-files').createSignedUrl(path,3600);if(error||!data?.signedUrl){const l=node.querySelector('.chat-attachment-loading');if(l)l.textContent='Attachment unavailable';continue;}node.dataset.chatAttachmentUrl=data.signedUrl;const img=node.querySelector('[data-chat-attachment-image]');if(img){img.src=data.signedUrl;img.hidden=false;node.querySelector('.chat-attachment-loading')?.remove();}}}
+
 function renderVoiceMessage(m) {
   const seconds = Math.max(0, Number(m.voiceDuration || 0));
   if (!m.voicePath) {
@@ -3134,7 +3160,7 @@ function renderThread() {
          data-message-id="${esc(m.id)}">
       <div class="chat-bubble" data-message-id="${esc(m.id)}">
         ${reply ? `<span class="chat-bubble__reply"><strong>${reply.me ? 'You' : esc(byId(state.activeChat)?.short || 'Them')}</strong>${reply.type === 'voice' ? '🎙️ Voice note' : esc((reply.text || '').slice(0, 110))}</span>` : ''}
-        ${m.type === 'voice' ? renderVoiceMessage(m) : `<span class="chat-bubble__text">${esc(m.text)}</span>`}
+        ${m.type === 'voice' ? renderVoiceMessage(m) : ((m.type === 'image' || m.type === 'file') ? renderChatAttachment(m) : `<span class="chat-bubble__text">${esc(m.text)}</span>`)}
         <span class="chat-bubble__time">${clockTime(m.at)}${m.me ? ` · ${m.read ? 'Read' : 'Sent'}` : ''}</span>
         ${Object.entries(reactions).length ? `<span class="chat-reactions">${Object.entries(reactions).map(([emoji,count]) => `<span class="chat-reaction">${emoji} ${count > 1 ? count : ''}</span>`).join('')}</span>` : ''}
       </div>
@@ -3149,6 +3175,7 @@ function renderThread() {
     `<div class="day-sep">Messages are stored securely for this conversation.</div>` +
     messages +
     typing;
+  void hydrateChatAttachments();
 
 }
 
@@ -3186,10 +3213,7 @@ async function copyChatMessage(messageId) {
 
 function forwardChatMessage(messageId) {
   const source = convoFor(state.activeChat).messages.find(x => x.id === messageId);
-  if (!source || source.type === 'voice') {
-    toast('Forwarding voice notes is coming next.', 'alert');
-    return;
-  }
+  if (!source) return;
   const options = conversations.filter(c => c.personId !== state.activeChat).map(c => {
     const p = byId(c.personId);
     return p ? `<button class="opt" data-action="forward-to:${esc(c.personId)}:${encodeURIComponent(source.text || '')}"><span class="tx"><span class="t">${esc(p.short)}</span><span class="s">Forward message</span></span><span class="go">›</span></button>` : '';
@@ -3343,7 +3367,7 @@ async function uploadVoiceNote(blob, duration) {
   const direct = await supabaseClient.from('messages').insert({
     sender_id:session.user.id, recipient_id:state.activeChat, body:'',
     message_type:'voice', voice_path:path, voice_duration:duration, reply_to_id:replyToId
-  }).select('id,sender_id,recipient_id,body,created_at,read_at,message_type,voice_path,voice_duration,reply_to_id').single();
+  }).select('id,sender_id,recipient_id,body,created_at,read_at,message_type,voice_path,voice_duration,reply_to_id,attachment_path,attachment_name,attachment_mime,attachment_size').single();
 
   let row=direct.data, error=direct.error;
   if(error) {
@@ -3360,7 +3384,7 @@ async function uploadVoiceNote(blob, duration) {
   }
 
   const c=convoFor(state.activeChat);
-  c.messages.push({id:row.id,me:true,text:'',at:new Date(row.created_at).getTime(),read:false,type:'voice',voicePath:path,voiceDuration:duration,replyToId:row.reply_to_id||null,reactions:[]});
+  c.messages.push({id:row.id,me:true,text:'',at:new Date(row.created_at).getTime(),read:false,type:'voice',voicePath:path,voiceDuration:duration,replyToId:row.reply_to_id||null,attachmentPath:row.attachment_path||'',attachmentName:row.attachment_name||'',attachmentMime:row.attachment_mime||'',attachmentSize:Number(row.attachment_size||0),reactions:[]});
   clearChatReply();
   renderThread();
   const t=$('#chat-thread'); if(t) t.scrollTop=t.scrollHeight;
@@ -5417,7 +5441,7 @@ $('#search-clear').addEventListener('click', () => { searchInput.value = ''; run
 const chatInput = $('#chat-input'), chatSend = $('#chat-send');
 function autoGrow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 110) + 'px'; }
 chatInput.addEventListener('input', () => {
-  chatSend.disabled = !chatInput.value.trim();
+  chatSend.disabled = !chatInput.value.trim() && !pendingChatAttachment;
   autoGrow(chatInput);
   if (chatInput.value.trim()) setMingTyping(true);
   else setMingTyping(false);
@@ -5425,12 +5449,15 @@ chatInput.addEventListener('input', () => {
 $('#chat-form').addEventListener('submit', e => {
   e.preventDefault();
   const v = chatInput.value.trim();
-  if (!v) return;
+  if (!v && !pendingChatAttachment) return;
   setMingTyping(false);
+  if (pendingChatAttachment) { const file=pendingChatAttachment; await sendStoredChatAttachment(file,{replyToId:chatReplyTarget?.id||null}); chatInput.value=''; chatInput.style.height='auto'; chatSend.disabled=true; return; }
   chatInput.value = ''; chatInput.style.height = 'auto'; chatSend.disabled = true;
   sendMessage(v, { replyToId: chatReplyTarget?.id || null });
 });
 $('#chat-voice').addEventListener('click', recordVoiceNote);
+$('#chat-attach').addEventListener('click',()=>$('#chat-attachment-input')?.click());
+$('#chat-attachment-input').addEventListener('change',async e=>{await chooseChatAttachment(e.target.files?.[0]||null);chatSend.disabled=!chatInput.value.trim()&&!pendingChatAttachment;});
 chatInput.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#chat-form').requestSubmit(); }
 });
@@ -5485,6 +5512,8 @@ document.addEventListener('pointercancel', () => {
 });
 
 document.addEventListener('click', async e => {
+  const attachmentBtn=e.target.closest('[data-chat-attachment]');
+  if(attachmentBtn){e.stopPropagation();const path=attachmentBtn.dataset.chatAttachment;if(!path)return;let url=attachmentBtn.dataset.chatAttachmentUrl;if(!url){const {data,error}=await supabaseClient.storage.from('ming-message-files').createSignedUrl(path,3600);if(error||!data?.signedUrl){toast('Could not open attachment.','alert');return;}url=data.signedUrl;}window.open(url,'_blank','noopener');return;}
   const voiceBtn=e.target.closest('[data-voice-path]');
   if (voiceBtn) {
     e.stopPropagation();
