@@ -212,6 +212,7 @@ const people = [
 ];
 const mingConnectionProfiles = new Map();
 let mingDiscoverPeople = [];
+let mingNearbyActivities = [];
 let mingLocationPublishKey = '';
 const byId = id => people.find(p => p.id === id) || mingDiscoverPeople.find(p => p.id === id) || mingConnectionProfiles.get(id) || null;
 
@@ -1302,7 +1303,7 @@ async function deleteMingDailyUpdate(id) {
   return true;
 }
 
-async function createUpdate(kind, title, body) {
+async function createUpdate(kind, title, body, activityMeta = null) {
   if (!isUuidPerson(currentUser.id)) {
     toast('Please sign in again.', 'alert');
     return false;
@@ -1316,15 +1317,37 @@ async function createUpdate(kind, title, body) {
     return false;
   }
 
+  const insertRow = {
+    author_id: currentUser.id,
+    kind: KINDS[kind] ? kind : 'general',
+    title: cleanTitle,
+    body: cleanBody || 'No extra details.'
+  };
+
+  if (kind === 'activity') {
+    if (!activityMeta?.startsAt || !activityMeta?.place) {
+      toast('Add a time and place for the activity.', 'alert');
+      return false;
+    }
+    if (!Number.isFinite(Number(activityMeta.latitude)) || !Number.isFinite(Number(activityMeta.longitude))) {
+      toast('Enable location before starting an activity.', 'pin');
+      return false;
+    }
+    const startsAt = new Date(activityMeta.startsAt);
+    if (Number.isNaN(startsAt.getTime()) || startsAt.getTime() <= Date.now()) {
+      toast('Choose a future time for the activity.', 'clock');
+      return false;
+    }
+    insertRow.activity_starts_at = startsAt.toISOString();
+    insertRow.activity_place = String(activityMeta.place).trim();
+    insertRow.activity_latitude = Number(activityMeta.latitude.toFixed(7));
+    insertRow.activity_longitude = Number(activityMeta.longitude.toFixed(7));
+  }
+
   const { data: row, error } = await supabaseClient
     .from('daily_updates')
-    .insert({
-      author_id: currentUser.id,
-      kind: KINDS[kind] ? kind : 'general',
-      title: cleanTitle,
-      body: cleanBody || 'No extra details.'
-    })
-    .select('id, kind, title, body, created_at')
+    .insert(insertRow)
+    .select('id, kind, title, body, created_at, activity_starts_at, activity_place')
     .single();
 
   if (error) {
@@ -1343,7 +1366,9 @@ async function createUpdate(kind, title, body) {
     likes: 0,
     liked: false,
     comments: [],
-    commentsCount: 0
+    commentsCount: 0,
+    startsAt: row.activity_starts_at ? new Date(row.activity_starts_at).getTime() : null,
+    place: row.activity_place || ''
   });
 
   rerenderFeeds();
@@ -1516,11 +1541,82 @@ function renderDiscover() {
 /* ------------------------------------------------------------
    NEARBY
 ------------------------------------------------------------ */
+async function loadMingNearbyActivities(radiusKm = state.radius) {
+  mingNearbyActivities = [];
+  if (!hasLocation()) return false;
+
+  try {
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError || !session?.user) return false;
+
+    const { data, error } = await supabaseClient.rpc('get_nearby_activities', {
+      p_latitude: Number(state.userLocation.latitude.toFixed(7)),
+      p_longitude: Number(state.userLocation.longitude.toFixed(7)),
+      p_radius_km: Number(radiusKm)
+    });
+
+    if (error) {
+      console.warn('Ming: Nearby activities could not be loaded.', error.message);
+      return false;
+    }
+
+    mingNearbyActivities = (data || []).map(row => {
+      const name = row.author_display_name || 'Ming user';
+      const seed = String(row.author_id || '') + ':' + name;
+      let hue = 0;
+      for (let i = 0; i < seed.length; i++) hue = (hue * 31 + seed.charCodeAt(i)) % 360;
+
+      const person = {
+        id: row.author_id,
+        name,
+        short: name.split(' ')[0] || name,
+        hue,
+        tag: row.author_headline || 'Ming member',
+        interests: [],
+        bio: row.author_bio || '',
+        avatarUrl: row.author_avatar_url || '',
+        username: row.author_username ? '@' + row.author_username.replace(/^@/, '') : '',
+        activity: row.author_activity || '',
+        status: 'on',
+        visitor: false,
+        km: Number(row.distance_km),
+        bearingDeg: row.bearing_deg == null ? null : Number(row.bearing_deg),
+        off: null
+      };
+      mingConnectionProfiles.set(person.id, person);
+
+      const startsAt = row.starts_at ? new Date(row.starts_at).getTime() : null;
+      return {
+        id: row.id,
+        authorId: row.author_id,
+        title: row.title,
+        body: row.body || '',
+        createdAt: new Date(row.created_at).getTime(),
+        startsAt,
+        hour: startsAt ? new Date(startsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '',
+        day: startsAt ? new Date(startsAt).toLocaleDateString([], { weekday: 'long' }) : '',
+        place: row.place || 'Nearby',
+        going: Number(row.going || 0),
+        km: Number(row.distance_km),
+        bearingDeg: row.bearing_deg == null ? null : Number(row.bearing_deg)
+      };
+    });
+
+    return true;
+  } catch (error) {
+    console.warn('Ming: Nearby activity load failed.', error);
+    return false;
+  }
+}
+
 async function loadNearby() {
   state.loaded.nearby = true;
   if (hasLocation()) {
     await publishMingApproxLocation();
     await loadMingDiscoverableProfiles(state.radius);
+    await loadMingNearbyActivities(state.radius);
+  } else {
+    mingNearbyActivities = [];
   }
   $('#nearby-body').innerHTML = `<div style="margin:0 18px"><div class="sk" style="height:330px;border-radius:var(--r-xl)"></div></div>` + skeletonCards(2);
   await sleep(640);
@@ -1548,7 +1644,7 @@ function renderNearby() {
   }
 
   const inRange = mingDiscoverPeople.filter(p => p.km !== null && p.km <= state.radius).sort((a, b) => a.km - b.km);
-  const actPins = activities.filter(a => a.km !== null && a.km <= state.radius).slice(0, 2);
+  const actPins = mingNearbyActivities.filter(a => a.km !== null && a.km <= state.radius).slice(0, 2);
   /* Pin positions come from the offset between two coordinates — a picture of
      relative bearing, never a published coordinate. */
   const mapPos = o => {
@@ -1614,7 +1710,7 @@ function renderNearby() {
     </div>
 
     <div class="section">${sectionHead('Activity nearby', 'Next few days')}
-      ${activities.filter(a => a.km !== null && a.km <= state.radius).map(a => `
+      ${mingNearbyActivities.filter(a => a.km !== null && a.km <= state.radius).map(a => `
         <button class="acard" data-action="activity:${a.id}">
           <div class="when"><div class="h">${esc(a.hour)}</div><div class="d">${esc(a.day)}</div></div>
           <div class="info"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.place)} · ${a.going} going</div></div>
@@ -1628,7 +1724,12 @@ function renderNearby() {
       state.radius = parseFloat(e.target.value);
       $('#radius-val').textContent = state.radius + ' km';
     });
-    slider.addEventListener('change', () => renderNearby());
+    slider.addEventListener('change', async () => {
+      if (!hasLocation()) return renderNearby();
+      await loadMingDiscoverableProfiles(state.radius);
+      await loadMingNearbyActivities(state.radius);
+      renderNearby();
+    });
   }
 }
 
@@ -3895,6 +3996,10 @@ function openComposer(type) {
       <div class="field"><label for="nu-body">Details</label>
         <textarea id="nu-body" maxlength="280" placeholder="A couple of lines is plenty."></textarea>
         <div class="count"><span id="nu-count">0</span>/280</div></div>
+      ${type === 'activity' ? `<div class="field"><label for="nu-when">When</label>
+        <input id="nu-when" type="datetime-local" /></div>
+      <div class="field"><label for="nu-place">Place</label>
+        <input id="nu-place" type="text" maxlength="100" placeholder="The five-a-side pitch" /></div>` : ''}
       ${preset.kinds.length > 1 ? `<div class="field"><label>Category</label>
         <div class="pick" id="nu-kinds">${preset.kinds.map(k => `
           <button type="button" data-kind="${k}" aria-pressed="${k === preset.kind}">${KINDS[k].label}</button>`).join('')}</div></div>` : ''}
@@ -3903,9 +4008,29 @@ function openComposer(type) {
   });
 
   const title = $('#nu-title'), body = $('#nu-body'), post = $('#nu-post');
-  const validate = () => { post.disabled = title.value.trim().length < 3; };
+  const whenInput = $('#nu-when'), placeInput = $('#nu-place');
+
+  if (whenInput) {
+    const defaultWhen = new Date(Date.now() + 60 * 60 * 1000);
+    defaultWhen.setSeconds(0, 0);
+    const offset = defaultWhen.getTimezoneOffset();
+    const localWhen = new Date(defaultWhen.getTime() - offset * 60000);
+    whenInput.value = localWhen.toISOString().slice(0, 16);
+  }
+
+  const validate = () => {
+    const titleOk = title.value.trim().length >= 3;
+    const activityOk = !whenInput || (
+      whenInput.value &&
+      placeInput.value.trim().length >= 2 &&
+      new Date(whenInput.value).getTime() > Date.now()
+    );
+    post.disabled = !(titleOk && activityOk);
+  };
   title.addEventListener('input', validate);
-  body.addEventListener('input', () => { $('#nu-count').textContent = body.value.length; });
+  body.addEventListener('input', () => { $('#nu-count').textContent = body.value.length; validate(); });
+  if (whenInput) whenInput.addEventListener('input', validate);
+  if (placeInput) placeInput.addEventListener('input', validate);
   const kindsBox = $('#nu-kinds');
   if (kindsBox) {
     kindsBox.addEventListener('click', e => {
@@ -3915,15 +4040,33 @@ function openComposer(type) {
       state.sheetCtx.kind = b.dataset.kind;
     });
   }
-  post.addEventListener('click', () => {
-    createUpdate(state.sheetCtx.kind, title.value.trim(), body.value.trim() || 'No extra details')
-      .then(ok => {
-        if (!ok) return;
-        closeSheet();
-        toast('Shared — it disappears in 24 hours', 'check');
-      });
+  post.addEventListener('click', async () => {
+    if (state.sheetCtx.kind === 'activity' && !hasLocation()) {
+      toast('Enable location before starting an activity.', 'pin');
+      return;
+    }
+
+    const activityMeta = whenInput ? {
+      startsAt: new Date(whenInput.value).toISOString(),
+      place: placeInput.value.trim(),
+      latitude: state.userLocation?.latitude,
+      longitude: state.userLocation?.longitude
+    } : null;
+
+    const kind = state.sheetCtx.kind;
+    const ok = await createUpdate(
+      kind,
+      title.value.trim(),
+      body.value.trim() || 'No extra details',
+      activityMeta
+    );
+    if (!ok) return;
+
+    closeSheet();
+    toast(kind === 'activity' ? 'Activity shared nearby' : 'Shared — it disappears in 24 hours', 'check');
+    if (state.tab === 'nearby') await loadNearby();
     if (state.tab !== 'home') setTab('home');
-    setTimeout(() => { $('#screen-home .scroll').scrollTo({ top: 260, behavior: 'smooth' }); }, 280);
+    setTimeout(() => { $('#screen-home .scroll')?.scrollTo({ top: 260, behavior: 'smooth' }); }, 280);
   });
   setTimeout(() => title.focus(), 260);
 }
@@ -3935,12 +4078,13 @@ function openActivitySheet(id) {
   if (!p) return;
   openSheet({
     title: a.title,
-    sub: timeAgo(a.createdAt) + ' · ' + a.going + ' going',
+    sub: (a.startsAt ? new Date(a.startsAt).toLocaleString([], { weekday: 'long', hour: 'numeric', minute: '2-digit' }) : timeAgo(a.createdAt)) + ' · ' + a.going + ' going',
     body: '<div style="display:flex;align-items:center;gap:12px;padding:6px 0 14px">' +
       avatar(p, 44) +
       '<div style="flex:1"><div style="font-size:14.5px;font-weight:560">' + esc(p.short) + ' shared this activity</div>' +
       '<div style="font-size:12.5px;color:var(--muted)">' + esc(p.km == null ? 'Local activity' : distLabel(p.km)) + '</div></div></div>' +
       '<p style="font-size:14px;line-height:1.55;color:#4A3B32">' + esc(a.body || 'Activity shared on Ming.') + '</p>' +
+      '<div style="font-size:13px;color:var(--muted);margin-top:10px">' + esc(a.place || 'Nearby') + ' · ' + esc(a.startsAt ? new Date(a.startsAt).toLocaleString([], { weekday: 'long', hour: 'numeric', minute: '2-digit' }) : 'Time not set') + '</div>' +
       '<div class="privacy-note" style="margin:16px 0 0">' + icon('shield') + '<p>Exact meeting details should be shared privately after people connect or join.</p></div>',
     foot: '<div style="display:flex;gap:10px"><button class="btn btn--primary" style="flex:1" data-action="join:' + a.id + '">' +
       (a.joined ? 'Joined' : 'Join') + '</button><button class="btn btn--soft" style="flex:1" data-action="person:' + p.id + '">View host</button></div>'
@@ -4947,13 +5091,7 @@ if ($('#refresh-nearby')) {
       return;
     }
 
-    $('#nearby-body').innerHTML =
-      `<div style="margin:0 18px">
-        <div class="sk" style="height:330px;border-radius:var(--r-xl)"></div>
-      </div>` + skeletonCards(1);
-
-    await sleep(520);
-    renderNearby();
+    await loadNearby();
     toast('Nearby refreshed', 'layers');
   });
 }
