@@ -348,8 +348,10 @@ img { display: block; max-width: 100%; }
   top: 9px; right: 10px;
   width: 8px; height: 8px;
   border-radius: 50%;
-  background: var(--burgundy);
+  background: #c83b4f;
   border: 2px solid var(--bg);
+  box-shadow: 0 0 0 2px rgba(200,59,79,.10), 0 0 12px rgba(200,59,79,.72);
+  animation: mingNotifDotGlow 1.8s ease-in-out infinite;
 }
 .icon-btn .dot[hidden] { display: none; }
 
@@ -3528,6 +3530,11 @@ html.theme-transitioning *::after {
   50% { transform:translateX(5px); }
 }
 
+
+@keyframes mingNotifDotGlow {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(200,59,79,.10), 0 0 9px rgba(200,59,79,.55); }
+  50% { box-shadow: 0 0 0 3px rgba(200,59,79,.16), 0 0 16px rgba(200,59,79,.88); }
+}
 
 /* ------------------------------------------------------------
    MING NOTIFICATION POPUPS
