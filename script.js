@@ -1745,6 +1745,13 @@ async function ensureCallPeerChannel(targetId, callId = null) {
     config: { private: true, broadcast: { self: false, ack: false } }
   });
 
+  // Listen for answer, ICE, hangup, decline, and other per-call signaling.
+  channel.on('broadcast', { event: 'call' }, ({ payload }) => {
+    handleMingCallSignal(payload).catch(error => {
+      console.warn('Ming: call peer signal handling failed.', error);
+    });
+  });
+
   mingCallPeerChannel = channel;
   mingCallPeerId = topic;
   mingCallPeerSubscribed = false;
