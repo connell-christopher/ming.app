@@ -7361,103 +7361,17 @@ function renderHomeSpaces() {
 }
 
 /* ============================================================
-   SEED — demo content only. Written through the seeding hook so
-   the UI never touches db directly.
+   REAL SPACES ONLY
+   No demo Spaces, members, posts, products, orders or fake balances
+   are injected here. The Spaces UI renders only data that exists in
+   the active backend/session.
 ============================================================ */
-Server._seed(async (db, helpers) => {
-  const mk = (space, members) => {
-    db.spaces.push(space);
-    db.members.push({ spaceId: space.id, userId: currentUser.id, role: members.me, joinedAt: Date.now() - 6 * 864e5, approved: true });
-    members.others.forEach(([uid, role, days]) =>
-      db.members.push({ spaceId: space.id, userId: uid, role, joinedAt: Date.now() - days * 864e5, approved: true }));
-  };
-  const base = { privacy: 'private', requireApproval: false, maxMembers: null, locationLinked: false, expiresAt: null, features: {}, ownerId: currentUser.id };
-
-  mk({ ...base, id: 'sp_circle', name: 'The Circle', description: 'Six people who have not shut up since 2019.', nature: 'friendly', hue: null, createdAt: Date.now() - 40 * 864e5 },
-    { me: 'owner', others: [['p1', 'moderator', 38], ['p4', 'member', 30], ['p7', 'member', 22], ['p3', 'member', 9]] });
-
-  mk({ ...base, id: 'sp_northline', name: 'Northline Studio', description: 'Client work, in one place.', nature: 'business', hue: 215, createdAt: Date.now() - 120 * 864e5 },
-    { me: 'owner', others: [['p2', 'admin', 110], ['p1', 'manager', 90], ['p5', 'member', 40]] });
-
-  mk({ ...base, id: 'sp_market', name: 'The Corner Market', description: 'Buy and sell with people you can actually find.', nature: 'marketplace', hue: 150, locationLinked: true, createdAt: Date.now() - 60 * 864e5 },
-    { me: 'buyer', others: [['p7', 'owner', 60], ['p9', 'seller', 50], ['p3', 'seller', 30], ['p2', 'moderator', 55]] });
-
-  const C = (spaceId, kind, authorId, at, payload) =>
-    db.content.push({ id: 'c_' + Math.random().toString(36).slice(2, 8), spaceId, kind, authorId, at, ...payload });
-
-  /* friendly */
-  C('sp_circle', 'moment', 'p4', Date.now() - 3 * 36e5, { text: 'Won 4–3. Two of those were mine and I will be saying so all week.', hue: 148, reacts: { love: 3, ha: 5 }, mine: {} });
-  C('sp_circle', 'moment', 'p7', Date.now() - 9 * 36e5, { text: 'New beans. Come and take some before I drink all of it.', hue: 26, reacts: { love: 4 }, mine: {} });
-  C('sp_circle', 'poll', 'p1', Date.now() - 5 * 36e5, { question: 'Saturday: the lake or the market?', options: [{ t: 'Lake, early', votes: 3 }, { t: 'Market, late', votes: 2 }], voted: null });
-  C('sp_circle', 'event', 'p1', Date.now() - 20 * 36e5, { title: 'Birthday, the small version', where: "Chidi's place", time: '8pm', day: '19', month: 'Sep', going: false });
-
-  /* business */
-  C('sp_northline', 'announcement', 'p2', Date.now() - 26 * 36e5, { title: 'Q4 client review moved to Thursday', body: 'The deck needs the new numbers before Wednesday evening. Ibrahim has the template.', pinned: true });
-  C('sp_northline', 'task', currentUser.id, Date.now() - 40 * 36e5, { title: 'Threat model for the payments flow', owner: 'You', due: 'Friday', done: false });
-  C('sp_northline', 'task', 'p2', Date.now() - 60 * 36e5, { title: 'Migrate staging to the new region', owner: 'Ibrahim', due: 'Next week', done: false });
-  C('sp_northline', 'task', 'p1', Date.now() - 90 * 36e5, { title: 'Brand pass on the onboarding screens', owner: 'Maya', due: 'Done', done: true });
-  C('sp_northline', 'opportunity', 'p2', Date.now() - 100 * 36e5, { title: 'Contract front-end, six weeks', body: 'Someone comfortable in vanilla JS and picky about spacing.' });
-  C('sp_northline', 'doc', 'p1', Date.now() - 200 * 36e5, { title: 'Brand guidelines v4', meta: 'Maya · updated 3 days ago' });
-  C('sp_northline', 'doc', 'p2', Date.now() - 300 * 36e5, { title: 'Incident runbook', meta: 'Ibrahim · updated last month' });
-
-  /* marketplace */
-  const P = (sellerId, title, price, condition, category, handover, description, hue, days) =>
-    db.products.push({
-      id: 'pr_' + Math.random().toString(36).slice(2, 8), spaceId: 'sp_market', sellerId, title, price,
-      asset: 'USDT', condition, category, handover, description, qty: 1, hue,
-      createdAt: Date.now() - days * 864e5, status: 'listed'
-    });
-  P('p9', 'Oak side table', 140, 'New', 'Home', 'Pickup', 'Made last month from a single board. Small knot on the underside, otherwise clean. Comes oiled.', 34, 2);
-  P('p3', 'Canon AE-1 with 50mm', 250, 'Used', 'Electronics', 'Either', 'Shutter accurate, light seals replaced in June. Two small marks on the body, shown in photos. Includes a strap and one roll of film.', 210, 5);
-  P('p7', 'Hand grinder', 48, 'Like new', 'Home', 'Pickup', 'Used for about two months before I upgraded. Burrs are sharp, no wobble.', 22, 1);
-  P('p9', 'Bookshelf, two metres', 190, 'New', 'Home', 'Delivery', 'Five shelves, pine, finished in a dark wax. I deliver within the city.', 120, 8);
-  P('p3', 'Studio lighting, half day', 60, 'New', 'Services', 'Pickup', 'Two softboxes and a stand, plus me to set them up if you want.', 280, 3);
-
-  /* a completed sale and a live dispute, so the escrow states are visible */
-  helpers.ledger(currentUser.id, 'USDT', 'opening', 1240, null, 'Development balance');
-  helpers.account(currentUser.id, 'USDT').available = 1240;
-  helpers.ledger(currentUser.id, 'BTC', 'opening', 0.0412, null, 'Development balance');
-  helpers.account(currentUser.id, 'BTC').available = 0.0412;
-  helpers.account('p9', 'USDT').available = 320;
-  helpers.account('p3', 'USDT').available = 85;
-
-  await helpers.issueInvite('sp_circle', { ttlHours: 24 });
-  await helpers.issueInvite('sp_northline', { ttlHours: 168 });
-  await helpers.issueInvite('sp_market', { ttlHours: null, maxUses: 50 });
-
-  db.audit.push(Object.freeze({ id: 'au_seed', spaceId: 'sp_northline', actor: 'p2', event: 'space.created', meta: {}, at: Date.now() - 120 * 864e5 }));
-});
-
 renderHomeSpaces();
 
-/* One in-flight order so the lifecycle is not an empty screen. */
-(async () => {
-  const cam = Server.db.products.find(p => p.title.startsWith('Canon'));
-  const res = await Server.submit('order.create', { productId: cam.id, idempotencyKey: 'seed_1' });
-  if (res.ok) {
-    await Server.submit('order.transition', { orderId: res.data.order.id, transition: 'fund' });
-    await Server.submit('order.transition', { orderId: res.data.order.id, transition: 'seller_confirm' });
-  }
-})();
-
 function seedNewSpace(space) {
-  /* A new Space is not empty on arrival: one prompt or starter row that
-     matches its nature, written through the same server action a user would. */
-  const starters = {
-    silly: () => Server.submit('space.post', { spaceId: space.id, kind: 'prompt', payload: { title: 'What is the worst thing you have ever eaten on purpose?' } }),
-    romantic: () => Server.submit('space.post', { spaceId: space.id, kind: 'list', payload: { title: 'Places to go', items: [{ t: 'The hill, before seven', done: false }] } }),
-    casual: () => Server.submit('space.post', { spaceId: space.id, kind: 'meet', payload: { title: 'Set a meeting point' } })
-  };
-  if (starters[space.nature]) starters[space.nature]();
+  /* Intentionally empty: new Spaces start with no fabricated content. */
+  return space;
 }
-
-
-
-
-
-
-
-
 
 
 
