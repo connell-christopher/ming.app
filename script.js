@@ -6677,6 +6677,12 @@ function openWizard(nature = null) {
     locationLinked: false, ttlDays: null,
     features: {}
   };
+  if (nature === 'business') sp.wizard.maxMembers = 100;
+  if (nature === 'friendly') sp.wizard.maxMembers = 50;
+  if (nature === 'casual') { sp.wizard.maxMembers = 30; sp.wizard.ttlDays = 1; }
+  if (nature === 'silly') sp.wizard.maxMembers = 40;
+  if (nature === 'romantic') { sp.wizard.maxMembers = 2; sp.wizard.privacy = 'private'; sp.wizard.requireApproval = true; }
+  if (nature === 'marketplace') sp.wizard.maxMembers = 100;
   renderWizard();
   pushStack('createspace');
 }
@@ -6701,7 +6707,17 @@ function renderWizard() {
 
 function wzValid(step, w) {
   if (step === 'nature') return !!w.nature;
-  if (step === 'identity') return w.name.trim().length >= 2;
+  if (step === 'identity') {
+    const nameOk = w.name.trim().length >= 2;
+    const descriptionRequired = ['business','marketplace'].includes(w.nature);
+    const descriptionOk = !descriptionRequired || w.description.trim().length >= 8;
+    return nameOk && descriptionOk;
+  }
+  if (step === 'members') {
+    if (w.nature === 'romantic') return Number(w.maxMembers || 2) <= 2;
+    if (w.nature === 'casual') return Number(w.ttlDays || 0) >= 1 && Number(w.ttlDays || 0) <= 30;
+    return !w.maxMembers || Number(w.maxMembers) > 0;
+  }
   return true;
 }
 
