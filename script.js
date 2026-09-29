@@ -5192,6 +5192,10 @@ async function boot() {
 
   // The profile still gates the first authenticated render as before.
   await mingProfileReady;
+  if (typeof Server !== 'undefined') {
+    Server.session.userId = currentUser.id;
+    await Server.load();
+  }
   await loadMingNotifications();
   await loadMingDailyUpdates();
   startMingCallInbox();
@@ -5511,6 +5515,96 @@ const Server = (() => {
     }
   }
 
+  async function load() {
+    session.userId = currentUser.id;
+    if (!isUuidPerson(session.userId)) return false;
+
+    const { data, error } = await supabaseClient.rpc('get_my_ming_spaces');
+    if (error) {
+      console.warn('Ming: Spaces database load failed.', error.message);
+      return false;
+    }
+
+    db.spaces = [];
+    db.members = [];
+    db.invites = [];
+
+    (data || []).forEach(row => {
+      if (!db.spaces.some(s => s.id === row.space_id)) {
+        db.spaces.push({
+          id: row.space_id,
+          name: row.name,
+          description: row.description || '',
+          nature: row.nature,
+          privacy: row.privacy,
+          discoverable: !!row.discoverable,
+          requireApproval: !!row.require_approval,
+          maxMembers: row.max_members ?? null,
+          hue: row.hue ?? null,
+          locationLinked: !!row.location_linked,
+          expiresAt: row.expires_at ? new Date(row.expires_at).getTime() : null,
+          features: row.features || {},
+          ownerId: row.owner_id,
+          createdAt: new Date(row.created_at).getTime()
+        });
+      }
+
+      db.members.push({
+        spaceId: row.space_id,
+        userId: row.member_id,
+        role: row.member_role,
+        joinedAt: new Date(row.member_joined_at).getTime(),
+        approved: row.member_approved !== false
+      });
+
+      if (row.invite_id && !db.invites.some(i => i.spaceId === row.space_id)) {
+        db.invites.push({
+          id: row.invite_id,
+          spaceId: row.space_id,
+          codeHash: row.invite_code_hash,
+          hint: row.invite_hint,
+          createdAt: new Date(row.invite_created_at).getTime(),
+          expiresAt: row.invite_expires_at ? new Date(row.invite_expires_at).getTime() : null,
+          maxUses: row.invite_max_uses ?? null,
+          uses: row.invite_uses || 0,
+          revoked: !!row.invite_revoked,
+          version: row.invite_version || 1
+        });
+      }
+    });
+
+    const memberIds = [...new Set(db.members.map(m => m.userId).filter(id => id && id !== currentUser.id))];
+    if (memberIds.length) {
+      const { data: profiles, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('id, username, display_name, avatar_url, bio, headline, interests, tags, activity')
+        .in('id', memberIds);
+
+      if (!profileError) {
+        (profiles || []).forEach(profile => {
+          const displayName = profile.display_name || '';
+          mingConnectionProfiles.set(profile.id, {
+            id: profile.id,
+            name: displayName,
+            short: displayName.split(' ')[0] || '',
+            username: profile.username ? '@' + profile.username.replace(/^@/, '') : '',
+            avatarUrl: profile.avatar_url || '',
+            bio: profile.bio || '',
+            tag: profile.headline || '',
+            interests: Array.isArray(profile.interests) ? profile.interests : [],
+            tags: Array.isArray(profile.tags) ? profile.tags : [],
+            activity: profile.activity || '',
+            hue: 0,
+            status: null,
+            visitor: false
+          });
+        });
+      }
+    }
+
+    return true;
+  }
+
   /* ---- the single entry point ---- */
   async function submit(action, p = {}) {
     const deny = msg => ({ ok: false, error: msg });
@@ -5520,27 +5614,76 @@ const Server = (() => {
       case 'space.create': {
         if (!p.name || p.name.trim().length < 2) return deny('A Space needs a name.');
         if (!ROLE_SETS[p.nature]) return deny('Unknown Space nature.');
-        const space = {
-          id: 'sp_' + Math.random().toString(36).slice(2, 9),
-          name: p.name.trim(),
-          description: (p.description || '').trim(),
-          nature: p.nature,
-          privacy: p.privacy || 'private',
-          discoverable: p.privacy === 'discoverable',
-          requireApproval: !!p.requireApproval,
-          maxMembers: p.maxMembers || null,
-          hue: p.hue,
-          locationLinked: !!p.locationLinked,
-          expiresAt: p.ttlDays ? Date.now() + p.ttlDays * 864e5 : null,
-          features: p.features || {},
-          ownerId: session.userId,
-          createdAt: Date.now()
-        };
-        db.spaces.push(space);
-        db.members.push({ spaceId: space.id, userId: session.userId, role: 'owner', joinedAt: Date.now(), approved: true });
-        audit(space.id, 'space.created', { nature: space.nature });
-        const inv = await issueInvite(space.id, { ttlHours: p.inviteTtlHours, maxUses: p.inviteMaxUses });
-        return { ok: true, data: { space, code: inv.code } };
+        if (!session.userId || !isUuidPerson(session.userId)) return deny('Please sign in again.');
+
+        const { data, error } = await supabaseClient.rpc('create_ming_space', {
+          p_name: p.name.trim(),
+          p_description: (p.description || '').trim(),
+          p_nature: p.nature,
+          p_privacy: p.privacy || 'private',
+          p_require_approval: !!p.requireApproval,
+          p_max_members: p.maxMembers || null,
+          p_hue: p.hue ?? null,
+          p_location_linked: !!p.locationLinked,
+          p_expires_at: p.ttlDays ? new Date(Date.now() + p.ttlDays * 864e5).toISOString() : null,
+          p_features: p.features || {},
+          p_invite_ttl_hours: p.inviteTtlHours || null,
+          p_invite_max_uses: p.inviteMaxUses || null
+        });
+
+        if (error) {
+          console.warn('Ming: Space creation failed.', error.message);
+          return deny(error.message || 'Could not create this Space.');
+        }
+
+        const space = data?.space;
+        const member = data?.member;
+        const invite = data?.invite;
+        if (!space || !member) return deny('The Space was not returned by the database.');
+
+        db.spaces = db.spaces.filter(s => s.id !== space.id);
+        db.spaces.push({
+          id: space.id,
+          name: space.name,
+          description: space.description || '',
+          nature: space.nature,
+          privacy: space.privacy,
+          discoverable: !!space.discoverable,
+          requireApproval: !!space.requireApproval,
+          maxMembers: space.maxMembers ?? null,
+          hue: space.hue ?? null,
+          locationLinked: !!space.locationLinked,
+          expiresAt: space.expiresAt ? new Date(space.expiresAt).getTime() : null,
+          features: space.features || {},
+          ownerId: space.ownerId,
+          createdAt: new Date(space.createdAt).getTime()
+        });
+
+        db.members = db.members.filter(m => !(m.spaceId === member.spaceId && m.userId === member.userId));
+        db.members.push({
+          spaceId: member.spaceId,
+          userId: member.userId,
+          role: member.role,
+          joinedAt: new Date(member.joinedAt).getTime(),
+          approved: member.approved !== false
+        });
+
+        if (invite) {
+          db.invites = db.invites.filter(i => i.spaceId !== space.id);
+          db.invites.push({
+            spaceId: space.id,
+            codeHash: invite.codeHash,
+            hint: invite.hint,
+            createdAt: new Date(invite.createdAt).getTime(),
+            expiresAt: invite.expiresAt ? new Date(invite.expiresAt).getTime() : null,
+            maxUses: invite.maxUses ?? null,
+            uses: invite.uses || 0,
+            revoked: !!invite.revoked,
+            version: invite.version || 1
+          });
+        }
+
+        return { ok: true, data: { space: db.spaces.find(s => s.id === space.id), code: data.code } };
       }
 
       case 'space.invite.rotate': {
@@ -5549,7 +5692,18 @@ const Server = (() => {
         return { ok: true, data: { code: inv.code, invite: inv.invite } };
       }
 
-      case 'space.join': return redeemInvite(p.code || '');
+      case 'space.join': {
+        if (!session.userId || !isUuidPerson(session.userId)) return deny('Please sign in again.');
+        const { data, error } = await supabaseClient.rpc('redeem_ming_space_invite', { p_code: p.code || '' });
+        if (error) {
+          console.warn('Ming: Space join failed.', error.message);
+          return deny(error.message || 'That invitation could not be used.');
+        }
+        const joined = data;
+        if (!joined?.id) return deny('The Space could not be loaded.');
+        await loadSpacesFromDatabase();
+        return { ok: true, data: { space: spaceById(joined.id) || joined } };
+      }
 
       case 'space.member.role': {
         if (!can(p.spaceId, 'space.member.role')) return deny('You cannot change roles here.');
@@ -5718,7 +5872,7 @@ const Server = (() => {
   }
 
   return {
-    db, session, submit, can, roleOf, memberCount,
+    db, session, load, submit, can, roleOf, memberCount,
     ROLE_SETS, RANK, ORDER_FLOW, TERMINAL, partyOf,
     account, ledger,
     orderEvents: id => db.orderEvents.filter(e => e.orderId === id),
@@ -5825,6 +5979,12 @@ const sp = {
 };
 
 const spaceById = id => Server.db.spaces.find(s => s.id === id);
+
+async function loadSpacesFromDatabase() {
+  if (typeof Server !== 'undefined' && Server.load) {
+    await Server.load();
+  }
+}
 const mySpaces = () => Server.db.members
   .filter(m => m.userId === Server.session.userId)
   .map(m => spaceById(m.spaceId))
@@ -5835,11 +5995,26 @@ const money = (n, asset = 'USDT') => (asset === 'BTC' ? n.toFixed(5) : n.toFixed
 
 function nameOf(userId) {
   if (userId === currentUser.id) return 'You';
-  const p = byId(userId);
-  return p ? p.short : 'Someone';
+  const p = mingConnectionProfiles.get(userId);
+  return p?.short || p?.name || '';
 }
 function personOf(userId) {
-  return userId === currentUser.id ? currentUser : (byId(userId) || currentUser);
+  if (userId === currentUser.id) return currentUser;
+  return mingConnectionProfiles.get(userId) || {
+    id: userId,
+    name: '',
+    short: '',
+    username: '',
+    avatarUrl: '',
+    bio: '',
+    tag: '',
+    interests: [],
+    tags: [],
+    activity: '',
+    hue: 0,
+    status: null,
+    visitor: false
+  };
 }
 
 /* ============================================================
@@ -6217,7 +6392,7 @@ $('#wz-next').addEventListener('click', async () => {
   });
   if (!res.ok) { toast(res.error, 'x'); return; }
   sp.shownCodes[res.data.space.id] = res.data.code;
-  seedNewSpace(res.data.space);
+  /* Space content starts empty; nothing is fabricated after creation. */
   popStack();
   renderSpaces();
   toast('Space created', 'check');
