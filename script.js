@@ -6030,6 +6030,7 @@ const Server = (() => {
           locationLinked: !!row.location_linked,
           expiresAt: row.expires_at ? new Date(row.expires_at).getTime() : null,
           features: row.features || {},
+          theme: row.theme || (row.features && row.features.theme) || null,
           ownerId: row.owner_id,
           createdAt: new Date(row.created_at).getTime()
         });
@@ -6059,6 +6060,10 @@ const Server = (() => {
       }
     });
 
+    const { data: contentRows } = await supabaseClient.rpc('get_my_ming_space_content');
+    db.content = (contentRows || []).map(row => ({ id: row.id, spaceId: row.space_id, kind: row.kind, authorId: row.author_id, at: new Date(row.created_at).getTime(), updatedAt: new Date(row.updated_at).getTime(), ...(row.payload || {}) }));
+    const { data: productRows } = await supabaseClient.rpc('get_my_ming_space_products');
+    db.products = (productRows || []).map(row => ({ id: row.id, spaceId: row.space_id, sellerId: row.seller_id, title: row.title, price: Number(row.price), asset: row.asset, condition: row.condition, category: row.category, qty: row.qty, handover: row.handover, description: row.description, media: row.media || [], auction: row.auction || {}, createdAt: new Date(row.created_at).getTime(), status: row.status }));
     const memberIds = [...new Set(db.members.map(m => m.userId).filter(id => id && id !== currentUser.id))];
     if (memberIds.length) {
       const { data: profiles, error: profileError } = await supabaseClient
@@ -6112,7 +6117,7 @@ const Server = (() => {
           p_hue: p.hue ?? null,
           p_location_linked: !!p.locationLinked,
           p_expires_at: p.ttlDays ? new Date(Date.now() + p.ttlDays * 864e5).toISOString() : null,
-          p_features: p.features || {},
+          p_features: { ...(p.features || {}), theme: p.theme || p.features?.theme || null },
           p_invite_ttl_hours: p.inviteTtlHours || null,
           p_invite_max_uses: p.inviteMaxUses || null
         });
@@ -6141,6 +6146,7 @@ const Server = (() => {
           locationLinked: !!space.locationLinked,
           expiresAt: space.expiresAt ? new Date(space.expiresAt).getTime() : null,
           features: space.features || {},
+          theme: space.theme || (space.features && space.features.theme) || null,
           ownerId: space.ownerId,
           createdAt: new Date(space.createdAt).getTime()
         });
@@ -6174,8 +6180,22 @@ const Server = (() => {
 
       case 'space.invite.rotate': {
         if (!can(p.spaceId, 'space.invite.rotate')) return deny('Only owners and admins can regenerate the code.');
-        const inv = await issueInvite(p.spaceId, { ttlHours: p.ttlHours, maxUses: p.maxUses });
-        return { ok: true, data: { code: inv.code, invite: inv.invite } };
+        const { data, error } = await supabaseClient.rpc('rotate_ming_space_invite', {
+          p_space_id: p.spaceId,
+          p_ttl_hours: p.ttlHours ?? 24,
+          p_max_uses: p.maxUses ?? null
+        });
+        if (error) return deny(error.message || 'Could not regenerate the invitation.');
+        return { ok: true, data: data || {} };
+      }
+
+      case 'space.leave': {
+        if (!session.userId || !isUuidPerson(session.userId)) return deny('Please sign in again.');
+        const { error } = await supabaseClient.rpc('leave_ming_space', { p_space_id: p.spaceId });
+        if (error) return deny(error.message || 'Could not leave this Space.');
+        db.spaces = db.spaces.filter(x => x.id !== p.spaceId);
+        db.members = db.members.filter(x => x.spaceId !== p.spaceId || x.userId !== session.userId);
+        return { ok: true };
       }
 
       case 'space.delete': {
@@ -6218,11 +6238,13 @@ const Server = (() => {
 
       case 'space.post': {
         if (!can(p.spaceId, 'space.post')) return deny('You cannot post in this Space.');
-        const row = {
-          id: 'c_' + Math.random().toString(36).slice(2, 8),
-          spaceId: p.spaceId, kind: p.kind, authorId: session.userId,
-          at: Date.now(), ...p.payload
-        };
+        const { data: created, error } = await supabaseClient.rpc('create_ming_space_content', {
+          p_space_id: p.spaceId,
+          p_kind: p.kind,
+          p_payload: p.payload || {}
+        });
+        if (error) return deny(error.message || 'Could not save this Space content.');
+        const row = { id: created.id, spaceId: created.space_id, kind: created.kind, authorId: created.author_id, at: new Date(created.created_at).getTime(), ...(created.payload || {}) };
         db.content.unshift(row);
         audit(p.spaceId, 'content.created', { kind: p.kind });
         return { ok: true, data: { row } };
@@ -6250,19 +6272,28 @@ const Server = (() => {
         }
         if (p.op === 'listadd') row.items.push({ t: p.text, done: false });
         if (p.op === 'listtoggle') row.items[p.index].done = !row.items[p.index].done;
+        const payload = Object.fromEntries(Object.entries(row).filter(([k]) => !['id','spaceId','authorId','kind','at','updatedAt'].includes(k)));
+        const { error } = await supabaseClient.rpc('update_ming_space_content', { p_id: row.id, p_payload: payload });
+        if (error) return deny(error.message || 'Could not save the change.');
         return { ok: true, data: { row } };
       }
 
       case 'product.create': {
         if (!can(p.spaceId, 'product.create')) return deny('You need the seller role in this Space.');
         if (!(p.price > 0)) return deny('Price must be positive.');
+        const { data: created, error } = await supabaseClient.rpc('create_ming_space_product', {
+          p_space_id: p.spaceId, p_title: p.title, p_price: p.price,
+          p_condition: p.condition, p_category: p.category, p_handover: p.handover,
+          p_description: p.description || '', p_qty: p.qty || 1,
+          p_media: p.media || [], p_auction: p.auction || {}
+        });
+        if (error) return deny(error.message || 'Could not save this listing.');
         const row = {
-          id: 'pr_' + Math.random().toString(36).slice(2, 8),
-          spaceId: p.spaceId, sellerId: session.userId,
-          title: p.title, price: p.price, asset: 'USDT',
-          condition: p.condition, category: p.category,
-          qty: p.qty || 1, handover: p.handover, description: p.description,
-          hue: Math.floor(Math.random() * 360), createdAt: Date.now(), status: 'listed'
+          id: created.id, spaceId: created.space_id, sellerId: created.seller_id,
+          title: created.title, price: Number(created.price), asset: created.asset,
+          condition: created.condition, category: created.category, qty: created.qty,
+          handover: created.handover, description: created.description, media: created.media || [],
+          auction: created.auction || {}, createdAt: new Date(created.created_at).getTime(), status: created.status
         };
         db.products.unshift(row);
         audit(p.spaceId, 'product.listed', { id: row.id, price: row.price });
@@ -6731,7 +6762,7 @@ function openWizard(nature = null) {
     hue: null, maxMembers: null,
     inviteTtlHours: 24, inviteMaxUses: null,
     locationLinked: false, ttlDays: null,
-    features: {}
+    features: {}, theme: null
   };
   if (nature === 'business') sp.wizard.maxMembers = 100;
   if (nature === 'friendly') sp.wizard.maxMembers = 50;
@@ -7084,10 +7115,14 @@ const HEADERS = {
   marketplace: s => spBar(s, { meta: `Marketplace · ${Server.db.products.filter(p => p.spaceId === s.id && p.status === 'listed').length} listings` })
 };
 
+function spaceTheme(s) {
+  const fallback = NATURES[s.nature]?.palettes?.[0] || { name: 'Ming', colors: ['#14171D','#2A313A','#C5A572'] };
+  const raw = s?.theme || s?.features?.theme;
+  return raw && Array.isArray(raw.colors) && raw.colors.length === 3 ? raw : fallback;
+}
 function coverFor(s) {
-  return s.hue === null || s.hue === undefined
-    ? NATURES[s.nature].swatch
-    : `linear-gradient(140deg,hsl(${s.hue} 42% 74%),hsl(${(s.hue + 320) % 360} 38% 42%))`;
+  const theme = spaceTheme(s);
+  return `linear-gradient(140deg, ${theme.colors[0]}, ${theme.colors[1]} 58%, ${theme.colors[2]})`;
 }
 
 /* ============================================================
