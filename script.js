@@ -1730,45 +1730,10 @@ async function closeCallPeerChannel() {
 }
 
 async function ensureCallPeerChannel(targetId, callId = null) {
-  if (!isUuidPerson(targetId) || !isUuidPerson(currentUser.id)) return false;
-  const sessionCallId = callId || mingCall?.callId;
-  if (!sessionCallId) return false;
-  const topic = callSessionTopicFor(sessionCallId, currentUser.id, targetId);
-  if (mingCallPeerChannel && mingCallPeerId === topic && mingCallPeerSubscribed) return true;
-  await closeCallPeerChannel();
-
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (!session?.user) return false;
-  await supabaseClient.realtime.setAuth();
-
-  const channel = supabaseClient.channel(topic, {
-    config: { private: true, broadcast: { self: false, ack: false } }
-  });
-
-  // Listen for answer, ICE, hangup, decline, and other per-call signaling.
-  channel.on('broadcast', { event: 'call' }, ({ payload }) => {
-    handleMingCallSignal(payload).catch(error => {
-      console.warn('Ming: call peer signal handling failed.', error);
-    });
-  });
-
-  mingCallPeerChannel = channel;
-  mingCallPeerId = topic;
-  mingCallPeerSubscribed = false;
-
-  await new Promise(resolve => {
-    channel.subscribe((status, error) => {
-      if (status === 'SUBSCRIBED') {
-        mingCallPeerSubscribed = true;
-        resolve();
-      } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
-        console.warn('Ming: call peer channel failed.', status, error || '');
-        resolve();
-      }
-    });
-  });
-
-  return mingCallPeerSubscribed;
+  // Kept for compatibility with older call state. Call signaling now uses
+  // the recipient's private inbox exclusively, so a second per-call room
+  // cannot block negotiation.
+  return isUuidPerson(targetId) && isUuidPerson(currentUser.id) && !!(callId || mingCall?.callId);
 }
 
 async function sendCallInboxSignal(targetId, payload) {
@@ -1778,7 +1743,7 @@ async function sendCallInboxSignal(targetId, payload) {
 
   await supabaseClient.realtime.setAuth();
   const channel = supabaseClient.channel(callTopicFor(targetId), {
-    config: { private: true, broadcast: { self: false, ack: false } }
+    config: { private: true, broadcast: { self: false, ack: true } }
   });
 
   let subscribed = false;
@@ -1799,28 +1764,30 @@ async function sendCallInboxSignal(targetId, payload) {
     return false;
   }
 
-  const { error } = await channel.send({ type: 'broadcast', event: 'call', payload });
-  await supabaseClient.removeChannel(channel);
-  if (error) {
-    console.warn('Ming: call inbox signal failed.', error.message);
-    return false;
-  }
-  return true;
-}
-
-async function sendCallSignal(targetId, payload) {
-  if (payload?.type === 'offer') return sendCallInboxSignal(targetId, payload);
-  if (!(await ensureCallPeerChannel(targetId, payload?.callId)) || !mingCallPeerChannel) return false;
-  const { error } = await mingCallPeerChannel.send({
+  // With ack enabled, Supabase returns an explicit status. The old code
+  // destructured an error property that send() does not return, so failed
+  // private broadcasts could be mistaken for successful signaling.
+  const sendStatus = await channel.send({
     type: 'broadcast',
     event: 'call',
     payload
   });
-  if (error) {
-    console.warn('Ming: call signal failed.', error.message);
+
+  await supabaseClient.removeChannel(channel);
+
+  if (sendStatus !== 'ok') {
+    console.warn('Ming: call inbox signal was rejected.', sendStatus);
     return false;
   }
+
   return true;
+}
+
+async function sendCallSignal(targetId, payload) {
+  // All call signaling (offer, answer, ICE, hangup, decline, busy) uses
+  // the recipient's authenticated private inbox. This removes the fragile
+  // second per-call Realtime subscription from the negotiation path.
+  return sendCallInboxSignal(targetId, payload);
 }
 
 function urlBase64ToUint8Array(value) {
@@ -2120,8 +2087,6 @@ async function startMingCall(kind) {
     attachCallMedia(stream, kind);
     setCallStatus('Calling…');
 
-    if (!(await ensureCallPeerChannel(remoteId))) throw new Error('Call signaling unavailable.');
-
     const pc = setupCallPeer({ remoteId, callId, kind, role: 'caller' });
     mingCall.pc = pc;
     stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -2168,8 +2133,6 @@ async function acceptMingCall() {
     showCallOverlay({ active: true, kind: incoming.kind, personId: incoming.from });
     setCallStatus('Connecting…');
     attachCallMedia(stream, incoming.kind);
-
-    if (!(await ensureCallPeerChannel(incoming.from, incoming.callId))) throw new Error('Call signaling unavailable.');
 
     const pc = setupCallPeer({
       remoteId: incoming.from,
@@ -2296,7 +2259,7 @@ async function startMingCallInbox() {
 
   await supabaseClient.realtime.setAuth();
   const channel = supabaseClient.channel(callTopicFor(session.user.id), {
-    config: { private: true, broadcast: { self: false, ack: false } }
+    config: { private: true, broadcast: { self: false, ack: true } }
   });
   channel.on('broadcast', { event: 'call' }, ({ payload }) => {
     handleMingCallSignal(payload).catch(error => console.warn('Ming: call signal handling failed.', error));
