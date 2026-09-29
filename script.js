@@ -6267,7 +6267,9 @@ const Server = (() => {
         if (target.role === 'owner') return deny('The owner role cannot be reassigned here.');
         const space = db.spaces.find(s => s.id === p.spaceId);
         if (!ROLE_SETS[space.nature].includes(p.role)) return deny('That role does not exist in this Space.');
-        target.role = p.role;
+        const { data: updated, error } = await supabaseClient.rpc('set_ming_space_member_role', { p_space_id: p.spaceId, p_user_id: p.userId, p_role: p.role });
+        if (error) return deny(error.message || 'Could not change this role.');
+        target.role = updated.role;
         audit(p.spaceId, 'member.role_changed', { userId: p.userId, role: p.role });
         return { ok: true, data: { member: target } };
       }
