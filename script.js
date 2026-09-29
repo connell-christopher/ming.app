@@ -1937,6 +1937,7 @@ async function loadMingMessages() {
     });
 
     conversations = Array.from(byConversation.values());
+    updateProfileMessageUnreadBadge();
     return true;
   } catch (error) {
     console.warn('Ming: message load failed.', error);
@@ -2974,6 +2975,7 @@ async function subscribeMingMessages() {
         }
 
         if (state.loaded.messages) renderMessages();
+        updateProfileMessageUnreadBadge();
         void loadMingNotifications().then(() => updateNotifDot());
       }
     )
@@ -3668,7 +3670,11 @@ function renderProfile() {
     <div class="stats">
       <button data-action="go-connections"><div class="v">${connections.length}</div><div class="l">Connections</div></button>
       <button data-action="go-updates"><div class="v">${mine.length}</div><div class="l">Live updates</div></button>
-      <button data-action="go-messages"><div class="v">${conversations.reduce((n, c) => n + c.unread, 0)}</div><div class="l">Unread</div></button>
+      <button class="profile-messages-stat" data-action="go-messages">
+        <div class="v">${conversations.reduce((n, c) => n + c.unread, 0)}</div>
+        <span class="profile-message-unread-badge" id="profile-message-unread-badge" aria-label="Unread messages">${Math.min(99, conversations.reduce((n, c) => n + c.unread, 0))}</span>
+        <div class="l">Messages</div>
+      </button>
     </div>
     <div class="now">
       <div><div class="lbl">Right now</div><div class="val">${esc(currentUser.activity)}</div></div>
@@ -4033,6 +4039,14 @@ function updateNotifDot() {
   const unread = notifications.some(n => !n.read);
   $('#notif-dot').hidden = !unread;
 }
+function updateProfileMessageUnreadBadge() {
+  const badge = $('#profile-message-unread-badge');
+  if (!badge) return;
+  const unread = conversations.reduce((n, c) => n + (Number(c.unread) || 0), 0);
+  badge.textContent = unread > 99 ? '99+' : String(unread);
+  badge.hidden = unread === 0;
+}
+
 /* ------------------------------------------------------------
    MING NOTIFICATION POPUPS
 ------------------------------------------------------------ */
