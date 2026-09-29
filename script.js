@@ -3591,8 +3591,101 @@ function editProfile() {
    SEARCH
 ------------------------------------------------------------ */
 let searchTimer = null;
+let searchDataReady = false;
+let searchDataLoading = null;
+let searchPeople = [];
+let searchPlaces = [];
 
-function openSearch() {
+function mapSearchProfile(row) {
+  const name = row.display_name || 'Ming user';
+  const tags = Array.isArray(row.tags) ? row.tags : [];
+  const interests = Array.isArray(row.interests) ? row.interests : [];
+  let hue = 0;
+  const seed = row.id + ':' + name;
+  for (let i = 0; i < seed.length; i++) hue = (hue * 31 + seed.charCodeAt(i)) % 360;
+  return {
+    id: row.id, name, short: name.split(' ')[0] || name, hue,
+    tag: row.headline || tags.slice(0, 3).join(' · ') || 'Ming member',
+    tags, interests, bio: row.bio || '', avatarUrl: row.avatar_url || '',
+    username: row.username ? '@' + row.username.replace(/^@/, '') : '',
+    activity: row.activity || '', status: 'on', visitor: false,
+    km: row.distance_km == null ? null : Number(row.distance_km)
+  };
+}
+
+async function loadMingSearchData() {
+  if (searchDataLoading) return searchDataLoading;
+  searchDataLoading = (async () => {
+    try {
+      const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+      if (sessionError || !session?.user) return false;
+
+      const profilesPromise = supabaseClient.rpc('get_discoverable_profiles', { p_radius_km: null });
+      const updatesPromise = supabaseClient.rpc('get_daily_updates', { p_limit: 100 });
+      const placesPromise = hasLocation()
+        ? supabaseClient.rpc('get_discover_places', {
+            p_latitude: Number(state.userLocation.latitude.toFixed(7)),
+            p_longitude: Number(state.userLocation.longitude.toFixed(7)),
+            p_radius_km: 5
+          })
+        : Promise.resolve({ data: [], error: null });
+
+      const [profilesResult, updatesResult, placesResult] = await Promise.all([
+        profilesPromise, updatesPromise, placesPromise
+      ]);
+
+      searchPeople = profilesResult.error ? [] : (profilesResult.data || []).map(mapSearchProfile);
+      searchPeople.forEach(p => mingConnectionProfiles.set(p.id, p));
+
+      if (updatesResult.error) {
+        dailyUpdates = [];
+      } else {
+        dailyUpdates = (updatesResult.data || []).map(row => {
+          const name = row.author_display_name || 'Ming user';
+          const existing = mingConnectionProfiles.get(row.author_id);
+          mingConnectionProfiles.set(row.author_id, {
+            ...(existing || {}),
+            id: row.author_id, name, short: name.split(' ')[0] || name,
+            hue: existing?.hue || 24,
+            tag: row.author_headline || existing?.tag || 'Ming member',
+            interests: existing?.interests || [],
+            bio: row.author_bio || existing?.bio || '',
+            avatarUrl: row.author_avatar_url || existing?.avatarUrl || '',
+            username: row.author_username ? '@' + row.author_username.replace(/^@/, '') : (existing?.username || ''),
+            activity: row.author_activity || existing?.activity || '',
+            status: 'on', visitor: row.kind === 'visitor',
+            km: searchPeople.find(p => p.id === row.author_id)?.km ?? existing?.km ?? null
+          });
+          return {
+            id: row.id, authorId: row.author_id, kind: row.kind,
+            title: row.title, body: row.body,
+            createdAt: new Date(row.created_at).getTime(),
+            likes: Number(row.likes || 0), liked: !!row.liked,
+            comments: [], commentsCount: Number(row.comments_count || 0)
+          };
+        });
+      }
+
+      searchPlaces = placesResult.error ? [] : (placesResult.data || []).map(row => ({
+        id: row.id, name: row.name, kind: row.kind, note: row.note || '',
+        hue: 26, km: row.distance_km == null ? null : Number(row.distance_km),
+        saved: !!row.saved_by_me
+      }));
+
+      searchDataReady = true;
+      return true;
+    } catch (error) {
+      console.warn('Ming: Search data load failed.', error);
+      searchDataReady = false;
+      return false;
+    } finally {
+      searchDataLoading = null;
+    }
+  })();
+  return searchDataLoading;
+}
+
+async function openSearch() {
   pushStack('search');
   renderSearch('idle');
   setTimeout(() => $('#search-input').focus(), 220);
@@ -3608,7 +3701,7 @@ function renderSearch(mode, q = '') {
         </div>
       </div>
       <div class="section">${sectionHead('People near you')}
-        ${people.slice(0, 4).map(p => `
+        ${searchPeople.slice(0, 4).map(p => `
           <button class="prow" data-action="person:${p.id}">${avatar(p, 44)}
             <div class="meta"><div class="n">${esc(p.name)}</div><div class="s">${esc(p.tag)}</div></div>
             <div class="right"><div class="d">${esc(distLabel(p.km))}</div></div>
@@ -3621,13 +3714,50 @@ function renderSearch(mode, q = '') {
     return;
   }
 
-  const t = q.toLowerCase();
-  const rp = people.filter(p => (p.name + p.tag + p.bio + p.interests.join(' ') + p.activity).toLowerCase().includes(t));
-  const ru = liveUpdates().filter(u => (u.title + u.body + KINDS[u.kind].label).toLowerCase().includes(t));
-  const ro = opportunities.filter(o => (o.kind + o.title + o.body).toLowerCase().includes(t));
-  const ra = activities.filter(a => (a.title + a.place + a.day).toLowerCase().includes(t));
-  const rl = places.filter(p => (p.name + p.kind + p.note).toLowerCase().includes(t));
-  const total = rp.length + ru.length + ro.length + ra.length + rl.length;
+  const t = q.replace(/^[@#]/, '').toLowerCase();
+
+  const rp = searchPeople.filter(p =>
+    [p.username, p.name, p.tag, p.bio, p.activity, ...(p.tags || []), ...(p.interests || [])]
+      .join(' ').toLowerCase().includes(t)
+  );
+  const ru = dailyUpdates.filter(u =>
+    ['general', 'visitor'].includes(u.kind) && (u.title + ' ' + u.body).toLowerCase().includes(t)
+  );
+  const ro = dailyUpdates.filter(u =>
+    ['service', 'sale'].includes(u.kind) && (u.title + ' ' + u.body).toLowerCase().includes(t)
+  );
+  const ra = dailyUpdates.filter(u =>
+    u.kind === 'activity' && (u.title + ' ' + u.body).toLowerCase().includes(t)
+  ).map(u => ({
+    ...u,
+    hour: clockTime(u.createdAt),
+    day: new Date(u.createdAt).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }),
+    place: u.title,
+    going: 0
+  }));
+  const rj = dailyUpdates.filter(u =>
+    u.kind === 'hiring' && (u.title + ' ' + u.body).toLowerCase().includes(t)
+  );
+  const rh = dailyUpdates.filter(u =>
+    ['talk', 'alert'].includes(u.kind) && (u.title + ' ' + u.body).toLowerCase().includes(t)
+  );
+  const rl = searchPlaces.filter(p =>
+    (p.name + ' ' + p.kind + ' ' + p.note).toLowerCase().includes(t)
+  );
+  const rs = Server.db.spaces.filter(s => {
+    if (!s.discoverable || (s.expiresAt && s.expiresAt <= now())) return false;
+    return [s.name, s.description, s.nature, NATURES[s.nature]?.label]
+      .filter(Boolean).join(' ').toLowerCase().includes(t);
+  });
+  const tagSet = new Set();
+  searchPeople.forEach(p => {
+    [...(p.tags || []), ...(p.interests || [])].forEach(tag => {
+      if (String(tag).toLowerCase().includes(t)) tagSet.add(tag);
+    });
+  });
+
+  const total = rp.length + tagSet.size + ru.length + ro.length + ra.length +
+    rj.length + rh.length + rl.length + rs.length;
 
   if (!total) {
     host.innerHTML = emptyState(`Nothing for "${q}"`, 'Try a shorter word, or widen your discovery area in Nearby.', { t: 'Open Nearby', a: 'go-nearby' });
@@ -3641,6 +3771,12 @@ function renderSearch(mode, q = '') {
       <div class="meta"><div class="n">${esc(p.name)}</div><div class="s">${esc(p.tag)}</div></div>
       <div class="right"><div class="d">${esc(distLabel(p.km))}</div></div></button>`).join('')}</div>`;
 
+  if (tagSet.size) {
+    html += '<div class="res-group"><div class="gh">Tags</div><div class="chips" style="flex-wrap:wrap;padding:8px 0 4px">' +
+      Array.from(tagSet).map(tag => '<button class="chip" data-action="search-term:' + esc(tag) + '">#' + esc(tag) + '</button>').join('') +
+      '</div></div>';
+  }
+
   if (ru.length) html += `<div class="res-group"><div class="gh">Daily Updates</div>${ru.map(updateCard).join('')}</div>`;
 
   if (ro.length) html += `<div class="res-group"><div class="gh">Opportunities</div><div class="rail">${ro.map(o => {
@@ -3649,17 +3785,32 @@ function renderSearch(mode, q = '') {
       <p>${esc(o.body)}</p><div class="f">${avatar(p, 28, { status: false })}<span>${esc(p.short)}</span></div></button>`;
   }).join('')}</div></div>`;
 
+  if (rj.length) html += '<div class="res-group"><div class="gh">Job offerings</div>' + rj.map(updateCard).join('') + '</div>';
+  if (rh.length) html += '<div class="res-group"><div class="gh">Need help</div>' + rh.map(updateCard).join('') + '</div>';
+
   if (ra.length) html += `<div class="res-group"><div class="gh">Activities</div>${ra.map(a => `
     <button class="acard" data-action="activity:${a.id}">
       <div class="when"><div class="h">${esc(a.hour)}</div><div class="d">${esc(a.day)}</div></div>
       <div class="info"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.place)} · ${a.going} going</div></div>
       <span class="go">${icon('chev')}</span></button>`).join('')}</div>`;
 
-  if (rl.length) html += `<div class="res-group"><div class="gh">Places</div><div class="rail">${rl.map(pl => `
+  if (rl.length) html += `<div class="res-group"><div class="gh">Discoverable places</div><div class="rail">${rl.map(pl => `
     <button class="plcard" data-action="place:${pl.id}">
       <div class="art" style="background:linear-gradient(155deg,hsl(${pl.hue} 34% 84%),hsl(${(pl.hue + 20) % 360} 28% 62%))"></div>
-      <div class="body"><div class="n">${esc(pl.name)}</div><div class="s">${esc(pl.kind)}</div><div class="d">${esc(distLabel(pl.km))}</div></div>
+      <div class="body"><div class="n">${esc(pl.name)}</div><div class="s">${esc(pl.kind)}</div><div class="d">${esc(pl.km == null ? 'Nearby place' : distLabel(pl.km))}</div></div>
     </button>`).join('')}</div></div>`;
+
+  if (rs.length) {
+    html += '<div class="res-group"><div class="gh">Discoverable Spaces</div><div class="rail">' +
+      rs.map(spc => '<button class="sp-tile" data-sp="open:' + spc.id + '">' +
+        '<div class="cover" style="background:' + (NATURES[spc.nature]?.swatch || 'var(--surface-2)') + '">' +
+        '<span class="nature">' + esc(NATURES[spc.nature]?.label || 'Space') + '</span></div>' +
+        '<div class="info"><div class="n">' + esc(spc.name) + '</div>' +
+        (spc.description ? '<div class="d">' + esc(spc.description) + '</div>' : '') +
+        '<div class="f"><span>' + esc(NATURES[spc.nature]?.label || 'Space') + ' · Discoverable</span></div>' +
+        '</div></button>').join('') +
+      '</div></div>';
+  }
 
   host.innerHTML = html + '<div class="spacer"></div>';
 }
@@ -4828,8 +4979,17 @@ function runSearch(q) {
   $('#search-clear').hidden = !q;
   clearTimeout(searchTimer);
   if (!q.trim()) { renderSearch('idle'); return; }
-  renderSearch('loading');
-  searchTimer = setTimeout(() => renderSearch('results', q.trim()), 420);
+
+  if (!searchDataReady) {
+    renderSearch('loading');
+    searchTimer = setTimeout(async () => {
+      await loadMingSearchData();
+      renderSearch('results', q.trim());
+    }, 80);
+    return;
+  }
+
+  searchTimer = setTimeout(() => renderSearch('results', q.trim()), 220);
 }
 searchInput.addEventListener('input', e => runSearch(e.target.value));
 $('#search-clear').addEventListener('click', () => { searchInput.value = ''; runSearch(''); searchInput.focus(); });
