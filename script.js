@@ -5734,39 +5734,57 @@ const Server = (() => {
 ============================================================ */
 const NATURES = {
   business: {
-    label: 'Business', icon: 'sp-doc', hue: 215,
-    blurb: 'Teams, clients and projects. Structured and on the record.',
-    swatch: 'linear-gradient(135deg,#1A1E25,#2C333D 60%,#C5A572)',
+    label: 'Business', eyebrow: 'Build with intent', icon: 'sp-doc', hue: 215,
+    blurb: 'Teams, clients and projects with structure, roles and a record of decisions.',
+    signature: 'The workroom',
+    promise: 'Turn a group into an operating room — briefs, tasks, roles and decisions stay together.',
+    features: ['Briefs & announcements', 'Tasks & ownership', 'Roles & permissions', 'Immutable activity log'],
+    swatch: 'linear-gradient(135deg,#14171D,#2A313A 58%,#C5A572)',
     tabs: [['brief', 'Brief', 'sp-doc'], ['work', 'Work', 'sp-list'], ['people', 'People', 'users'], ['log', 'Log', 'clock']]
   },
   friendly: {
-    label: 'Friendly', icon: 'users', hue: 24,
-    blurb: 'Your people. Moments, plans and running jokes.',
-    swatch: 'linear-gradient(135deg,#F3DCC6,#C98B63 70%,#8A5236)',
+    label: 'Friendly', eyebrow: 'Keep your people close', icon: 'users', hue: 24,
+    blurb: 'Your people, moments, plans and running jokes — without the noise of a public feed.',
+    signature: 'The circle',
+    promise: 'A warm private room for the people you already choose.',
+    features: ['Shared moments', 'Polls & decisions', 'Events & plans', 'Member-first home'],
+    swatch: 'linear-gradient(135deg,#F5E5D6,#D19A72 62%,#875137)',
     tabs: [['home', 'Home', 'home'], ['moments', 'Moments', 'sp-camera'], ['events', 'Events', 'cal'], ['people', 'People', 'users']]
   },
   casual: {
-    label: 'Casual', icon: 'sp-bolt', hue: 160,
-    blurb: 'Meetups, visitors and things happening in the next few hours.',
-    swatch: 'linear-gradient(135deg,#E7F1EC,#8FC7B0 60%,#14785C)',
+    label: 'Casual', eyebrow: 'Right now matters', icon: 'sp-bolt', hue: 160,
+    blurb: 'Fast-moving meetups, visitors and things worth knowing before the moment passes.',
+    signature: 'The live room',
+    promise: 'Make a temporary room for what is happening now — then let it fade.',
+    features: ['Expiring posts', 'Nearby context', 'Meeting points', 'Auto-closing Spaces'],
+    swatch: 'linear-gradient(135deg,#E8F3EE,#83C4AA 60%,#0F7058)',
     tabs: [['now', 'Now', 'sp-bolt'], ['around', 'Around', 'pin'], ['people', 'People', 'users']]
   },
   silly: {
-    label: 'Silly', icon: 'sp-game', hue: 14,
-    blurb: 'Nonsense, deliberately. Stickers, prompts and a scoreboard.',
-    swatch: 'linear-gradient(135deg,#FFE7B8,#FF9A6C 55%,#FF5A36)',
+    label: 'Silly', eyebrow: 'Leave dignity at the door', icon: 'sp-game', hue: 14,
+    blurb: 'Deliberately unserious. Prompts, stickers, games and a scoreboard for your people.',
+    signature: 'The chaos room',
+    promise: 'A safe little corner where being ridiculous is the whole point.',
+    features: ['Daily prompts', 'Sticker wall', 'Mini games', 'Friendly scoreboard'],
+    swatch: 'linear-gradient(135deg,#FFF0C9,#FF9C6D 54%,#F04D30)',
     tabs: [['chaos', 'Chaos', 'sp-bolt'], ['wall', 'Wall', 'sp-grid'], ['game', 'Game', 'sp-game'], ['people', 'People', 'users']]
   },
   romantic: {
-    label: 'Romantic', icon: 'sp-heart2', hue: 350,
-    blurb: 'Two people. Memories, plans and nothing on display.',
-    swatch: 'linear-gradient(135deg,#2A1A1C,#6E3A3C 60%,#C98B6B)',
+    label: 'Romantic', eyebrow: 'Just the two of you', icon: 'sp-heart2', hue: 350,
+    blurb: 'A private world for two — memories, plans and lists that never become public.',
+    signature: 'The two-person world',
+    promise: 'Give a relationship its own quiet place, separate from the rest of Ming.',
+    features: ['Private memories', 'Shared plans', 'Lists for two', 'Always invitation-only'],
+    swatch: 'linear-gradient(135deg,#211517,#633438 60%,#C98B6B)',
     tabs: [['us', 'Us', 'sp-heart2'], ['memories', 'Memories', 'sp-camera'], ['plans', 'Plans', 'cal'], ['lists', 'Lists', 'sp-list']]
   },
   marketplace: {
-    label: 'Marketplace', icon: 'sp-store', hue: 150,
-    blurb: 'Buy and sell inside a Space, with funds held until delivery.',
-    swatch: 'linear-gradient(135deg,#E9EEEB,#8FB3A0 55%,#1E5F44)',
+    label: 'Marketplace', eyebrow: 'Trade with trust', icon: 'sp-store', hue: 150,
+    blurb: 'Buy and sell inside a Space with roles, order states and a protected transaction flow.',
+    signature: 'The trusted market',
+    promise: 'Keep listings, buyers, sellers and the transaction trail inside one accountable room.',
+    features: ['Listings & sellers', 'Orders & status', 'Evidence & disputes', 'Escrow-ready flow'],
+    swatch: 'linear-gradient(135deg,#E9F0EC,#88B4A0 55%,#1B6047)',
     tabs: [['market', 'Market', 'sp-store'], ['orders', 'Orders', 'sp-box'], ['sellers', 'Sellers', 'users'], ['cases', 'Cases', 'sp-scale']]
   }
 };
@@ -5802,7 +5820,8 @@ const sp = {
   wizard: null,
   shownCodes: {},        // plaintext held in memory for the owner, this session only
   activeOrder: null,
-  marketTab: 'all'
+  marketTab: 'all',
+  indexFilter: 'all'
 };
 
 const spaceById = id => Server.db.spaces.find(s => s.id === id);
@@ -5910,15 +5929,46 @@ function openSpaces() { renderSpaces(); pushStack('spaces'); }
 function renderSpaces() {
   renderHomeSpaces();
   const list = mySpaces();
+  const filters = [['all', 'All'], ...Object.entries(NATURES).map(([k, n]) => [k, n.label])];
+  const visible = sp.indexFilter === 'all' ? list : list.filter(s => s.nature === sp.indexFilter);
   $('#spaces-body').innerHTML = `
-    <div style="padding:14px 18px 6px">
-      <button class="btn btn--primary btn--block" data-sp="create">${icon('plus')}Create a Space</button>
-      <button class="btn btn--ghost btn--block" style="margin-top:6px" data-sp="join">I have an invitation code</button>
+    <div class="spaces-hero">
+      <div class="spaces-hero__eyebrow">${icon('sp-grid')} MING SPACES</div>
+      <h1>Your worlds, with their own rules.</h1>
+      <p>Spaces are not just group chats. Each one is built around a purpose — work, friendship, the moment, play, love or trade.</p>
+      <div class="spaces-hero__actions">
+        <button class="btn btn--primary" data-sp="create">${icon('plus')}Create a Space</button>
+        <button class="btn btn--soft" data-sp="join">${icon('sp-key')}Join with code</button>
+      </div>
     </div>
-    ${list.length ? `<div class="section">${sectionHead('Your Spaces', `${list.length}`)}
-      ${list.map(spaceTile).join('')}</div>`
-    : emptyState('No Spaces yet', 'A Space is a private world for one part of your life — your team, your friends, a market, someone you love.')}
-    <div class="section">${sectionHead('Ming Wallet', 'Development mode')}
+    <div class="space-intentions">
+      <div class="space-intentions__head">
+        <div><span class="eyebrow">Choose a world</span><h2>Give the Space a reason to exist.</h2></div>
+      </div>
+      <div class="space-nature-rail">
+        ${Object.entries(NATURES).map(([k, n]) => `
+          <button class="space-nature-card ${sp.indexFilter === k ? 'is-selected' : ''}" data-sp="filter:${k}" style="--sp-swatch:${n.swatch}">
+            <span class="space-nature-card__glow"></span>
+            <span class="space-nature-card__icon">${icon(n.icon)}</span>
+            <span class="space-nature-card__eyebrow">${esc(n.eyebrow)}</span>
+            <strong>${esc(n.label)}</strong>
+            <span class="space-nature-card__signature">${esc(n.signature)}</span>
+            <span class="space-nature-card__copy">${esc(n.blurb)}</span>
+            <span class="space-nature-card__cta">Explore this kind ${icon('chev')}</span>
+          </button>`).join('')}
+      </div>
+    </div>
+    <div class="space-filter-row">
+      ${filters.map(([k,t]) => `<button class="chip ${sp.indexFilter === k ? 'is-on' : ''}" data-sp="filter:${k}">${esc(t)}</button>`).join('')}
+    </div>
+    ${visible.length ? `<div class="section spaces-owned-section">${sectionHead(sp.indexFilter === 'all' ? 'Your Spaces' : NATURES[sp.indexFilter].label + ' Spaces', `${visible.length}`)}
+      ${visible.map(spaceTile).join('')}</div>`
+    : `<div class="spaces-empty-premium">${emptyState(
+        sp.indexFilter === 'all' ? 'Your first Space is waiting.' : 'Nothing here yet.',
+        sp.indexFilter === 'all' ? 'Pick a purpose above and create a room that feels made for it.' : 'Create one with this character and make it yours.',
+        { t: 'Create this kind', a: 'create-type:' + sp.indexFilter }
+      )}</div>`}
+    <div class="section spaces-wallet-section">${sectionHead('Ming Wallet', 'Development mode')}
       <div class="menu-list">
         <button class="menu-item" data-sp="wallet">${icon('sp-wallet')}<span class="t">Balances and activity</span><span class="go">${icon('chev')}</span></button>
       </div>
@@ -5928,18 +5978,26 @@ function renderSpaces() {
 function spaceTile(s) {
   const n = NATURES[s.nature];
   const members = Server.db.members.filter(m => m.spaceId === s.id).slice(0, 4).map(m => personOf(m.userId));
-  return `<button class="sp-tile" data-sp="open:${s.id}">
-    <div class="cover" style="background:${n.swatch}">
-      <span class="nature">${n.label}</span>
-    </div>
-    <div class="info">
-      <div class="n">${esc(s.name)}</div>
-      ${s.description ? `<div class="d">${esc(s.description)}</div>` : ''}
-      <div class="f">
-        <span class="stack-avs">${members.map(p => avatar(p, 28, { status: false })).join('')}</span>
-        <span>${Server.memberCount(s.id)} ${Server.memberCount(s.id) === 1 ? 'member' : 'members'} · ${esc(Server.roleOf(s.id) || 'guest')}</span>
-      </div>
-    </div>
+  const liveCount = contentOf(s.id, 'now').length;
+  return `<button class="sp-tile sp-tile--premium" data-sp="open:${s.id}" style="--sp-swatch:${n.swatch}">
+    <span class="sp-tile__cover" style="background:${coverFor(s)}">
+      <span class="sp-tile__top">
+        <span class="sp-tile__nature">${icon(n.icon)}${esc(n.label)}</span>
+        <span class="sp-tile__arrow">${icon('chev')}</span>
+      </span>
+      <span class="sp-tile__signature">${esc(n.signature)}</span>
+    </span>
+    <span class="sp-tile__body">
+      <span class="sp-tile__title-row">
+        <span class="sp-tile__name">${esc(s.name)}</span>
+        <span class="sp-tile__role">${esc(Server.roleOf(s.id) || 'guest')}</span>
+      </span>
+      <span class="sp-tile__description">${esc(s.description || n.promise)}</span>
+      <span class="sp-tile__footer">
+        <span class="stack-avs">${members.map(p => avatar(p, 26, { status: false })).join('')}</span>
+        <span>${Server.memberCount(s.id)} ${Server.memberCount(s.id) === 1 ? 'member' : 'members'}${liveCount ? ' · ' + liveCount + ' live' : ''}</span>
+      </span>
+    </span>
   </button>`;
 }
 
@@ -5948,10 +6006,10 @@ function spaceTile(s) {
 ============================================================ */
 const WZ_STEPS = ['nature', 'identity', 'privacy', 'look', 'members', 'invite', 'features', 'review'];
 
-function openWizard() {
+function openWizard(nature = null) {
   sp.wizard = {
     i: 0, dir: 1,
-    nature: null, name: '', description: '',
+    nature: nature && NATURES[nature] ? nature : null, name: '', description: '',
     privacy: 'private', requireApproval: false,
     hue: null, maxMembers: null,
     inviteTtlHours: 24, inviteMaxUses: null,
@@ -7006,9 +7064,14 @@ document.addEventListener('click', async e => {
 
   switch (verb) {
     case 'create': openWizard(); break;
+    case 'create-type': openWizard(a); break;
     case 'spaces': closeSheet(); openSpaces(); break;
     case 'join': openJoinSheet(); break;
     case 'open': openSpace(a); break;
+    case 'filter':
+      sp.indexFilter = a || 'all';
+      renderSpaces();
+      break;
     case 'wallet': openWallet(); break;
     case 'tab': sp.tab = a; renderSpace(); break;
     case 'invite': closeSheet(); setTimeout(() => openInviteSheet(a), 150); break;
