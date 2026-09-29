@@ -1518,30 +1518,13 @@ function renderDiscover() {
 ------------------------------------------------------------ */
 async function loadNearby() {
   state.loaded.nearby = true;
-
-  // Render the shell immediately. Nearby must never wait on GPS or Supabase
-  // before becoming interactive.
-  const host = $('#nearby-body');
-  if (host) {
-    host.innerHTML = `<div style="margin:0 18px"><div class="sk" style="height:330px;border-radius:var(--r-xl)"></div></div>` + skeletonCards(2);
+  if (hasLocation()) {
+    await publishMingApproxLocation();
+    await loadMingDiscoverableProfiles(state.radius);
   }
-
-  if (!hasLocation()) {
-    renderNearby();
-    return;
-  }
-
-  // Refresh discovery data in the background, then paint the real result.
-  try {
-    await Promise.all([
-      publishMingApproxLocation(),
-      loadMingDiscoverableProfiles(state.radius)
-    ]);
-  } catch (error) {
-    console.warn('Ming: Nearby data refresh failed.', error);
-  }
-
-  if (state.tab === 'nearby' && state.loaded.nearby) renderNearby();
+  $('#nearby-body').innerHTML = `<div style="margin:0 18px"><div class="sk" style="height:330px;border-radius:var(--r-xl)"></div></div>` + skeletonCards(2);
+  await sleep(640);
+  renderNearby();
 }
 
 function renderNearby() {
@@ -1643,11 +1626,9 @@ function renderNearby() {
   if (slider) {
     slider.addEventListener('input', e => {
       state.radius = parseFloat(e.target.value);
-      const value = $('#radius-val');
-      if (value) value.textContent = state.radius + ' km';
-      // Update the visible map/list immediately while dragging.
-      renderNearby();
+      $('#radius-val').textContent = state.radius + ' km';
     });
+    slider.addEventListener('change', () => renderNearby());
   }
 }
 
@@ -4966,26 +4947,14 @@ if ($('#refresh-nearby')) {
       return;
     }
 
-    const host = $('#nearby-body');
-    if (host) {
-      host.innerHTML =
-        `<div style="margin:0 18px">
-          <div class="sk" style="height:330px;border-radius:var(--r-xl)"></div>
-        </div>` + skeletonCards(1);
-    }
+    $('#nearby-body').innerHTML =
+      `<div style="margin:0 18px">
+        <div class="sk" style="height:330px;border-radius:var(--r-xl)"></div>
+      </div>` + skeletonCards(1);
 
-    try {
-      await Promise.all([
-        publishMingApproxLocation(),
-        loadMingDiscoverableProfiles(state.radius)
-      ]);
-      if (state.tab === 'nearby') renderNearby();
-      toast('Nearby refreshed', 'layers');
-    } catch (error) {
-      console.warn('Ming: Nearby refresh failed.', error);
-      renderNearby();
-      toast('Could not refresh Nearby', 'alert');
-    }
+    await sleep(520);
+    renderNearby();
+    toast('Nearby refreshed', 'layers');
   });
 }
 
