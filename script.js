@@ -5471,7 +5471,7 @@ chatInput.addEventListener('input', () => {
   if (chatInput.value.trim()) setMingTyping(true);
   else setMingTyping(false);
 });
-$('#chat-form').addEventListener('submit', e => {
+$('#chat-form').addEventListener('submit', async e => {
   e.preventDefault();
   const v = chatInput.value.trim();
   if (!v && !pendingChatAttachment) return;
