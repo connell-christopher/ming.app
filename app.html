@@ -102,6 +102,10 @@
     <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7"/>
   </symbol>
 
+  <symbol id="i-paperclip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m8.5 12.8 6.9-6.9a3.6 3.6 0 0 1 5.1 5.1l-8.7 8.7a5.2 5.2 0 0 1-7.4-7.4l8.1-8.1a2.8 2.8 0 0 1 4 4l-7.5 7.5a1.4 1.4 0 0 1-2-2l6.8-6.8"/>
+  </symbol>
+
   <symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
     <path d="M7.2 4.5 9.8 4l2 4.4-1.9 1.7a14.2 14.2 0 0 0 4 4l1.7-1.9 4.4 2-.5 2.6a2 2 0 0 1-2.1 1.6C10.4 18 6 13.6 5.6 6.6a2 2 0 0 1 1.6-2.1z"/>
   </symbol>
@@ -701,8 +705,16 @@
     <div class="thread" id="chat-thread"></div>
 
     <div id="chat-reply-preview" class="chat-reply-preview" hidden></div>
+    <div id="chat-attachment-preview" class="chat-attachment-preview" hidden></div>
 
     <form class="composer" id="chat-form">
+
+      <button class="chat-attach-btn" type="button" id="chat-attach" aria-label="Attach a photo or file" title="Attach a photo or file">
+        <svg><use href="#i-paperclip"/></svg>
+      </button>
+      <input id="chat-attachment-input" type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+        hidden />
 
       <button class="chat-voice-btn" type="button" id="chat-voice" aria-label="Record voice note" title="Voice note">
         <svg><use href="#i-mic"/></svg>
