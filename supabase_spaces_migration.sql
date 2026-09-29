@@ -392,3 +392,38 @@ grant execute on function public.redeem_ming_space_invite(text) to authenticated
 -- pgcrypto is required for SHA-256 invitation-code hashing.
 -- Supabase provides pgcrypto; if this migration reports that digest() is missing,
 -- enable pgcrypto in Database > Extensions and rerun the function definitions.
+
+
+-- Creator-only Space deletion.
+-- The database checks auth.uid() against owner_id; the client cannot delete
+-- another member's Space by changing the requested space id.
+create or replace function public.delete_ming_space(p_space_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if (auth.uid() is null) then
+    raise exception 'Authentication required';
+  end if;
+
+  if not exists (
+    select 1
+    from public.ming_spaces
+    where id = p_space_id
+      and owner_id = auth.uid()
+  ) then
+    raise exception 'Only the creator can delete this Space.';
+  end if;
+
+  -- ming_space_members and ming_space_invites reference ming_spaces with
+  -- on delete cascade, so membership and invitation records are removed too.
+  delete from public.ming_spaces
+  where id = p_space_id
+    and owner_id = auth.uid();
+end;
+$$;
+
+revoke execute on function public.delete_ming_space(uuid) from public, anon;
+grant execute on function public.delete_ming_space(uuid) to authenticated;
