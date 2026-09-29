@@ -7177,6 +7177,11 @@ function openSpace(id, tab) {
   sp.tab = tab || NATURES[s.nature].tabs[0][0];
   const screen = $('#screen-space');
   screen.dataset.nature = s.nature;
+  const theme = spaceTheme(s);
+  screen.style.setProperty('--sp-accent', theme.colors[0]);
+  screen.style.setProperty('--sp-accent-2', theme.colors[1]);
+  screen.style.setProperty('--sp-accent-3', theme.colors[2]);
+  screen.style.setProperty('--sp-theme-name', JSON.stringify(theme.name || 'Ming'));
   renderSpace();
   pushStack('space');
 }
