@@ -6563,6 +6563,14 @@ VIEWS.friendly.meetings = s => {
     '</div>';
 };
 
+VIEWS.romantic.names = s => {
+  const names = contentOf(s.id, 'nickname');
+  return '<div class="privacy-seal">' + icon('lock') + '<span>Sweet names are private to this Space.</span></div>' +
+    '<div class="sp-sec"><h3>Your names <span><button data-sp="new:nickname">Add</button></span></h3>' +
+    (names.length ? names.map(n => '<div class="sp-card"><b>' + esc(n.name) + '</b><div style="font-size:12px;color:var(--muted);margin-top:5px">chosen by ' + esc(nameOf(n.authorId)) + '</div></div>').join('') : spEmpty('Give each other a name that belongs here.', {t:'Choose a sweet name',a:'new:nickname'})) +
+    '</div>';
+};
+
 VIEWS.romantic.calendar = s => {
   const milestones = contentOf(s.id, 'milestone');
   const plans = contentOf(s.id, 'plan');
