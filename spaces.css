@@ -442,3 +442,309 @@
 #screen-space .stack-avs .av{width:24px;height:24px;font-size:9px}
 #screen-space .mrow>.av{width:36px;height:36px;font-size:13px}
 #screen-space .sp-body .av--56,#screen-space .sp-body .av--44,#screen-space .sp-body .av--40{width:36px;height:36px;font-size:13px}
+
+/* ============================================================
+   MING SPACES — command center upgrade
+============================================================ */
+
+.spaces-hero--command {
+  padding-bottom: 18px;
+}
+
+.spaces-command-copy {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spaces-command-copy > div:first-child {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+}
+
+.spaces-orbit {
+  position: relative;
+  flex: 0 0 92px;
+  width: 92px;
+  height: 92px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 42% 36%, rgba(241,210,174,.34), transparent 24%),
+    radial-gradient(circle, rgba(139,53,67,.18), transparent 66%);
+  border: 1px solid rgba(111,78,55,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.34), 0 16px 34px -22px rgba(43,33,27,.4);
+}
+
+.spaces-orbit::before,
+.spaces-orbit::after {
+  content: "";
+  position: absolute;
+  border: 1px solid rgba(111,78,55,.14);
+  border-radius: 50%;
+  transform: rotate(-24deg);
+}
+
+.spaces-orbit::before { inset: 10px -5px; }
+.spaces-orbit::after { inset: -5px 10px; transform: rotate(52deg); }
+
+.spaces-orbit span {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  top: 13px;
+  right: 12px;
+  border-radius: 50%;
+  background: var(--coffee);
+  box-shadow: 0 0 12px rgba(111,78,55,.55);
+}
+
+.spaces-orbit b {
+  font-size: 30px;
+  font-weight: 750;
+  letter-spacing: -.12em;
+  color: var(--coffee);
+}
+
+.spaces-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 5px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(111,78,55,.07);
+  border: 1px solid rgba(111,78,55,.10);
+  font-size: 8px;
+  letter-spacing: .08em;
+  vertical-align: 2px;
+}
+
+.spaces-live-pill i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #4e9d68;
+  box-shadow: 0 0 8px rgba(78,157,104,.6);
+}
+
+.spaces-metrics {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 7px;
+  margin-top: 17px;
+}
+
+.spaces-metrics > div {
+  padding: 10px 9px;
+  border-radius: 15px;
+  background: rgba(255,255,255,.28);
+  border: 1px solid rgba(111,78,55,.09);
+  backdrop-filter: blur(8px);
+}
+
+.spaces-metrics strong,
+.spaces-metrics span {
+  display: block;
+}
+
+.spaces-metrics strong {
+  font-size: 17px;
+  letter-spacing: -.035em;
+}
+
+.spaces-metrics span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.spaces-quick-launch {
+  margin: 2px 18px 24px;
+}
+
+.spaces-quick-launch__head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.spaces-quick-launch__head .eyebrow {
+  display: block;
+  color: var(--coffee);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.spaces-quick-launch__head h2 {
+  margin-top: 4px;
+  font-size: 19px;
+  line-height: 1.1;
+  letter-spacing: -.04em;
+}
+
+.spaces-owner-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.spaces-quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.space-quick-card {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface) 86%, var(--coffee)), var(--surface));
+  box-shadow: 0 10px 24px -22px rgba(43,33,27,.5);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.space-quick-card::after {
+  content: "";
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  right: -19px;
+  bottom: -22px;
+  border-radius: 50%;
+  background: var(--sp-swatch);
+  opacity: .16;
+  filter: blur(5px);
+}
+
+.space-quick-card:active {
+  transform: scale(.975);
+}
+
+.space-quick-card.is-selected {
+  border-color: var(--coffee);
+  box-shadow: 0 0 0 2px rgba(111,78,55,.08), 0 12px 28px -22px rgba(43,33,27,.55);
+}
+
+.space-quick-card__icon {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--coffee);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.space-quick-card__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.space-quick-card__copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.space-quick-card__copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.space-quick-card__copy small {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.space-quick-card__go {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.space-quick-card__go svg {
+  width: 13px;
+  height: 13px;
+}
+
+.spaces-footer-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 22px 18px 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.spaces-footer-note__mark {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--coffee);
+  background: var(--surface-2);
+}
+
+.spaces-footer-note__mark svg {
+  width: 15px;
+  height: 15px;
+}
+
+.spaces-footer-note strong,
+.spaces-footer-note span {
+  display: block;
+}
+
+.spaces-footer-note strong {
+  font-size: 11.5px;
+}
+
+.spaces-footer-note div > span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+@media (min-width: 700px) {
+  .spaces-quick-grid {
+    grid-template-columns: repeat(3, minmax(0,1fr));
+  }
+}
