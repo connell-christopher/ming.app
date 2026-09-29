@@ -542,3 +542,100 @@ $$;
 
 revoke execute on function public.create_ming_space(text,text,text,text,boolean,integer,integer,boolean,timestamptz,jsonb,integer,integer) from public, anon;
 grant execute on function public.create_ming_space(text,text,text,text,boolean,integer,integer,boolean,timestamptz,jsonb,integer,integer) to authenticated;
+
+
+create table if not exists public.ming_space_product_bids (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references public.ming_space_products(id) on delete cascade,
+  bidder_id uuid not null references auth.users(id) on delete cascade,
+  amount numeric(18,2) not null check (amount > 0),
+  created_at timestamptz not null default now()
+);
+create index if not exists ming_space_product_bids_product_idx
+  on public.ming_space_product_bids(product_id, amount desc, created_at desc);
+
+alter table public.ming_space_product_bids enable row level security;
+revoke all on table public.ming_space_product_bids from anon;
+grant select on public.ming_space_product_bids to authenticated;
+
+drop policy if exists "space members can read bids" on public.ming_space_product_bids;
+create policy "space members can read bids"
+on public.ming_space_product_bids for select to authenticated
+using (
+  exists (
+    select 1
+    from public.ming_space_products p
+    join public.ming_space_members m on m.space_id = p.space_id
+    where p.id = ming_space_product_bids.product_id
+      and m.user_id = (select auth.uid())
+      and m.approved = true
+  )
+);
+
+create or replace function public.get_my_ming_space_product_bids()
+returns setof public.ming_space_product_bids
+language sql
+security definer
+set search_path = ''
+stable
+as $$
+  select b.*
+  from public.ming_space_product_bids b
+  join public.ming_space_products p on p.id = b.product_id
+  where exists (
+    select 1 from public.ming_space_members m
+    where m.space_id = p.space_id and m.user_id = auth.uid() and m.approved = true
+  )
+  order by b.created_at desc;
+$$;
+
+create or replace function public.place_ming_space_product_bid(
+  p_product_id uuid,
+  p_amount numeric
+)
+returns public.ming_space_product_bids
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user uuid := auth.uid();
+  v_product public.ming_space_products;
+  v_high numeric;
+  v_bid public.ming_space_product_bids;
+  v_enabled boolean;
+  v_ends timestamptz;
+begin
+  if v_user is null then raise exception 'Authentication required'; end if;
+  select * into v_product from public.ming_space_products where id=p_product_id for update;
+  if not found then raise exception 'Listing not found.'; end if;
+  if v_product.status <> 'listed' then raise exception 'This listing is no longer available.'; end if;
+  if v_product.seller_id = v_user then raise exception 'You cannot bid on your own listing.'; end if;
+  if not exists (
+    select 1 from public.ming_space_members
+    where space_id=v_product.space_id and user_id=v_user and approved=true
+  ) then raise exception 'Join this Space to bid.'; end if;
+
+  v_enabled := coalesce((v_product.auction->>'enabled')::boolean,false);
+  v_ends := nullif(v_product.auction->>'endsAt','')::timestamptz;
+  if not v_enabled then raise exception 'This listing is not an auction.'; end if;
+  if v_ends is not null and v_ends <= now() then raise exception 'This auction has ended.'; end if;
+
+  select coalesce(max(amount), v_product.price) into v_high
+  from public.ming_space_product_bids where product_id=p_product_id;
+
+  if p_amount <= v_high then
+    raise exception 'Your bid must be higher than the current highest bid.';
+  end if;
+
+  insert into public.ming_space_product_bids(product_id,bidder_id,amount)
+  values(p_product_id,v_user,p_amount)
+  returning * into v_bid;
+  return v_bid;
+end;
+$$;
+
+revoke execute on function public.get_my_ming_space_product_bids() from public, anon;
+revoke execute on function public.place_ming_space_product_bid(uuid,numeric) from public, anon;
+grant execute on function public.get_my_ming_space_product_bids() to authenticated;
+grant execute on function public.place_ming_space_product_bid(uuid,numeric) to authenticated;
