@@ -105,7 +105,7 @@ as $$
     c.place,
     c.going,
     c.distance_km,
-    mod(c.bearing_raw + 360, 360)
+    case when c.bearing_raw < 0 then c.bearing_raw + 360 else c.bearing_raw end
   from candidates c
   where c.distance_km <= greatest(0.1, least(coalesce(p_radius_km, 5), 5))
   order by c.starts_at asc, c.distance_km asc
