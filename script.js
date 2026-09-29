@@ -3687,8 +3687,10 @@ async function loadMingSearchData() {
 
 async function openSearch() {
   pushStack('search');
+  renderSearch('loading');
+  await loadMingSearchData();
   renderSearch('idle');
-  setTimeout(() => $('#search-input').focus(), 220);
+  setTimeout(() => $('#search-input').focus(), 80);
 }
 
 function renderSearch(mode, q = '') {
