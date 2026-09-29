@@ -6619,7 +6619,8 @@ const sp = {
   codeVisibility: {},    // UI-only reveal state; hashes are never reversed
   activeOrder: null,
   marketTab: 'all',
-  indexFilter: 'all'
+  indexFilter: 'all',
+  pendingMedia: []
 };
 
 const spaceById = id => Server.db.spaces.find(s => s.id === id);
@@ -7858,13 +7859,47 @@ function openComposerFor(key) {
   setTimeout(() => { const f = $('#cx-' + c.fields[0][0]); if (f) f.focus(); }, 240);
 }
 
+
+async function startSpaceMediaRecording(kind) {
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    toast('Recording is not supported by this browser.', 'x');
+    return;
+  }
+  const audio = kind === 'audio';
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia(audio ? { audio: true } : { video: true, audio: true });
+    const mime = audio
+      ? (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '')
+      : (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '');
+    const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    const chunks = [];
+    recorder.ondataavailable = e => { if (e.data?.size) chunks.push(e.data); };
+    recorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(chunks, { type: recorder.mimeType || (audio ? 'audio/webm' : 'video/webm') });
+      const ext = audio ? 'webm' : 'webm';
+      sp.pendingMedia.push(new File([blob], 'ming-recording-' + Date.now() + '.' + ext, { type: blob.type }));
+      toast(audio ? 'Voice recording attached' : 'Video recording attached', 'check');
+    };
+    recorder.start();
+    toast('Recording… tap OK in 10 seconds to finish.', 'sp-game');
+    setTimeout(() => { if (recorder.state !== 'inactive') recorder.stop(); }, 10000);
+  } catch (error) {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    toast(error?.message || 'Recording permission was denied.', 'x');
+  }
+}
+
 function openProductComposer() {
+  sp.pendingMedia = [];
   openSheet({
     title: 'List an item',
     sub: 'The price you set here is the price the server charges. It cannot be changed by the buyer.',
     body: `
       <div class="field"><label for="pf-title">What are you selling?</label><input id="pf-title" type="text" maxlength="60" /></div>
-      <div class="field"><label for="pf-files">Photos, video or audio</label><input id="pf-files" type="file" multiple accept="image/*,video/*,audio/*" /></div>
+      <div class="field"><label for="pf-files">Photos, video or audio</label><input id="pf-files" type="file" multiple accept="image/*,video/*,audio/*" capture="environment" /></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn--soft btn--sm" data-sp="record-video">Record video</button><button type="button" class="btn btn--soft btn--sm" data-sp="record-audio">Record sound</button></div>
       <div class="field"><label for="pf-price">Price in USDT</label><input id="pf-price" type="text" inputmode="decimal" placeholder="250" /></div>
       <div class="field"><label for="pf-desc">Description</label><textarea id="pf-desc" maxlength="300" placeholder="Condition, what's included, anything wrong with it."></textarea></div>
       <div class="field"><label>Condition</label><div class="pick" id="pf-cond">
@@ -8133,6 +8168,8 @@ document.addEventListener('click', async e => {
     case 'apply': toast('Interest registered with the space owner', 'check'); break;
     case 'ask-seller': toast('Request sent to the moderators', 'check'); break;
     case 'file-open': await Server.openSpaceFile(a); break;
+    case 'record-video': await startSpaceMediaRecording('video'); break;
+    case 'record-audio': await startSpaceMediaRecording('audio'); break;
     case 'loc': requestLocation(() => refreshSpace()); break;
     case 'leave': {
       const res = await Server.submit('space.leave', { spaceId: a });
@@ -8219,7 +8256,7 @@ document.addEventListener('click', async e => {
         auction: { enabled: false }
       });
       if (!res.ok) { toast(res.error, 'x'); return; }
-      const files = Array.from($('#pf-files')?.files || []);
+      const files = Array.from($('#pf-files')?.files || []).concat(sp.pendingMedia || []);
       for (const file of files) {
         const kind = file.type.startsWith('image/') ? 'photo' : file.type.startsWith('video/') ? 'video' : 'audio';
         const up = await Server.uploadSpaceFile(sp.activeId, file, kind, null, res.data.row.id);
