@@ -1,3 +1,21 @@
+.profile-account-messages {
+  position: relative;
+}
+.profile-account-message-dot {
+  position: absolute;
+  top: 10px;
+  left: 28px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c83b4f;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 10px rgba(200,59,79,.68);
+  animation: mingNotifDotGlow 1.8s ease-in-out infinite;
+}
+.profile-account-message-dot[hidden] {
+  display: none;
+}
+
   /*============================
      STYLE.CSS
   ============================*/
