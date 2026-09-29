@@ -6592,19 +6592,52 @@ function renderSpaces() {
   const list = mySpaces();
   const filters = [['all', 'All'], ...Object.entries(NATURES).map(([k, n]) => [k, n.label])];
   const visible = sp.indexFilter === 'all' ? list : list.filter(s => s.nature === sp.indexFilter);
+  const totalMembers = list.reduce((sum, s) => sum + Server.memberCount(s.id), 0);
+  const liveSpaces = list.filter(s => contentOf(s.id, 'now').length > 0).length;
+  const owned = list.filter(s => Server.roleOf(s.id) === 'owner').length;
+  const selectedNature = sp.indexFilter !== 'all' ? NATURES[sp.indexFilter] : null;
+
   $('#spaces-body').innerHTML = `
-    <div class="spaces-hero">
-      <div class="spaces-hero__eyebrow">${icon('sp-grid')} MING SPACES</div>
-      <h1>Your worlds, with their own rules.</h1>
-      <p>Spaces are not just group chats. Each one is built around a purpose — work, friendship, the moment, play, love or trade.</p>
+    <div class="spaces-hero spaces-hero--command">
+      <div class="spaces-hero__eyebrow">${icon('sp-grid')} MING SPACES <span class="spaces-live-pill"><i></i> YOUR WORLDS</span></div>
+      <div class="spaces-command-copy">
+        <div>
+          <h1>${list.length ? 'A different room for every reason.' : 'Your worlds, with their own rules.'}</h1>
+          <p>${list.length
+            ? 'Private rooms for the people, projects and moments that matter. Each Space keeps its own identity, members and rules.'
+            : 'Spaces are not just group chats. Build a room around work, friendship, the moment, play, love or trade.'}</p>
+        </div>
+        <div class="spaces-orbit" aria-hidden="true"><span></span><b>M</b></div>
+      </div>
+      <div class="spaces-metrics">
+        <div><strong>${list.length}</strong><span>Spaces</span></div>
+        <div><strong>${totalMembers}</strong><span>Members</span></div>
+        <div><strong>${liveSpaces}</strong><span>Live now</span></div>
+      </div>
       <div class="spaces-hero__actions">
         <button class="btn btn--primary" data-sp="create">${icon('plus')}Create a Space</button>
         <button class="btn btn--soft" data-sp="join">${icon('sp-key')}Join with code</button>
       </div>
     </div>
+
+    <div class="spaces-quick-launch">
+      <div class="spaces-quick-launch__head">
+        <div><span class="eyebrow">Quick launch</span><h2>Start with an intention.</h2></div>
+        <span class="spaces-owner-count">${owned} owned</span>
+      </div>
+      <div class="spaces-quick-grid">
+        ${Object.entries(NATURES).map(([k, n]) => `
+          <button class="space-quick-card ${selectedNature === n ? 'is-selected' : ''}" data-sp="create-type:${k}" style="--sp-swatch:${n.swatch}">
+            <span class="space-quick-card__icon">${icon(n.icon)}</span>
+            <span class="space-quick-card__copy"><strong>${esc(n.label)}</strong><small>${esc(n.signature)}</small></span>
+            <span class="space-quick-card__go">${icon('chev')}</span>
+          </button>`).join('')}
+      </div>
+    </div>
+
     <div class="space-intentions">
       <div class="space-intentions__head">
-        <div><span class="eyebrow">Choose a world</span><h2>Give the Space a reason to exist.</h2></div>
+        <div><span class="eyebrow">Explore the system</span><h2>Give the Space a reason to exist.</h2></div>
       </div>
       <div class="space-nature-rail">
         ${Object.entries(NATURES).map(([k, n]) => `
@@ -6619,23 +6652,32 @@ function renderSpaces() {
           </button>`).join('')}
       </div>
     </div>
+
     <div class="space-filter-row">
       ${filters.map(([k,t]) => `<button class="chip ${sp.indexFilter === k ? 'is-on' : ''}" data-sp="filter:${k}">${esc(t)}</button>`).join('')}
     </div>
-    ${visible.length ? `<div class="section spaces-owned-section">${sectionHead(sp.indexFilter === 'all' ? 'Your Spaces' : NATURES[sp.indexFilter].label + ' Spaces', `${visible.length}`)}
-      ${visible.map(spaceTile).join('')}</div>`
+
+    ${visible.length ? `<div class="section spaces-owned-section">
+      ${sectionHead(sp.indexFilter === 'all' ? 'Your Spaces' : NATURES[sp.indexFilter].label + ' Spaces', `${visible.length}`)}
+      ${visible.map(spaceTile).join('')}
+    </div>`
     : `<div class="spaces-empty-premium">${emptyState(
         sp.indexFilter === 'all' ? 'Your first Space is waiting.' : 'Nothing here yet.',
         sp.indexFilter === 'all' ? 'Pick a purpose above and create a room that feels made for it.' : 'Create one with this character and make it yours.',
         { t: 'Create this kind', a: 'create-type:' + sp.indexFilter }
       )}</div>`}
+
+    <div class="spaces-footer-note">
+      <span class="spaces-footer-note__mark">${icon('shield')}</span>
+      <div><strong>Built around boundaries.</strong><span>Membership, invitations and Space rules are enforced by the backend.</span></div>
+    </div>
+
     <div class="section spaces-wallet-section">${sectionHead('Ming Wallet', 'Development mode')}
       <div class="menu-list">
         <button class="menu-item" data-sp="wallet">${icon('sp-wallet')}<span class="t">Balances and activity</span><span class="go">${icon('chev')}</span></button>
       </div>
     </div>`;
 }
-
 function spaceTile(s) {
   const n = NATURES[s.nature];
   const members = Server.db.members.filter(m => m.spaceId === s.id).slice(0, 4).map(m => personOf(m.userId));
