@@ -7868,7 +7868,7 @@ function openProductComposer() {
         ${['Electronics', 'Home', 'Clothing', 'Services'].map((c, i) => `<button type="button" data-pick="${c}" aria-pressed="${i === 0}">${c}</button>`).join('')}</div></div>
       <div class="field"><label>Handover</label><div class="pick" id="pf-hand">
         ${['Pickup', 'Delivery', 'Either'].map((c, i) => `<button type="button" data-pick="${c}" aria-pressed="${i === 2}">${c}</button>`).join('')}</div></div>
-      <div class="ephemeral-note">${icon('sp-camera')}<span>Photos need storage that is not connected yet, so listings show a generated cover for now.</span></div>`,
+      <div class="ephemeral-note">${icon('sp-camera')}<span>Photos, video and audio are uploaded to the private Space media vault and linked to this listing.</span></div>`,
     foot: `<button class="btn btn--primary btn--block" data-sp="product-submit">List it</button>`
   });
 }
