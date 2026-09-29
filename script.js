@@ -226,16 +226,7 @@ const KINDS = {
   general: { label: 'Update', cls: '' }
 };
 
-let dailyUpdates = [
-  { id: 'd1', authorId: 'p4', kind: 'activity', title: 'Anyone playing football tonight?', body: 'Five-a-side at the pitch down the road, 7pm. We are two short and the other side is unfortunately quite good.', createdAt: now() - 2.2 * HOUR, likes: 14, liked: false, comments: [{ id: 'c1', authorId: 'p2', text: 'I can come. Do you have a spare bib?', at: now() - 1.4 * HOUR }] },
-  { id: 'd2', authorId: 'p1', kind: 'hiring', title: 'Need a photographer tomorrow', body: 'Small studio opening, about two hours of work in the morning. Looking for someone nearby who can photograph a little event. Paid.', createdAt: now() - 5 * HOUR, likes: 9, liked: false, comments: [] },
-  { id: 'd3', authorId: 'p6', kind: 'visitor', title: 'New in town', body: 'Just arrived from Berlin and looking for interesting places to explore — markets, old buildings, anywhere with a view. Recommendations welcome.', createdAt: now() - 9 * HOUR, likes: 22, liked: true, comments: [{ id: 'c2', authorId: 'p7', text: 'Come by the café, I will draw you a map.', at: now() - 7 * HOUR }] },
-  { id: 'd4', authorId: 'p9', kind: 'service', title: 'Shelving and small repairs this week', body: 'I have three free days. Floating shelves, wardrobe doors, wobbly chairs. I bring my own tools.', createdAt: now() - 13 * HOUR, likes: 6, liked: false, comments: [] },
-  { id: 'd5', authorId: 'p8', kind: 'alert', title: 'Burst pipe on the main road', body: 'Traffic is backed up near the junction.  Give it thirty minutes if you can.', createdAt: now() - 1.1 * HOUR, likes: 31, liked: false, comments: [] },
-  { id: 'd6', authorId: 'p3', kind: 'talk', title: 'Long week, anyone free to talk?', body: 'Nothing dramatic. Just would rather not spend another evening in my own head. Happy to meet somewhere public for coffee.', createdAt: now() - 3.6 * HOUR, likes: 18, liked: false, comments: [] },
-  { id: 'd7', authorId: 'p7', kind: 'sale', title: 'Selling a hand grinder', body: 'Barely used, upgraded to an electric one. ₦28,000 and I will throw in a bag of beans.', createdAt: now() - 20 * HOUR, likes: 4, liked: false, comments: [] },
-  { id: 'd8', authorId: 'p5', kind: 'general', title: 'The hill at sunrise', body: 'Went up at six this morning with no plan and came back with the best hour of my week. Go before seven, it empties out fast.', createdAt: now() - 7.5 * HOUR, likes: 27, liked: false, comments: [] }
-];
+let dailyUpdates = [];
 
 const opportunities = [
   { id: 'o1', kind: 'Looking for a photographer', title: 'Two hours, small studio opening', body: 'Morning shoot a few streets away. Paid, same day.', authorId: 'p1' },
@@ -887,10 +878,115 @@ function refreshLocationUI() {
   renderHomeLocation();
   const sub = $('#discover-sub');
   if (sub) sub.textContent = hasLocation() ? `Around ${areaLabel()}` : 'Location off · distances hidden';
-  if (state.loaded.home) { renderHomePeople(); renderHomeOpps(); }
+  if (state.loaded.home) { renderHomePeople(); renderHomeFeed(); renderHomeOpps(); }
   if (state.loaded.discover) renderDiscover();
   if (state.loaded.nearby) loadMingDiscoverableProfiles(state.radius).then(() => renderNearby());
   if (state.loaded.profile) renderProfile();
+}
+
+/* ------------------------------------------------------------
+   REAL DAILY UPDATES — SUPABASE
+------------------------------------------------------------ */
+async function loadMingDailyUpdates() {
+  try {
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError || !session?.user) return false;
+
+    const { data: rows, error } = await supabaseClient
+      .rpc('get_daily_updates', { p_limit: 50 });
+
+    if (error) {
+      console.warn('Ming: Daily Updates backend could not be loaded.', error.message);
+      dailyUpdates = [];
+      return false;
+    }
+
+    dailyUpdates = (rows || []).map(row => {
+      const name = row.author_display_name || 'Ming user';
+      const profile = {
+        id: row.author_id,
+        name,
+        short: name.split(' ')[0] || name,
+        hue: 24,
+        tag: row.author_headline || 'Ming member',
+        interests: [],
+        bio: row.author_bio || '',
+        avatarUrl: row.author_avatar_url || '',
+        username: row.author_username ? '@' + row.author_username.replace(/^@/, '') : '',
+        activity: row.author_activity || '',
+        status: 'on',
+        visitor: false,
+        km: null
+      };
+
+      if (row.author_id !== currentUser.id) {
+        const existing = mingConnectionProfiles.get(row.author_id);
+        mingConnectionProfiles.set(row.author_id, { ...(existing || {}), ...profile });
+      }
+
+      return {
+        id: row.id,
+        authorId: row.author_id,
+        kind: row.kind,
+        title: row.title,
+        body: row.body,
+        createdAt: new Date(row.created_at).getTime(),
+        likes: Number(row.likes || 0),
+        liked: !!row.liked,
+        comments: [],
+        commentsCount: Number(row.comments_count || 0)
+      };
+    });
+
+    return true;
+  } catch (error) {
+    console.warn('Ming: Daily Updates load failed.', error);
+    dailyUpdates = [];
+    return false;
+  }
+}
+
+async function loadMingDailyUpdateComments(updateId) {
+  const { data: rows, error } = await supabaseClient
+    .rpc('get_daily_update_comments', { p_update_id: updateId });
+
+  if (error) {
+    console.warn('Ming: Daily Update comments could not be loaded.', error.message);
+    return null;
+  }
+
+  const comments = (rows || []).map(row => {
+    const name = row.author_display_name || 'Ming user';
+    const profile = {
+      id: row.author_id,
+      name,
+      short: name.split(' ')[0] || name,
+      hue: 24,
+      tag: 'Ming member',
+      interests: [],
+      bio: '',
+      avatarUrl: row.author_avatar_url || '',
+      username: row.author_username ? '@' + row.author_username.replace(/^@/, '') : '',
+      activity: '',
+      status: 'on',
+      visitor: false,
+      km: null
+    };
+
+    if (row.author_id !== currentUser.id) {
+      const existing = mingConnectionProfiles.get(row.author_id);
+      mingConnectionProfiles.set(row.author_id, { ...(existing || {}), ...profile });
+    }
+
+    return {
+      id: row.id,
+      authorId: row.author_id,
+      text: row.body,
+      at: new Date(row.created_at).getTime()
+    };
+  });
+
+  return comments;
 }
 
 /* ------------------------------------------------------------
@@ -900,8 +996,9 @@ async function loadHome() {
   state.loaded.home = true;
   $('#home-people').innerHTML = sectionHead('People nearby', 'Approximate') + skeletonRail();
   $('#home-feed').innerHTML = sectionHead('Daily Updates', 'Gone in 24 hours') + skeletonCards(2);
+  $('#home-opps').innerHTML = sectionHead('Possibilities near you', 'From Daily Updates') + skeletonRail();
   renderHomeLocation();
-  await sleep(620);
+  await loadMingDailyUpdates();
   renderHome();
 }
 
@@ -928,21 +1025,30 @@ function renderHomeLocation() {
 }
 
 function renderHomePeople() {
+  const host = $('#home-people');
+  if (!host) return;
+
   if (!hasLocation()) {
-    $('#home-people').innerHTML = sectionHead('People nearby') +
+    host.innerHTML = sectionHead('People nearby') +
       emptyState(locationLine().title, 'Ming finds people using your device location. Turn on location access to see who is around you.',
         state.locStatus === 'denied' ? null : { t: 'Turn on location', a: 'enable-location' });
     return;
   }
-  const near = people.filter(p => p.km !== null && p.km <= 3).sort((a, b) => a.km - b.km);
-  $('#home-people').innerHTML = sectionHead('People nearby', null, { t: 'See all', a: 'go-nearby' }) +
-    `<div class="rail">${near.map(p => `
-      <button class="pcard" data-action="person:${p.id}">
-        ${ringAvatar(p, 56, p.status === 'on')}
-        <div class="name">${esc(p.short)}</div>
-        <div class="tag">${esc(p.tag.split(' · ')[0])}</div>
-        <div class="dist">${esc(distLabel(p.km))}</div>
-      </button>`).join('')}</div>`;
+
+  const near = mingDiscoverPeople
+    .filter(p => p.km != null && p.km <= 3)
+    .sort((a, b) => a.km - b.km);
+
+  host.innerHTML = sectionHead('People nearby', null, { t: 'See all', a: 'go-nearby' }) +
+    (near.length
+      ? `<div class="rail">${near.map(p => `
+        <button class="pcard" data-action="person:${p.id}">
+          ${ringAvatar(p, 56, p.status === 'on')}
+          <div class="name">${esc(p.short)}</div>
+          <div class="tag">${esc(p.tag.split(' · ')[0])}</div>
+          <div class="dist">${esc(distLabel(p.km))}</div>
+        </button>`).join('')}</div>`
+      : emptyState('No people nearby yet', 'No other discoverable Ming members with a fresh location are within 3 km right now.'));
 }
 
 function renderHomeFeed() {
@@ -953,16 +1059,22 @@ function renderHomeFeed() {
 }
 
 function renderHomeOpps() {
-  $('#home-opps').innerHTML = sectionHead('Possibilities near you', 'Local') +
-    `<div class="rail">${opportunities.slice(0, 4).map(o => {
-      const p = byId(o.authorId);
-      return `<button class="ocard" data-action="person:${o.authorId}">
-        <div class="k">${esc(o.kind)}</div>
-        <h3>${esc(o.title)}</h3>
-        <p>${esc(o.body)}</p>
-        <div class="f">${avatar(p, 28, { status: false })}<span>${esc(p.short)} · ${esc(distLabel(p.km))}</span></div>
-      </button>`;
-    }).join('')}</div>`;
+  const possibilityKinds = new Set(['service', 'hiring', 'sale', 'talk', 'visitor', 'activity']);
+  const list = liveUpdates().filter(u => possibilityKinds.has(u.kind)).slice(0, 6);
+
+  $('#home-opps').innerHTML = sectionHead('Possibilities near you', 'From Daily Updates') +
+    (list.length
+      ? `<div class="rail">${list.map(u => {
+          const p = u.authorId === currentUser.id ? currentUser : byId(u.authorId);
+          const kind = KINDS[u.kind] || KINDS.general;
+          return `<button class="ocard" data-action="person:${u.authorId}">
+            <div class="k">${esc(kind.label)}</div>
+            <h3>${esc(u.title)}</h3>
+            <p>${esc(u.body)}</p>
+            <div class="f">${avatar(p, 28, { status: false })}<span>${esc(p.short || p.name)} · ${esc(hasLocation() && p.km != null ? distLabel(p.km) : 'Distance unavailable')}</span></div>
+          </button>`;
+        }).join('')}</div>`
+      : emptyState('No possibilities yet', 'When people nearby share a service, opportunity, activity, sale or request, it will appear here.'));
 }
 
 /* ------------------------------------------------------------
@@ -993,7 +1105,7 @@ function updateCard(u) {
         ${icon('heart')}<span>${u.likes}</span>
       </button>
       <button class="act" data-action="comments:${u.id}" aria-label="Open replies">
-        ${icon('chat')}<span>${u.comments.length}</span>
+        ${icon('chat')}<span>${u.commentsCount ?? u.comments.length}</span>
       </button>
       ${mine ? `<button class="act" data-action="delete-update:${u.id}" aria-label="Delete update">${icon('trash')}</button>` : ''}
       <span class="expiry"><span class="life ${h < 4 ? 'low' : ''}"><i style="width:${pct}%"></i></span>${esc(lifeLabel(u))}</span>
@@ -1001,25 +1113,58 @@ function updateCard(u) {
   </article>`;
 }
 
-function toggleLike(id) {
+async function toggleLike(id) {
   const u = dailyUpdates.find(x => x.id === id);
-  if (!u) return;
-  u.liked = !u.liked;
-  u.likes += u.liked ? 1 : -1;
-  $$(`[data-action="like:${id}"]`).forEach(btn => {
-    btn.classList.toggle('is-on', u.liked);
-    btn.setAttribute('aria-pressed', String(u.liked));
-    btn.querySelector('span').textContent = u.likes;
-    btn.classList.remove('bump');
-    void btn.offsetWidth;
-    btn.classList.add('bump');
-  });
+  if (!u || !isUuidPerson(currentUser.id)) return;
+
+  try {
+    if (u.liked) {
+      const { error } = await supabaseClient
+        .from('daily_update_likes')
+        .delete()
+        .eq('update_id', id)
+        .eq('user_id', currentUser.id);
+      if (error) throw error;
+      u.liked = false;
+      u.likes = Math.max(0, u.likes - 1);
+    } else {
+      const { error } = await supabaseClient
+        .from('daily_update_likes')
+        .insert({ update_id: id, user_id: currentUser.id });
+      if (error && !/duplicate|unique/i.test(error.message || '')) throw error;
+      u.liked = true;
+      if (!error) u.likes += 1;
+    }
+
+    $('[data-action="like:' + id + '"]').forEach(btn => {
+      btn.classList.toggle('is-on', u.liked);
+      btn.setAttribute('aria-pressed', String(u.liked));
+      const count = btn.querySelector('span');
+      if (count) count.textContent = u.likes;
+      btn.classList.remove('bump');
+      void btn.offsetWidth;
+      btn.classList.add('bump');
+    });
+  } catch (error) {
+    console.warn('Ming: Daily Update like failed.', error.message);
+    toast('Could not update reaction.', 'alert');
+  }
 }
 
-function openComments(id) {
+async async function openComments(id) {
   const u = dailyUpdates.find(x => x.id === id);
   if (!u) return;
+
+  const loadedComments = await loadMingDailyUpdateComments(id);
+  if (loadedComments === null) {
+    toast('Could not load replies.', 'alert');
+    return;
+  }
+
+  u.comments = loadedComments;
+  u.commentsCount = loadedComments.length;
   state.sheetCtx = { type: 'comments', id };
+
   const body = u.comments.length ? u.comments.map(c => {
     const p = c.authorId === currentUser.id ? currentUser : byId(c.authorId);
     return `<div style="display:flex;gap:11px;padding:11px 0;border-top:1px solid var(--border)">
@@ -1031,7 +1176,7 @@ function openComments(id) {
 
   openSheet({
     title: u.title,
-    sub: `${u.comments.length} ${u.comments.length === 1 ? 'reply' : 'replies'} · ${lifeLabel(u)}`,
+    sub: `${u.commentsCount} ${u.commentsCount === 1 ? 'reply' : 'replies'} · ${lifeLabel(u)}`,
     body,
     foot: `<form id="comment-form" style="display:flex;gap:9px;align-items:flex-end">
       <textarea id="comment-input" rows="1" placeholder="Write a reply" aria-label="Write a reply"
@@ -1040,12 +1185,35 @@ function openComments(id) {
     </form>`
   });
 
-  $('#comment-form').addEventListener('submit', e => {
+  $('#comment-form').addEventListener('submit', async e => {
     e.preventDefault();
     const inp = $('#comment-input');
     const text = inp.value.trim();
     if (!text) return;
-    u.comments.push({ id: uid('c'), authorId: currentUser.id, text, at: now() });
+
+    const { data: row, error } = await supabaseClient
+      .from('daily_update_comments')
+      .insert({
+        update_id: id,
+        author_id: currentUser.id,
+        body: text
+      })
+      .select('id, created_at')
+      .single();
+
+    if (error) {
+      console.warn('Ming: Daily Update reply failed.', error.message);
+      toast('Could not post reply.', 'alert');
+      return;
+    }
+
+    u.comments.push({
+      id: row.id,
+      authorId: currentUser.id,
+      text,
+      at: new Date(row.created_at).getTime()
+    });
+    u.commentsCount = u.comments.length;
     inp.value = '';
     rerenderFeeds();
     openComments(id);
@@ -1064,13 +1232,73 @@ function deleteUpdate(id) {
   });
 }
 
-function createUpdate(kind, title, body) {
-  dailyUpdates.unshift({
-    id: uid('d'), authorId: currentUser.id, kind, title, body,
-    createdAt: now(), likes: 0, liked: false, comments: []
-  });
+async function deleteMingDailyUpdate(id) {
+  const { error } = await supabaseClient
+    .from('daily_updates')
+    .delete()
+    .eq('id', id)
+    .eq('author_id', currentUser.id);
+
+  if (error) {
+    console.warn('Ming: Daily Update delete failed.', error.message);
+    toast('Could not delete update.', 'alert');
+    return false;
+  }
+
+  dailyUpdates = dailyUpdates.filter(u => u.id !== id);
   rerenderFeeds();
   if (state.loaded.profile) renderProfile();
+  toast('Update deleted', 'trash');
+  return true;
+}
+
+async async function createUpdate(kind, title, body) {
+  if (!isUuidPerson(currentUser.id)) {
+    toast('Please sign in again.', 'alert');
+    return false;
+  }
+
+  const cleanTitle = String(title || '').trim();
+  const cleanBody = String(body || '').trim();
+
+  if (!cleanTitle) {
+    toast('Add a title first.', 'alert');
+    return false;
+  }
+
+  const { data: row, error } = await supabaseClient
+    .from('daily_updates')
+    .insert({
+      author_id: currentUser.id,
+      kind: KINDS[kind] ? kind : 'general',
+      title: cleanTitle,
+      body: cleanBody || 'No extra details.'
+    })
+    .select('id, kind, title, body, created_at')
+    .single();
+
+  if (error) {
+    console.warn('Ming: Daily Update create failed.', error.message);
+    toast('Could not share the update.', 'alert');
+    return false;
+  }
+
+  dailyUpdates.unshift({
+    id: row.id,
+    authorId: currentUser.id,
+    kind: row.kind,
+    title: row.title,
+    body: row.body,
+    createdAt: new Date(row.created_at).getTime(),
+    likes: 0,
+    liked: false,
+    comments: [],
+    commentsCount: 0
+  });
+
+  rerenderFeeds();
+  if (state.loaded.profile) renderProfile();
+  return true;
 }
 
 function rerenderFeeds() {
@@ -3511,9 +3739,12 @@ function openComposer(type) {
     });
   }
   post.addEventListener('click', () => {
-    createUpdate(state.sheetCtx.kind, title.value.trim(), body.value.trim() || 'No extra details.');
-    closeSheet();
-    toast('Shared — it disappears in 24 hours', 'check');
+    createUpdate(state.sheetCtx.kind, title.value.trim(), body.value.trim() || 'No extra details')
+      .then(ok => {
+        if (!ok) return;
+        closeSheet();
+        toast('Shared — it disappears in 24 hours', 'check');
+      });
     if (state.tab !== 'home') setTab('home');
     setTimeout(() => { $('#screen-home .scroll').scrollTo({ top: 260, behavior: 'smooth' }); }, 280);
   });
@@ -4038,10 +4269,8 @@ document.addEventListener('click', async e => {
     case 'delete-update': deleteUpdate(arg); break;
 
     case 'confirm-delete':
-      dailyUpdates = dailyUpdates.filter(u => u.id !== arg);
-      closeModal(); rerenderFeeds();
-      if (state.loaded.profile) renderProfile();
-      toast('Update deleted', 'trash');
+      closeModal();
+      await deleteMingDailyUpdate(arg);
       break;
 
     case 'connect': connectWith(arg); break;
@@ -4731,6 +4960,7 @@ async function boot() {
   // The profile still gates the first authenticated render as before.
   await mingProfileReady;
   await syncConnectionRequestNotifications();
+  await loadMingDailyUpdates();
   startMingCallInbox();
   await restorePendingMingCall();
   renderHome();
