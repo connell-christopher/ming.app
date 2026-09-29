@@ -3973,12 +3973,20 @@ function renderSearch(mode, q = '') {
     return;
   }
 
-  let html = `<p class="center-note" style="text-align:left;padding:16px 18px 0">${total} results for "${esc(q)}"</p>`;
+  let html = `
+    <div class="search-result-head">
+      <div class="search-result-query">${esc(q)}</div>
+      <div class="search-result-count">${total} result${total === 1 ? '' : 's'}</div>
+    </div>`;
 
-  if (rp.length) html += `<div class="res-group"><div class="gh">People</div>${rp.map(p => `
-    <button class="prow" data-action="person:${p.id}">${avatar(p, 44)}
-      <div class="meta"><div class="n">${esc(p.name)}</div><div class="s">${esc(p.tag)}</div></div>
-      <div class="right"><div class="d">${esc(distLabel(p.km))}</div></div></button>`).join('')}</div>`;
+  if (rp.length) html += `<div class="res-group"><div class="gh">People <span class="search-group-count">${rp.length}</span></div>${rp.map(p => `
+    <button class="prow search-person-row" data-action="person:${p.id}">${avatar(p, 46)}
+      <div class="meta">
+        <div class="n">${esc(p.name)}</div>
+        <div class="s">${esc(p.username || '@username')} · ${esc(p.tag)}</div>
+      </div>
+      <div class="right"><div class="d">${esc(distLabel(p.km))}</div></div>
+    </button>`).join('')}</div>`;
 
   if (tagSet.size) {
     html += '<div class="res-group"><div class="gh">Tags</div><div class="chips" style="flex-wrap:wrap;padding:8px 0 4px">' +
