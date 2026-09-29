@@ -433,3 +433,7 @@
     min-width: 0;
   }
 }
+
+
+#screen-space .sp-bar .back{width:36px;height:36px;min-width:36px;min-height:36px;padding:0;display:grid;place-items:center;border-radius:12px}
+#screen-space .sp-bar .back svg{width:17px;height:17px}
