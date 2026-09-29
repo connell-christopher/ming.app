@@ -639,3 +639,51 @@ revoke execute on function public.get_my_ming_space_product_bids() from public, 
 revoke execute on function public.place_ming_space_product_bid(uuid,numeric) from public, anon;
 grant execute on function public.get_my_ming_space_product_bids() to authenticated;
 grant execute on function public.place_ming_space_product_bid(uuid,numeric) to authenticated;
+
+
+create or replace function public.set_ming_space_member_role(
+  p_space_id uuid,
+  p_user_id uuid,
+  p_role text
+)
+returns public.ming_space_members
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare v_row public.ming_space_members;
+declare v_nature text;
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  select nature into v_nature from public.ming_spaces where id=p_space_id and owner_id=auth.uid();
+  if not found then raise exception 'Only the creator can change Space roles.'; end if;
+  if p_role not in ('admin','manager','moderator','seller','buyer','member','guest') then
+    raise exception 'That role does not exist.';
+  end if;
+  if exists(select 1 from public.ming_space_members where space_id=p_space_id and user_id=p_user_id and role='owner') then
+    raise exception 'The owner role cannot be reassigned.';
+  end if;
+  if p_role not in (
+    case v_nature
+      when 'business' then 'admin,manager,member'
+      when 'friendly' then 'moderator,member'
+      when 'casual' then 'moderator,member,guest'
+      when 'silly' then 'moderator,member'
+      when 'romantic' then 'member'
+      when 'marketplace' then 'moderator,seller,buyer'
+      else ''
+    end
+  ) then
+    raise exception 'That role is not available in this Space.';
+  end if;
+  update public.ming_space_members
+  set role=p_role
+  where space_id=p_space_id and user_id=p_user_id
+  returning * into v_row;
+  if not found then raise exception 'Member not found.'; end if;
+  return v_row;
+end;
+$$;
+
+revoke execute on function public.set_ming_space_member_role(uuid,uuid,text) from public, anon;
+grant execute on function public.set_ming_space_member_role(uuid,uuid,text) to authenticated;
