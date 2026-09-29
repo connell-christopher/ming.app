@@ -6178,6 +6178,19 @@ const Server = (() => {
         return { ok: true, data: { code: inv.code, invite: inv.invite } };
       }
 
+      case 'space.delete': {
+        if (!session.userId || !isUuidPerson(session.userId)) return deny('Please sign in again.');
+        const { error } = await supabaseClient.rpc('delete_ming_space', { p_space_id: p.spaceId });
+        if (error) {
+          console.warn('Ming: Space deletion failed.', error.message);
+          return deny(error.message || 'Could not delete this Space.');
+        }
+        db.spaces = db.spaces.filter(x => x.id !== p.spaceId);
+        db.members = db.members.filter(x => x.spaceId !== p.spaceId);
+        db.invites = db.invites.filter(x => x.spaceId !== p.spaceId);
+        return { ok: true };
+      }
+
       case 'space.join': {
         if (!session.userId || !isUuidPerson(session.userId)) return deny('Please sign in again.');
         const { data, error } = await supabaseClient.rpc('redeem_ming_space_invite', { p_code: p.code || '' });
@@ -6459,6 +6472,7 @@ const sp = {
   tab: null,
   wizard: null,
   shownCodes: {},        // plaintext held in memory for the owner, this session only
+  codeVisibility: {},    // UI-only reveal state; hashes are never reversed
   activeOrder: null,
   marketTab: 'all',
   indexFilter: 'all'
@@ -6962,6 +6976,7 @@ function openInviteSheet(spaceId, fresh = false) {
   const inv = Server.db.invites.find(i => i.spaceId === spaceId && !i.revoked);
   const code = sp.shownCodes[spaceId];
   const owner = Server.can(spaceId, 'space.invite.rotate');
+  const codeVisible = sp.codeVisibility[spaceId] !== false;
 
   openSheet({
     title: fresh ? 'Your Space is live' : 'Invitation',
@@ -6969,7 +6984,16 @@ function openInviteSheet(spaceId, fresh = false) {
     body: `
       <div class="code-card">
         <div class="lbl">Invitation code</div>
-        <div class="code">${code ? esc(code) : '···· ····'}</div>
+        <div class="code-row">
+          <div class="code">${code ? (codeVisible ? esc(code) : '••••-••••') : '···· ····'}</div>
+          ${code ? `<button class="code-visibility" type="button" data-sp="toggle-code:${spaceId}" aria-label="${codeVisible ? 'Hide invitation code' : 'Show invitation code'}" title="${codeVisible ? 'Hide code' : 'Show code'}">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              ${codeVisible
+                ? '<path d="M2.2 12s3.5-6 9.8-6 9.8 6 9.8 6-3.5 6-9.8 6-9.8-6-9.8-6Z"/><circle cx="12" cy="12" r="2.6"/>'
+                : '<path d="m3 3 18 18"/><path d="M6.7 6.8C3.9 8.3 2.2 12 2.2 12s3.5 6 9.8 6c1.7 0 3.2-.4 4.5-1"/><path d="M10.1 6.2A10 10 0 0 1 12 6c6.3 0 9.8 6 9.8 6s-.9 1.5-2.5 2.9"/><path d="M9.7 9.7a3 3 0 0 0 4.6 4.6"/>'}
+            </svg>
+          </button>` : ''}
+        </div>
         <div class="meta">${code ? '' : 'Only shown once at issue. Regenerate to get a new one.<br>'}
           ${inv ? `${inv.expiresAt ? 'Expires ' + new Date(inv.expiresAt).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : 'No expiry'} ·
           ${inv.maxUses ? `${inv.uses}/${inv.maxUses} uses` : `${inv.uses} uses`} · version ${inv.version}` : 'No active code'}</div>
@@ -7739,6 +7763,9 @@ function openSpaceSettings(spaceId) {
       <div class="opt" style="pointer-events:none"><span class="ic">${icon('users')}</span>
         <span class="tx"><span class="t" style="display:block">Roles</span>
         <span class="s" style="display:block">${Server.ROLE_SETS[s.nature].join(' · ')}</span></span></div>
+      ${role === 'owner' ? `<button class="opt" data-sp="delete-space:${s.id}"><span class="ic">${icon('trash')}</span>
+        <span class="tx"><span class="t" style="display:block">Delete Space</span><span class="s" style="display:block">Permanently delete this Space and its invitation.</span></span>
+        <span class="go">${icon('chev')}</span></button>` : ''}
       <button class="opt" data-sp="leave:${s.id}"><span class="ic">${icon('x')}</span>
         <span class="tx"><span class="t" style="display:block">Leave Space</span><span class="s" style="display:block">You would need a new code to come back</span></span>
         <span class="go">${icon('chev')}</span></button>`,
@@ -7795,6 +7822,27 @@ document.addEventListener('click', async e => {
     case 'tab': sp.tab = a; renderSpace(); break;
     case 'invite': closeSheet(); setTimeout(() => openInviteSheet(a), 150); break;
     case 'settings': openSpaceSettings(a); break;
+    case 'delete-space': {
+      const s = spaceById(a);
+      if (!s || Server.roleOf(a) !== 'owner') { toast('Only the creator can delete this Space.', 'x'); break; }
+      openModal({
+        title: 'Delete this Space?',
+        lede: 'This permanently removes the Space, its members, invitation code and Space data. This cannot be undone.',
+        actions: [{ t: 'Keep Space', cls: 'btn--soft', a: 'close-modal' }, { t: 'Delete Space', cls: 'btn--danger', a: 'confirm-delete-space' }]
+      });
+      $('#modal').querySelector('[data-action="confirm-delete-space"]').addEventListener('click', async () => {
+        const res = await Server.submit('space.delete', { spaceId: a });
+        closeModal();
+        if (!res.ok) { toast(res.error, 'x'); return; }
+        closeSheet();
+        sp.activeId = null;
+        await loadSpacesFromDatabase();
+        renderSpaces();
+        popStack();
+        toast('Space deleted', 'check');
+      });
+      break;
+    }
 
     /* wizard */
     case 'wz-nature': wzSet({ nature: a }); break;
@@ -7811,6 +7859,12 @@ document.addEventListener('click', async e => {
     }
 
     /* invitations */
+    case 'toggle-code': {
+      if (!sp.shownCodes[a]) break;
+      sp.codeVisibility[a] = sp.codeVisibility[a] === false;
+      openInviteSheet(a);
+      break;
+    }
     case 'copy-code': {
       const code = sp.shownCodes[a];
       if (!code) break;
