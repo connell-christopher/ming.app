@@ -251,7 +251,7 @@ begin
     || '-' ||
     substr(md5(random()::text || clock_timestamp()::text || v_space.id::text), 1, 4)
   );
-  v_hash := encode(digest(v_code, 'sha256'), 'hex');
+  v_hash := encode(extensions.digest(v_code, 'sha256'), 'hex');
 
   insert into public.ming_space_invites (
     space_id, code_hash, hint, expires_at, max_uses, version
@@ -326,7 +326,7 @@ begin
   if v_user is null then raise exception 'Authentication required'; end if;
   if btrim(coalesce(p_code, '')) = '' then raise exception 'Invitation code required'; end if;
 
-  v_hash := encode(digest(upper(btrim(p_code)), 'sha256'), 'hex');
+  v_hash := encode(extensions.digest(upper(btrim(p_code)), 'sha256'), 'hex');
 
   select * into v_invite
   from public.ming_space_invites
