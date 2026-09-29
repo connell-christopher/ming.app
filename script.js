@@ -6641,7 +6641,7 @@ function renderSpaces() {
       </div>
       <div class="space-nature-rail">
         ${Object.entries(NATURES).map(([k, n]) => `
-          <button class="space-nature-card ${sp.indexFilter === k ? 'is-selected' : ''}" data-sp="filter:${k}" style="--sp-swatch:${n.swatch}">
+          <button class="space-nature-card" data-sp="create-type:${k}" style="--sp-swatch:${n.swatch}" aria-label="Create a ${esc(n.label)} Space">
             <span class="space-nature-card__glow"></span>
             <span class="space-nature-card__icon">${icon(n.icon)}</span>
             <span class="space-nature-card__eyebrow">${esc(n.eyebrow)}</span>
