@@ -748,3 +748,41 @@
     grid-template-columns: repeat(3, minmax(0,1fr));
   }
 }
+
+
+/* Invitation code reveal control */
+.code-row{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  min-height:46px;
+}
+.code-row .code{
+  min-width:0;
+}
+.code-visibility{
+  width:34px;
+  height:34px;
+  flex:0 0 34px;
+  display:grid;
+  place-items:center;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:var(--surface-2);
+  color:var(--muted);
+  cursor:pointer;
+}
+.code-visibility:hover{
+  color:var(--text);
+  background:var(--surface-3,var(--surface-2));
+}
+.code-visibility svg{
+  width:17px;
+  height:17px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
