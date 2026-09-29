@@ -3676,3 +3676,11 @@ html.theme-transitioning *::after {
 .profile-message-unread-badge[hidden] {
   display: none;
 }
+
+
+.search-result-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;padding:16px 18px 8px}
+.search-result-query{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:var(--text)}
+.search-result-count,.search-group-count{color:var(--muted);font-size:11px;font-weight:600}
+.search-group-count{display:inline-flex;margin-left:6px;padding:2px 6px;border-radius:999px;background:var(--surface-2)}
+.search-person-row .meta{min-width:0}
+.search-person-row .meta .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
