@@ -3692,7 +3692,7 @@ function renderProfile() {
     </div>
     <div class="section">${sectionHead('Your account')}
       <div class="menu-list">
-        <button class="menu-item" data-action="go-messages">${icon('chat')}<span class="t">Messages</span><span class="go">${icon('chev')}</span></button>
+        <button class="menu-item profile-account-messages" data-action="go-messages">${icon('chat')}<span class="t">Messages</span><span class="profile-account-message-dot" id="profile-account-message-dot" aria-label="Unread messages"></span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="go-notifications">${icon('bell')}<span class="t">Notifications</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-sp="spaces">${icon('sp-store')}<span class="t">Your Spaces</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-sp="wallet">${icon('sp-wallet')}<span class="t">Ming Wallet</span><span class="go">${icon('chev')}</span></button>
@@ -4041,10 +4041,13 @@ function updateNotifDot() {
 }
 function updateProfileMessageUnreadBadge() {
   const badge = $('#profile-message-unread-badge');
-  if (!badge) return;
   const unread = conversations.reduce((n, c) => n + (Number(c.unread) || 0), 0);
-  badge.textContent = unread > 99 ? '99+' : String(unread);
-  badge.hidden = unread === 0;
+  if (badge) {
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.hidden = unread === 0;
+  }
+  const dot = $('#profile-account-message-dot');
+  if (dot) dot.hidden = unread === 0;
 }
 
 /* ------------------------------------------------------------
