@@ -228,36 +228,12 @@ const KINDS = {
 
 let dailyUpdates = [];
 
-const opportunities = [
-  { id: 'o1', kind: 'Looking for a photographer', title: 'Two hours, small studio opening', body: 'Morning shoot a few streets away. Paid, same day.', authorId: 'p1' },
-  { id: 'o2', kind: 'Looking for a developer', title: 'Weekend project, split the work', body: 'Small booking tool for a local gym. Go or Node.', authorId: 'p2' },
-  { id: 'o3', kind: 'Offering carpentry', title: 'Shelving, doors and repairs', body: 'Three free days this week. Own tools.', authorId: 'p9' },
-  { id: 'o4', kind: 'Looking for a designer', title: 'Logo for a small food brand', body: 'Two-week turnaround, flexible on budget.', authorId: 'p5' },
-  { id: 'o5', kind: 'Offering first aid class', title: 'Free session on Saturday', body: 'Basic first aid for ten people, ten minutes away.', authorId: 'p8' }
-];
-
-const moments = [
-  { id: 'm1', authorId: 'p7', text: 'Roasted a small batch this morning. The whole street smells like it.', hue: 22, ago: '40m ago' },
-  { id: 'm2', authorId: 'p5', text: 'Sunrise from the hill on the north side. Worth the 5am alarm.', hue: 268, ago: '2h ago' },
-  { id: 'm3', authorId: 'p3', text: 'Last roll of film from the market. Twelve keepers out of thirty-six.', hue: 30, ago: '3h ago' },
-  { id: 'm4', authorId: 'p6', text: 'Someone drew me a map on a napkin. Following it exactly.', hue: 188, ago: '5h ago' },
-  { id: 'm5', authorId: 'p4', text: 'Won 4–3. I am claiming two of those.', hue: 148, ago: '6h ago' }
-];
-
-const activities = [
-  { id: 'a1', title: 'Five-a-side football', place: 'The five-a-side pitch', hostId: 'p4', hour: '7:00', day: 'Tonight', going: 8, off: { e: 400, n: 300 } },
-  { id: 'a2', title: 'Morning run, 6km loop', place: 'The lake path', hostId: 'p2', hour: '6:15', day: 'Tomorrow', going: 5, off: { e: -900, n: 1080 } },
-  { id: 'a3', title: 'Film photography walk', place: 'The main market', hostId: 'p3', hour: '4:30', day: 'Saturday', going: 11, off: { e: -1600, n: -1200 } },
-  { id: 'a4', title: 'Cupping and open bar', place: 'The corner café', hostId: 'p7', hour: '11:00', day: 'Sunday', going: 6, off: { e: -120, n: -275 } }
-];
-
-const places = [
-  { id: 'pl1', name: 'The corner café', kind: 'Coffee · Slow mornings', hue: 26, off: { e: -120, n: -275 }, note: 'Corner table by the window is the good one.' },
-  { id: 'pl2', name: 'The lake walk', kind: 'Outdoors · Evenings', hue: 196, off: { e: -900, n: 1080 }, note: 'Busiest after six, quiet at sunrise.' },
-  { id: 'pl3', name: 'The main market', kind: 'Market · Everything', hue: 36, off: { e: -1600, n: -1200 }, note: 'Go early. Bring cash and patience.' },
-  { id: 'pl4', name: 'The five-a-side pitch', kind: 'Sport · Nightly games', hue: 140, off: { e: 400, n: 300 }, note: 'Lights stay on until ten.' },
-  { id: 'pl5', name: 'The old park', kind: 'Park · Weekends', hue: 108, off: { e: 2400, n: -1450 }, note: 'Shade on the eastern path.' }
-];
+let discoverMoments = [];
+let discoverOpportunities = [];
+let discoverActivities = [];
+let discoverVisitors = [];
+let discoverPlaces = [];
+const discoverActivityJoined = new Set();
 
 let connections = [
   { personId: 'p1', at: now() - 2 * 24 * HOUR },
@@ -859,18 +835,14 @@ async function resolveArea() {
 function applyGeoToPeers() {
   if (!hasLocation()) {
     people.forEach(p => { p.coords = null; p.km = null; });
-    activities.forEach(a => { a.coords = null; a.km = null; });
-    places.forEach(pl => { pl.coords = null; pl.km = null; });
     return;
   }
   const me = state.userLocation;
-  const attach = o => {
-    o.coords = offsetToCoords(me, o.off);
-    o.km = haversineKm(me, o.coords);
-  };
-  people.forEach(attach);
-  activities.forEach(attach);
-  places.forEach(attach);
+  people.forEach(p => {
+    if (!p.off) return;
+    p.coords = offsetToCoords(me, p.off);
+    p.km = haversineKm(me, p.coords);
+  });
 }
 
 function refreshLocationUI() {
@@ -879,7 +851,7 @@ function refreshLocationUI() {
   const sub = $('#discover-sub');
   if (sub) sub.textContent = hasLocation() ? `Around ${areaLabel()}` : 'Location off · distances hidden';
   if (state.loaded.home) { renderHomePeople(); renderHomeFeed(); renderHomeOpps(); }
-  if (state.loaded.discover) renderDiscover();
+  if (state.loaded.discover) { loadMingDiscoverableProfiles().then(() => loadMingDiscoverContent()).then(() => renderDiscover()); }
   if (state.loaded.nearby) loadMingDiscoverableProfiles(state.radius).then(() => renderNearby());
   if (state.loaded.profile) renderProfile();
 }
@@ -1303,7 +1275,7 @@ async function createUpdate(kind, title, body) {
 
 function rerenderFeeds() {
   if (state.loaded.home) { renderHomeFeed(); }
-  if (state.loaded.discover) renderDiscover();
+  if (state.loaded.discover) { loadMingDiscoverContent().then(() => renderDiscover()); }
 }
 
 /* ------------------------------------------------------------
@@ -1374,95 +1346,95 @@ async function publishMingApproxLocation() {
   } catch (error) { console.warn('Ming: approximate discovery location failed.', error); return false; }
 }
 
+async function loadMingDiscoverContent() {
+  discoverMoments = []; discoverOpportunities = []; discoverActivities = []; discoverVisitors = []; discoverPlaces = [];
+  discoverActivityJoined.clear();
+  try {
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError || !session?.user) return false;
+    const { data: rows, error } = await supabaseClient.rpc('get_daily_updates', { p_limit: 100 });
+    if (error) console.warn('Ming: Discover Daily Updates could not be loaded.', error.message);
+    else {
+      const updates = rows || [];
+      const activityIds = updates.filter(r => r.kind === 'activity').map(r => r.id);
+      updates.forEach(row => {
+        const name = row.author_display_name || 'Ming user';
+        const seed = String(row.author_id || '') + ':' + name; let hue = 0;
+        for (let i = 0; i < seed.length; i++) hue = (hue * 31 + seed.charCodeAt(i)) % 360;
+        mingConnectionProfiles.set(row.author_id, { id: row.author_id, name, short: name.split(' ')[0] || name, hue,
+          tag: row.author_headline || 'Ming member', interests: [], bio: row.author_bio || '', avatarUrl: row.author_avatar_url || '',
+          username: row.author_username ? '@' + row.author_username.replace(/^@/, '') : '', activity: row.author_activity || '',
+          status: 'on', visitor: row.kind === 'visitor', km: mingDiscoverPeople.find(p => p.id === row.author_id)?.km ?? null });
+        const base = { id: row.id, authorId: row.author_id, title: row.title, body: row.body, createdAt: new Date(row.created_at).getTime(),
+          likes: Number(row.likes || 0), liked: !!row.liked, commentsCount: Number(row.comments_count || 0) };
+        if (row.kind === 'talk' || row.kind === 'general') discoverMoments.push(base);
+        if (['service', 'hiring', 'sale'].includes(row.kind)) discoverOpportunities.push(base);
+        if (row.kind === 'activity') discoverActivities.push({ ...base, place: row.title, going: 0, joined: false });
+        if (row.kind === 'visitor') discoverVisitors.push(base);
+      });
+      if (activityIds.length) {
+        const { data: participants, error: participantError } = await supabaseClient.from('daily_update_participants').select('update_id, user_id').in('update_id', activityIds);
+        if (participantError) console.warn('Ming: Discover activity participants could not be loaded.', participantError.message);
+        else {
+          const counts = new Map();
+          (participants || []).forEach(row => { counts.set(row.update_id, (counts.get(row.update_id) || 0) + 1); if (row.user_id === session.user.id) discoverActivityJoined.add(row.update_id); });
+          discoverActivities.forEach(a => { a.going = counts.get(a.id) || 0; a.joined = discoverActivityJoined.has(a.id); });
+        }
+      }
+    }
+    const lat = hasLocation() ? Number(state.userLocation.latitude.toFixed(7)) : null;
+    const lng = hasLocation() ? Number(state.userLocation.longitude.toFixed(7)) : null;
+    const { data: placeRows, error: placeError } = await supabaseClient.rpc('get_discover_places', { p_latitude: lat, p_longitude: lng, p_radius_km: 5 });
+    if (placeError) console.warn('Ming: Discover places could not be loaded.', placeError.message);
+    else discoverPlaces = (placeRows || []).map(row => ({ id: row.id, name: row.name, kind: row.kind, note: row.note || '', hue: 26, km: row.distance_km == null ? null : Number(row.distance_km), saved: !!row.saved_by_me }));
+    return true;
+  } catch (error) { console.warn('Ming: Discover content load failed.', error); return false; }
+}
+
 async function loadDiscover() {
   state.loaded.discover = true;
-  await loadMingDiscoverableProfiles();
-  $('#discover-chips').innerHTML = DISCOVER_FILTERS.map(f =>
-    `<button class="chip ${f.k === state.discoverFilter ? 'is-on' : ''}" data-action="filter:${f.k}">${f.t}</button>`).join('');
-  $('#discover-body').innerHTML = skeletonRail() + skeletonCards(2);
-  await sleep(560);
-  renderDiscover();
+  if (hasLocation()) await publishMingApproxLocation();
+  await loadMingDiscoverableProfiles(); await loadMingDiscoverContent();
+  $('#discover-chips').innerHTML = DISCOVER_FILTERS.map(f => '<button class="chip ' + (f.k === state.discoverFilter ? 'is-on' : '') + '" data-action="filter:' + f.k + '">' + f.t + '</button>').join('');
+  $('#discover-body').innerHTML = skeletonRail() + skeletonCards(2); await sleep(560); renderDiscover();
 }
 
 function renderDiscover() {
-  $('#discover-chips').innerHTML = DISCOVER_FILTERS.map(f =>
-    `<button class="chip ${f.k === state.discoverFilter ? 'is-on' : ''}" data-action="filter:${f.k}">${f.t}</button>`).join('');
-  const f = state.discoverFilter;
-  const show = k => f === 'all' || f === k;
-  let html = '';
-
+  $('#discover-chips').innerHTML = DISCOVER_FILTERS.map(f => '<button class="chip ' + (f.k === state.discoverFilter ? 'is-on' : '') + '" data-action="filter:' + f.k + '">' + f.t + '</button>').join('');
+  const f = state.discoverFilter; const show = k => f === 'all' || f === k; let html = '';
   if (show('people')) {
-    html += `<div class="section">${sectionHead('People', null, { t: 'Nearby', a: 'go-nearby' })}
-      <div class="rail">${mingDiscoverPeople.map(p => `
-        <button class="pcard" data-action="person:${p.id}">
-          ${ringAvatar(p, 56, p.status === 'on')}
-          <div class="name">${esc(p.short)}</div>
-          <div class="tag">${esc(p.tag)}</div>
-          <div class="dist">${esc(p.km == null ? 'Discoverable' : distLabel(p.km))}</div>
-        </button>`).join('') || '<div style="padding:8px 0;color:var(--muted);font-size:13px">No other Ming members are discoverable yet.</div>'}</div></div>`;
+    html += '<div class="section">' + sectionHead('People', null, { t: 'Nearby', a: 'go-nearby' }) + '<div class="rail">' +
+      (mingDiscoverPeople.map(p => '<button class="pcard" data-action="person:' + p.id + '">' + ringAvatar(p, 56, p.status === 'on') + '<div class="name">' + esc(p.short) + '</div><div class="tag">' + esc(p.tag) + '</div><div class="dist">' + esc(p.km == null ? 'Discoverable' : distLabel(p.km)) + '</div></button>').join('') || '<div style="padding:8px 0;color:var(--muted);font-size:13px">No other Ming members are discoverable yet.</div>') + '</div></div>';
   }
-
   if (show('moments')) {
-    html += `<div class="section">${sectionHead('Moments', 'Happening now')}
-      <div class="rail">${moments.map(m => {
-        const p = byId(m.authorId);
-        return `<button class="mcard" data-action="person:${m.authorId}">
-          <div class="art" style="background:linear-gradient(160deg,hsl(${m.hue} 38% 82%),hsl(${(m.hue + 330) % 360} 34% 58%))">
-            <span class="who">${avatar(p, 28, { status: false })}${esc(p.short)}</span>
-          </div>
-          <div class="body"><p>${esc(m.text)}</p><div class="m">${esc(m.ago)} · ${esc(distLabel(p.km))}</div></div>
-        </button>`;
-      }).join('')}</div></div>`;
+    html += '<div class="section">' + sectionHead('Moments', 'Recent local moments') + '<div class="rail">' + (discoverMoments.map(m => {
+      const p = byId(m.authorId); if (!p) return '';
+      return '<button class="mcard" data-action="person:' + m.authorId + '"><div class="art" style="background:' + avatarStyle(p.hue) + '"><span class="who">' + avatar(p, 28, { status: false }) + esc(p.short) + '</span></div><div class="body"><p>' + esc(m.body || m.title) + '</p><div class="m">' + esc(timeAgo(m.createdAt)) + ' · ' + esc(p.km == null ? 'Distance unavailable' : distLabel(p.km)) + '</div></div></button>';
+    }).join('') || emptyState('No moments yet', 'Real local moments will appear here as people share them.')) + '</div></div>';
   }
-
   if (show('opps')) {
-    html += `<div class="section">${sectionHead('Opportunities', 'People looking, people offering')}
-      <div class="rail">${opportunities.map(o => {
-        const p = byId(o.authorId);
-        return `<button class="ocard" data-action="person:${o.authorId}">
-          <div class="k">${esc(o.kind)}</div><h3>${esc(o.title)}</h3><p>${esc(o.body)}</p>
-          <div class="f">${avatar(p, 28, { status: false })}<span>${esc(p.short)} · ${esc(distLabel(p.km))}</span></div>
-        </button>`;
-      }).join('')}</div></div>`;
+    html += '<div class="section">' + sectionHead('Opportunities', 'People looking, people offering') + '<div class="rail">' + (discoverOpportunities.map(o => {
+      const p = byId(o.authorId); if (!p) return '';
+      return '<button class="ocard" data-action="person:' + o.authorId + '"><div class="k">' + esc(o.title) + '</div><h3>' + esc(o.body || 'Opportunity') + '</h3><p>' + esc(timeAgo(o.createdAt)) + '</p><div class="f">' + avatar(p, 28, { status: false }) + '<span>' + esc(p.short) + ' · ' + esc(p.km == null ? 'Local' : distLabel(p.km)) + '</span></div></button>';
+    }).join('') || emptyState('No opportunities yet', 'Real offers and requests shared on Ming will appear here.')) + '</div></div>';
   }
-
   if (show('activities')) {
-    html += `<div class="section">${sectionHead('Activities', 'Things happening nearby')}
-      ${activities.map(a => {
-        const p = byId(a.hostId);
-        return `<button class="acard" data-action="activity:${a.id}">
-          <div class="when"><div class="h">${esc(a.hour)}</div><div class="d">${esc(a.day)}</div></div>
-          <div class="info"><div class="t">${esc(a.title)}</div><div class="s">${esc(a.place)} · ${esc(distLabel(a.km))} · ${a.going} going</div></div>
-          <span class="go">${icon('chev')}</span>
-        </button>`;
-      }).join('')}</div>`;
+    html += '<div class="section">' + sectionHead('Activities', 'Things happening nearby') + (discoverActivities.map(a => {
+      const p = byId(a.authorId); if (!p) return '';
+      return '<button class="acard" data-action="activity:' + a.id + '"><div class="when"><div class="h">' + esc(timeAgo(a.createdAt)) + '</div><div class="d">' + esc(a.going) + ' going</div></div><div class="info"><div class="t">' + esc(a.title) + '</div><div class="s">' + esc(a.body || 'Activity shared on Ming') + ' · ' + esc(p.km == null ? 'Local' : distLabel(p.km)) + '</div></div><span class="go">' + icon('chev') + '</span></button>';
+    }).join('') || emptyState('No activities yet', 'Real activities shared on Ming will appear here.')) + '</div>';
   }
-
   if (show('places')) {
-    html += `<div class="section">${sectionHead('Places', 'Worth the walk')}
-      <div class="rail">${places.map(pl => `
-        <button class="plcard" data-action="place:${pl.id}">
-          <div class="art" style="background:linear-gradient(155deg,hsl(${pl.hue} 34% 84%),hsl(${(pl.hue + 20) % 360} 28% 62%))"></div>
-          <div class="body"><div class="n">${esc(pl.name)}</div><div class="s">${esc(pl.kind)}</div>
-          <div class="d">${esc(distLabel(pl.km))}</div></div>
-        </button>`).join('')}</div></div>`;
+    html += '<div class="section">' + sectionHead('Places', 'Public places added to Ming') + '<div class="rail">' + (discoverPlaces.map(pl => '<button class="plcard" data-action="place:' + pl.id + '"><div class="art" style="background:' + avatarStyle(pl.hue) + '"></div><div class="body"><div class="n">' + esc(pl.name) + '</div><div class="s">' + esc(pl.kind) + '</div><div class="d">' + esc(pl.km == null ? 'Distance unavailable' : distLabel(pl.km)) + '</div></div></button>').join('') || emptyState('No places yet', 'Places will appear here once they are added to Ming.')) + '</div></div>';
   }
-
   if (show('visitors')) {
-    const vs = people.filter(p => p.visitor);
-    html += `<div class="section">${sectionHead('Visitors', 'New to the area')}
-      ${vs.length ? vs.map(p => `
-        <button class="prow" data-action="person:${p.id}">
-          ${avatar(p, 48)}
-          <div class="meta"><div class="n">${esc(p.name)}</div><div class="s">${esc(p.bio)}</div></div>
-          <div class="right"><div class="d">${esc(distLabel(p.km))}</div><div class="t">${esc(areaLabel())}</div></div>
-        </button>`).join('') : emptyState('No visitors right now', 'When someone new arrives in your area, they will show up here.')}
-      </div>`;
+    html += '<div class="section">' + sectionHead('Visitors', 'People sharing that they are visiting') + '<div class="rail">' + (discoverVisitors.map(v => {
+      const p = byId(v.authorId); if (!p) return '';
+      return '<button class="prow" data-action="person:' + v.authorId + '">' + avatar(p, 48) + '<div class="meta"><div class="n">' + esc(p.name) + '</div><div class="s">' + esc(v.body || v.title) + '</div></div><div class="right"><div class="d">' + esc(p.km == null ? 'Local' : distLabel(p.km)) + '</div><div class="t">' + esc(timeAgo(v.createdAt)) + '</div></div></button>';
+    }).join('') || emptyState('No visitors right now', 'Visitors will appear here when they share a Visiting update.')) + '</div></div>';
   }
-
   $('#discover-body').innerHTML = html;
 }
-
 /* ------------------------------------------------------------
    NEARBY
 ------------------------------------------------------------ */
@@ -3752,36 +3724,33 @@ function openComposer(type) {
 }
 
 function openActivitySheet(id) {
-  const a = activities.find(x => x.id === id);
+  const a = discoverActivities.find(x => x.id === id);
   if (!a) return;
-  const p = byId(a.hostId);
+  const p = byId(a.authorId);
+  if (!p) return;
   openSheet({
     title: a.title,
-    sub: `${a.day}, ${a.hour} · ${a.place}`,
-    body: `
-      <div style="display:flex;align-items:center;gap:12px;padding:6px 0 14px">
-        ${avatar(p, 44)}
-        <div style="flex:1"><div style="font-size:14.5px;font-weight:560">${esc(p.short)} is hosting</div>
-        <div style="font-size:12.5px;color:var(--muted)">${esc(distLabel(a.km))} · ${a.going} people going</div></div>
-      </div>
-      <p style="font-size:14px;line-height:1.55;color:#4A3B32">Open to anyone nearby. The exact meeting point is shared with people who join, never publicly.</p>
-      <div class="privacy-note" style="margin:16px 0 0">${icon('shield')}<p>Meeting points are only shared after you join.</p></div>`,
-    foot: `<div style="display:flex;gap:10px">
-      <button class="btn btn--primary" style="flex:1" data-action="join:${a.id}">Join</button>
-      <button class="btn btn--soft" style="flex:1" data-action="person:${p.id}">View host</button></div>`
+    sub: timeAgo(a.createdAt) + ' · ' + a.going + ' going',
+    body: '<div style="display:flex;align-items:center;gap:12px;padding:6px 0 14px">' +
+      avatar(p, 44) +
+      '<div style="flex:1"><div style="font-size:14.5px;font-weight:560">' + esc(p.short) + ' shared this activity</div>' +
+      '<div style="font-size:12.5px;color:var(--muted)">' + esc(p.km == null ? 'Local activity' : distLabel(p.km)) + '</div></div></div>' +
+      '<p style="font-size:14px;line-height:1.55;color:#4A3B32">' + esc(a.body || 'Activity shared on Ming.') + '</p>' +
+      '<div class="privacy-note" style="margin:16px 0 0">' + icon('shield') + '<p>Exact meeting details should be shared privately after people connect or join.</p></div>',
+    foot: '<div style="display:flex;gap:10px"><button class="btn btn--primary" style="flex:1" data-action="join:' + a.id + '">' +
+      (a.joined ? 'Joined' : 'Join') + '</button><button class="btn btn--soft" style="flex:1" data-action="person:' + p.id + '">View host</button></div>'
   });
 }
 
 function openPlaceSheet(id) {
-  const pl = places.find(x => x.id === id);
+  const pl = discoverPlaces.find(x => x.id === id);
   if (!pl) return;
   openSheet({
     title: pl.name,
-    sub: `${pl.kind} · ${distLabel(pl.km)}`,
-    body: `<div style="height:120px;border-radius:var(--r-lg);margin:4px 0 14px;background:linear-gradient(155deg,hsl(${pl.hue} 34% 84%),hsl(${(pl.hue + 20) % 360} 28% 60%))"></div>
-      <p style="font-size:14.5px;line-height:1.55">${esc(pl.note)}</p>
-      <p style="font-size:13px;color:var(--muted);margin-top:12px">Recommended by ${1 + Math.floor((pl.km || 1) * 3)} people near you.</p>`,
-    foot: `<button class="btn btn--soft btn--block" data-action="save-place:${pl.id}">Save this place</button>`
+    sub: pl.kind + ' · ' + (pl.km == null ? 'Distance unavailable' : distLabel(pl.km)),
+    body: '<div style="height:120px;border-radius:var(--r-lg);margin:4px 0 14px;background:' + avatarStyle(pl.hue) + '"></div>' +
+      '<p style="font-size:14.5px;line-height:1.55">' + esc(pl.note || 'Public place on Ming.') + '</p>',
+    foot: '<button class="btn btn--soft btn--block" data-action="save-place:' + pl.id + '">' + (pl.saved ? 'Saved' : 'Save this place') + '</button>'
   });
 }
 
@@ -4385,16 +4354,54 @@ document.addEventListener('click', async e => {
 
     case 'activity': openActivitySheet(arg); break;
     case 'join': {
-      const a = activities.find(x => x.id === arg);
-      if (a) { a.going += 1; }
+      const a = discoverActivities.find(x => x.id === arg);
+      if (!a) break;
+      if (a.joined) {
+        toast('You already joined this activity.', 'check');
+        break;
+      }
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session?.user) {
+        toast('Please sign in again.', 'alert');
+        break;
+      }
+      const { error } = await supabaseClient.from('daily_update_participants').insert({ update_id: a.id, user_id: session.user.id });
+      if (error && error.code !== '23505') {
+        console.error('Ming: joining activity failed:', error.message);
+        toast('Could not join activity.', 'alert');
+        break;
+      }
+      a.joined = true;
+      if (!error) a.going += 1;
       closeSheet();
-      toast('You are going. The meeting point is in Messages.', 'check');
+      toast('You joined the activity.', 'check');
       if (state.loaded.discover) renderDiscover();
-      if (state.loaded.nearby) renderNearby();
       break;
     }
     case 'place': openPlaceSheet(arg); break;
-    case 'save-place': closeSheet(); toast('Place saved', 'check'); break;
+    case 'save-place': {
+      const pl = discoverPlaces.find(x => x.id === arg);
+      if (!pl) break;
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session?.user) {
+        toast('Please sign in again.', 'alert');
+        break;
+      }
+      if (pl.saved) {
+        const { error } = await supabaseClient.from('saved_discover_places').delete().eq('place_id', pl.id).eq('user_id', session.user.id);
+        if (error) { toast('Could not remove saved place.', 'alert'); break; }
+        pl.saved = false;
+        closeSheet();
+        toast('Place removed from saved places.', 'x');
+      } else {
+        const { error } = await supabaseClient.from('saved_discover_places').insert({ place_id: pl.id, user_id: session.user.id });
+        if (error && error.code !== '23505') { toast('Could not save place.', 'alert'); break; }
+        pl.saved = true;
+        closeSheet();
+        toast('Place saved.', 'check');
+      }
+      break;
+    }
 
     case 'filter':
       state.discoverFilter = arg;
