@@ -1151,7 +1151,7 @@ async function toggleLike(id) {
   }
 }
 
-async async function openComments(id) {
+async function openComments(id) {
   const u = dailyUpdates.find(x => x.id === id);
   if (!u) return;
 
