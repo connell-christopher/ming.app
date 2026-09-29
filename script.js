@@ -3726,6 +3726,23 @@ function usernameNextChangeDate() {
   return next;
 }
 
+function normalizeMingProfileList(value, limit) {
+  const seen = new Set();
+  return String(value || '').split(/[#\,\n]+/).map(item => item.trim().replace(/^#+/, '').trim()).filter(Boolean).map(item => item.replace(/\s+/g, ' ')).filter(item => /^[A-Za-z0-9][A-Za-z0-9 _&+.'-]*$/.test(item)).map(item => item.toLowerCase()).filter(item => { if (seen.has(item)) return false; seen.add(item); return true; }).slice(0, limit);
+}
+
+function validateMingProfileList(value, limit, label) {
+  const raw = String(value || '').trim();
+  if (!raw) return { ok: true, items: [] };
+  const chunks = raw.split(/[#\,\n]+/).map(item => item.trim().replace(/^#+/, '').trim()).filter(Boolean);
+  if (chunks.length > limit) return { ok: false, message: label + ' can contain up to ' + limit + ' items.' };
+  const invalid = chunks.find(item => !/^[A-Za-z0-9][A-Za-z0-9 _&+.'-]*$/.test(item.replace(/\s+/g, ' ')));
+  if (invalid) return { ok: false, message: 'Remove unsupported characters from ' + label + ': ' + invalid };
+  const normalized = chunks.map(item => item.replace(/\s+/g, ' ').toLowerCase());
+  if (new Set(normalized).size !== normalized.length) return { ok: false, message: label + ' cannot contain duplicates.' };
+  return { ok: true, items: normalized };
+}
+
 function editProfile() {
   const usernameLocked = !usernameChangeAvailable();
   const nextUsernameChange = usernameNextChangeDate();
@@ -3983,13 +4000,17 @@ function renderSearch(mode, q = '') {
       .filter(Boolean).join(' ').toLowerCase().includes(t);
   });
   const tagSet = new Set();
+  const tagPeople = [];
   searchPeople.forEach(p => {
-    [...(p.tags || []), ...(p.interests || [])].forEach(tag => {
-      if (String(tag).toLowerCase().includes(t)) tagSet.add(tag);
+    const profileTags = [...(p.tags || []), ...(p.interests || [])];
+    profileTags.forEach(tag => {
+      const cleanTag = String(tag).replace(/^#+/, '').trim();
+      if (cleanTag.toLowerCase().includes(t)) tagSet.add(cleanTag);
     });
+    if (!isUsernameSearch && profileTags.some(tag => String(tag).replace(/^#+/, '').trim().toLowerCase() === t)) tagPeople.push(p);
   });
 
-  const total = rp.length + tagSet.size + ru.length + ro.length + ra.length +
+  const total = rp.length + tagPeople.length + tagSet.size + ru.length + ro.length + ra.length +
     rj.length + rh.length + rl.length + rs.length;
 
   if (!total) {
@@ -4011,6 +4032,8 @@ function renderSearch(mode, q = '') {
       </div>
       <div class="right"><div class="d">${esc(distLabel(p.km))}</div></div>
     </button>`).join('')}</div>`;
+
+  if (tagPeople.length) html += '<div class="res-group"><div class="gh">People with #' + esc(t) + ' <span class="search-group-count">' + tagPeople.length + '</span></div>' + tagPeople.map(p => '<button class="prow search-person-row" data-action="person:' + p.id + '">' + avatar(p, 46) + '<div class="meta"><div class="n">' + esc(p.name) + '</div><div class="s">' + esc(p.username || '@username') + ' · ' + esc(p.tag) + '</div></div><div class="right"><div class="d">' + esc(distLabel(p.km)) + '</div></div></button>').join('') + '</div>';
 
   if (tagSet.size) {
     html += '<div class="res-group"><div class="gh">Tags</div><div class="chips" style="flex-wrap:wrap;padding:8px 0 4px">' +
@@ -5147,16 +5170,14 @@ document.addEventListener('click', async e => {
       const avatarFile = avatarInput?.files?.[0] || null;
       const newName = $('#ep-name').value.trim();
       const newBio = $('#ep-bio').value.trim();
-      const parseHashList = (value, limit) => String(value || '')
-        .split(/[#,\n]+/)
-        .map(item => item.trim())
-        .filter(Boolean)
-        .map(item => item.replace(/^#+/, '').trim())
-        .filter(Boolean)
-        .slice(0, limit);
+      const tagsValidation = validateMingProfileList($('#ep-tags').value, 8, 'Tags');
+      const interestsValidation = validateMingProfileList($('#ep-interests').value, 12, 'Interests and services');
 
-      const newTags = parseHashList($('#ep-tags').value, 8);
-      const newInterests = parseHashList($('#ep-interests').value, 12);
+      if (!tagsValidation.ok) { toast(tagsValidation.message, 'alert'); break; }
+      if (!interestsValidation.ok) { toast(interestsValidation.message, 'alert'); break; }
+
+      const newTags = tagsValidation.items;
+      const newInterests = interestsValidation.items;
       const requestedUsername = $('#ep-username').value.trim().toLowerCase();
       const currentUsername = currentUser.username.replace(/^@/, '').toLowerCase();
       const usernameChanged = requestedUsername !== currentUsername;
