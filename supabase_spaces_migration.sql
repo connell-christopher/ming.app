@@ -1,3 +1,5 @@
+create extension if not exists pgcrypto with schema extensions;
+
 -- Ming Spaces persistence
 -- Run this migration in Supabase SQL Editor before using the database-backed Spaces flow.
 
