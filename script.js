@@ -423,6 +423,8 @@ async function loadMingNotifications() {
     }
 
     notifications = next.sort((a, b) => b.at - a.at);
+    rememberAndPopupNewMingNotifications(notifications);
+    updateNotifDot();
     return true;
   } catch (error) {
     console.warn('Ming: notification load failed.', error);
@@ -4032,6 +4034,115 @@ function updateNotifDot() {
   $('#notif-dot').hidden = !unread;
 }
 /* ------------------------------------------------------------
+   MING NOTIFICATION POPUPS
+------------------------------------------------------------ */
+let mingNotificationPopupHost = null;
+let mingNotificationAudioContext = null;
+let mingNotificationAudioUnlocked = false;
+let mingNotificationRuntimeReady = false;
+const mingKnownNotificationIds = new Set();
+
+function ensureMingNotificationPopupHost() {
+  if (mingNotificationPopupHost && document.body.contains(mingNotificationPopupHost)) return mingNotificationPopupHost;
+  mingNotificationPopupHost = document.createElement('div');
+  mingNotificationPopupHost.className = 'ming-notification-popups';
+  mingNotificationPopupHost.setAttribute('aria-live', 'polite');
+  mingNotificationPopupHost.setAttribute('aria-atomic', 'false');
+  document.body.appendChild(mingNotificationPopupHost);
+  return mingNotificationPopupHost;
+}
+
+function unlockMingNotificationAudio() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!mingNotificationAudioContext) mingNotificationAudioContext = new AudioCtx();
+    if (mingNotificationAudioContext.state === 'suspended') mingNotificationAudioContext.resume();
+    mingNotificationAudioUnlocked = true;
+  } catch (_) {}
+}
+
+function playMingNotificationSound() {
+  if (!mingNotificationAudioUnlocked) return;
+  try {
+    const ctx = mingNotificationAudioContext;
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const nowTime = ctx.currentTime;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, nowTime);
+    gain.gain.exponentialRampToValueAtTime(0.055, nowTime + 0.018);
+    gain.gain.exponentialRampToValueAtTime(0.0001, nowTime + 0.48);
+    gain.connect(ctx.destination);
+
+    [659.25, 783.99, 987.77].forEach((frequency, index) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(frequency, nowTime + index * 0.055);
+      osc.connect(gain);
+      osc.start(nowTime + index * 0.055);
+      osc.stop(nowTime + 0.49);
+    });
+  } catch (_) {}
+}
+
+function showMingNotificationPopup(notification) {
+  if (!notification || notification.read) return;
+  const host = ensureMingNotificationPopupHost();
+  const popup = document.createElement('button');
+  popup.type = 'button';
+  popup.className = 'ming-notification-popup';
+  popup.innerHTML =
+    '<span class="ming-notification-popup__icon">' +
+      icon(NOTIF_ICON[notification.type] || 'bell') +
+    '</span>' +
+    '<span class="ming-notification-popup__copy">' +
+      '<strong>ming</strong>' +
+      '<span>' + notification.text + '</span>' +
+    '</span>' +
+    '<span class="ming-notification-popup__close" aria-hidden="true">×</span>';
+
+  popup.addEventListener('click', async () => {
+    popup.remove();
+    await handleAction('notif:' + notification.id);
+  });
+
+  host.appendChild(popup);
+  playMingNotificationSound();
+
+  const timeout = setTimeout(() => {
+    popup.classList.add('is-leaving');
+    setTimeout(() => popup.remove(), 220);
+  }, 5200);
+
+  popup.addEventListener('click', () => clearTimeout(timeout), { once: true });
+}
+
+function rememberAndPopupNewMingNotifications(nextNotifications) {
+  const list = Array.isArray(nextNotifications) ? nextNotifications : [];
+
+  if (!mingNotificationRuntimeReady) {
+    list.forEach(n => {
+      if (!n.read) mingKnownNotificationIds.add(n.id);
+    });
+    mingNotificationRuntimeReady = true;
+    return;
+  }
+
+  list.forEach(n => {
+    if (n.read || mingKnownNotificationIds.has(n.id)) return;
+    mingKnownNotificationIds.add(n.id);
+    showMingNotificationPopup(n);
+  });
+}
+
+function setupMingNotificationAudioUnlock() {
+  const unlock = () => unlockMingNotificationAudio();
+  document.addEventListener('pointerdown', unlock, { passive: true, once: true });
+  document.addEventListener('keydown', unlock, { passive: true, once: true });
+}
+
+/* ------------------------------------------------------------
    BOTTOM SHEETS
 ------------------------------------------------------------ */
 const sheet = $('#sheet'), scrim = $('#scrim'), modal = $('#modal');
@@ -5428,7 +5539,9 @@ async function boot() {
     Server.session.userId = currentUser.id;
     await Server.load();
   }
+  setupMingNotificationAudioUnlock();
   await loadMingNotifications();
+  await subscribeMingMessages();
   await loadMingDailyUpdates();
   startMingCallInbox();
   await restorePendingMingCall();
