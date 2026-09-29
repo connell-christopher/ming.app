@@ -1742,45 +1742,38 @@ async function sendCallInboxSignal(targetId, payload) {
   if (!session?.user) return false;
 
   await supabaseClient.realtime.setAuth();
+
+  /*
+     Use Supabase's HTTP Broadcast path for outbound signaling.
+     This avoids opening a brand-new WebSocket subscription for every
+     ICE candidate. The recipient remains subscribed to their private
+     inbox over WebSocket, while offers/answers/ICE/hangups are delivered
+     to that inbox over authenticated REST.
+  */
   const channel = supabaseClient.channel(callTopicFor(targetId), {
-    config: { private: true, broadcast: { self: false, ack: true } }
+    config: { private: true }
   });
 
-  let subscribed = false;
-  await new Promise(resolve => {
-    channel.subscribe((status, error) => {
-      if (status === 'SUBSCRIBED') {
-        subscribed = true;
-        resolve();
-      } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
-        console.warn('Ming: call inbox send channel failed.', status, error || '');
-        resolve();
-      }
-    });
-  });
+  try {
+    if (typeof channel.httpSend !== 'function') {
+      console.warn('Ming: Realtime HTTP broadcast is unavailable.');
+      return false;
+    }
 
-  if (!subscribed) {
+    const result = await channel.httpSend('call', payload);
+
+    if (result === 'error' || result?.error) {
+      console.warn('Ming: call inbox HTTP signal was rejected.', result);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.warn('Ming: call inbox HTTP signal failed.', error);
+    return false;
+  } finally {
     await supabaseClient.removeChannel(channel);
-    return false;
   }
-
-  // With ack enabled, Supabase returns an explicit status. The old code
-  // destructured an error property that send() does not return, so failed
-  // private broadcasts could be mistaken for successful signaling.
-  const sendStatus = await channel.send({
-    type: 'broadcast',
-    event: 'call',
-    payload
-  });
-
-  await supabaseClient.removeChannel(channel);
-
-  if (sendStatus !== 'ok') {
-    console.warn('Ming: call inbox signal was rejected.', sendStatus);
-    return false;
-  }
-
-  return true;
 }
 
 async function sendCallSignal(targetId, payload) {
