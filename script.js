@@ -6062,7 +6062,7 @@ const WZ_RENDER = {
     <h2>Name your Space</h2>
     <p class="lede">Members see this everywhere. Short names work best.</p>
     <div class="field"><label for="wz-name">Name</label>
-      <input id="wz-name" type="text" maxlength="40" value="${esc(w.name)}" placeholder="${w.nature === 'marketplace' ? 'The Corner Market' : w.nature === 'business' ? 'Northline Studio' : 'The Circle'}" /></div>
+      <input id="wz-name" type="text" maxlength="40" value="${esc(w.name)}" placeholder="Give your Space a name" /></div>
     <div class="field"><label for="wz-desc">What is it for?</label>
       <textarea id="wz-desc" maxlength="160" placeholder="One line so people know what they are joining.">${esc(w.description)}</textarea></div>`,
 
@@ -6330,7 +6330,7 @@ const HEADERS = {
   casual: s => spBar(s, { meta: `${NATURES[s.nature].label}${s.expiresAt ? ' · closes ' + new Date(s.expiresAt).toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''}` }) +
     `<div class="live-bar"><span class="live-dot"></span> ${contentOf(s.id, 'now').length} things happening${s.locationLinked && hasLocation() ? ` · ${esc(areaLabel())}` : ''}</div>`,
 
-  silly: s => spBar(s, { meta: `Silly · ${Server.memberCount(s.id)} idiots` }),
+  silly: s => spBar(s, { meta: `Silly · ${Server.memberCount(s.id)} members` }),
 
   romantic: s => spBar(s, { meta: 'Private' }) + `
     <div class="rom-hero">
@@ -6421,7 +6421,7 @@ VIEWS.friendly.home = s => {
   <div class="friend-strip">
     ${members.map(m => {
       const p = personOf(m.userId);
-      return `<button data-sp="member:${m.userId}">${avatar(p, 56)}<div class="nm">${esc(p.short || 'You')}</div></button>`;
+      return `<button data-sp="member:${m.userId}">${avatar(p, 40)}<div class="nm">${esc(p.short || p.name || '')}</div></button>`;
     }).join('')}
   </div>
   <div class="sp-sec"><h3>Today <span><button data-sp="new:moment">Share</button></span></h3>
@@ -6734,7 +6734,7 @@ function openProduct(id) {
         <span class="trust">${icon('sp-box')}${p.qty} in stock</span>
       </div>
       <div class="mrow" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
-        ${avatar(seller, 40)}<div class="m"><div class="n">${esc(seller.short || seller.name)}</div>
+        ${avatar(seller, 36)}<div class="m"><div class="n">${esc(seller.short || seller.name)}</div>
         <div class="s">Seller · ${esc(s.name)}</div></div>
         <button class="btn btn--soft btn--sm" data-sp="msg-seller:${p.sellerId}">Message</button>
       </div>`,
