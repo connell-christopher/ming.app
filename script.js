@@ -1252,7 +1252,7 @@ async function deleteMingDailyUpdate(id) {
   return true;
 }
 
-async async function createUpdate(kind, title, body) {
+async function createUpdate(kind, title, body) {
   if (!isUuidPerson(currentUser.id)) {
     toast('Please sign in again.', 'alert');
     return false;
