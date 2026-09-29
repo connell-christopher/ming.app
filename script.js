@@ -3771,14 +3771,14 @@ function editProfile() {
 
       <div class="field">
         <label for="ep-tags">Tags</label>
-        <input id="ep-tags" type="text" value="${esc(currentUser.tags.join(", "))}" maxlength="200" />
-        <div class="count">Separate tags with commas.</div>
+        <input id="ep-tags" type="text" value="${esc(currentUser.tags.map(t => '#' + String(t).replace(/^#+/, '')).join(' '))}" maxlength="200" placeholder="#appsec #cybersecurity #coffee" />
+        <div class="count">Separate tags with # · e.g. #appsec #cybersecurity #coffee.</div>
       </div>
 
       <div class="field">
         <label for="ep-interests">Interests and services</label>
-        <input id="ep-interests" type="text" value="${esc(currentUser.interests.join(", "))}" maxlength="300" />
-        <div class="count">Separate interests with commas.</div>
+        <input id="ep-interests" type="text" value="${esc(currentUser.interests.map(i => '#' + String(i).replace(/^#+/, '')).join(' '))}" maxlength="300" placeholder="#football #music #design" />
+        <div class="count">Separate interests with # · e.g. #football #music #design.</div>
       </div>
 
       <div class="field">
@@ -5147,16 +5147,16 @@ document.addEventListener('click', async e => {
       const avatarFile = avatarInput?.files?.[0] || null;
       const newName = $('#ep-name').value.trim();
       const newBio = $('#ep-bio').value.trim();
-      const newTags = $('#ep-tags').value
-        .split(',')
+      const parseHashList = (value, limit) => String(value || '')
+        .split(/[#,\n]+/)
         .map(item => item.trim())
         .filter(Boolean)
-        .slice(0, 8);
-      const newInterests = $('#ep-interests').value
-        .split(',')
-        .map(item => item.trim())
+        .map(item => item.replace(/^#+/, '').trim())
         .filter(Boolean)
-        .slice(0, 12);
+        .slice(0, limit);
+
+      const newTags = parseHashList($('#ep-tags').value, 8);
+      const newInterests = parseHashList($('#ep-interests').value, 12);
       const requestedUsername = $('#ep-username').value.trim().toLowerCase();
       const currentUsername = currentUser.username.replace(/^@/, '').toLowerCase();
       const usernameChanged = requestedUsername !== currentUsername;
