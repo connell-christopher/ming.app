@@ -3798,6 +3798,7 @@ let searchDataReady = false;
 let searchDataLoading = null;
 let searchPeople = [];
 let searchPlaces = [];
+let searchDiscoverableSpaces = [];
 
 function mapSearchProfile(row) {
   const name = row.display_name || 'Ming user';
@@ -3833,8 +3834,13 @@ async function loadMingSearchData() {
           })
         : Promise.resolve({ data: [], error: null });
 
-      const [profilesResult, updatesResult, placesResult] = await Promise.all([
-        profilesPromise, updatesPromise, placesPromise
+      // Discoverable Spaces are global search data, not just the Spaces
+      // already joined by the current user. The RPC is optional until its
+      // migration has been run; the local Space mirror remains a safe fallback.
+      const spacesPromise = supabaseClient.rpc('get_discoverable_ming_spaces');
+
+      const [profilesResult, updatesResult, placesResult, spacesResult] = await Promise.all([
+        profilesPromise, updatesPromise, placesPromise, spacesPromise
       ]);
 
       searchPeople = profilesResult.error ? [] : (profilesResult.data || []).map(mapSearchProfile);
@@ -3874,6 +3880,17 @@ async function loadMingSearchData() {
         hue: 26, km: row.distance_km == null ? null : Number(row.distance_km),
         saved: !!row.saved_by_me
       }));
+
+      searchDiscoverableSpaces = spacesResult.error
+        ? []
+        : (spacesResult.data || []).map(row => ({
+            id: row.id,
+            name: row.name,
+            description: row.description || '',
+            nature: row.nature,
+            discoverable: true,
+            expiresAt: row.expires_at ? new Date(row.expires_at).getTime() : null
+          }));
 
       searchDataReady = true;
       return true;
@@ -3929,14 +3946,18 @@ function renderSearch(mode, q = '') {
   const rp = isUsernameSearch
     ? searchPeople.filter(p => String(p.username || '').replace(/^@/, '').toLowerCase().includes(t))
     : [];
+  const updateSearchText = u => {
+    const kindLabel = KINDS[u.kind]?.label || u.kind || '';
+    return [kindLabel, u.title, u.body].filter(Boolean).join(' ').toLowerCase();
+  };
   const ru = dailyUpdates.filter(u =>
-    ['general', 'visitor'].includes(u.kind) && (u.title + ' ' + u.body).toLowerCase().includes(t)
+    ['general', 'visitor'].includes(u.kind) && updateSearchText(u).includes(t)
   );
   const ro = dailyUpdates.filter(u =>
-    ['service', 'sale'].includes(u.kind) && (u.title + ' ' + u.body).toLowerCase().includes(t)
+    ['service', 'sale'].includes(u.kind) && updateSearchText(u).includes(t)
   );
   const ra = dailyUpdates.filter(u =>
-    u.kind === 'activity' && (u.title + ' ' + u.body).toLowerCase().includes(t)
+    u.kind === 'activity' && updateSearchText(u).includes(t)
   ).map(u => ({
     ...u,
     hour: clockTime(u.createdAt),
@@ -3945,15 +3966,18 @@ function renderSearch(mode, q = '') {
     going: 0
   }));
   const rj = dailyUpdates.filter(u =>
-    u.kind === 'hiring' && (u.title + ' ' + u.body).toLowerCase().includes(t)
+    u.kind === 'hiring' && updateSearchText(u).includes(t)
   );
   const rh = dailyUpdates.filter(u =>
-    ['talk', 'alert'].includes(u.kind) && (u.title + ' ' + u.body).toLowerCase().includes(t)
+    ['talk', 'alert'].includes(u.kind) && updateSearchText(u).includes(t)
   );
   const rl = searchPlaces.filter(p =>
     (p.name + ' ' + p.kind + ' ' + p.note).toLowerCase().includes(t)
   );
-  const rs = Server.db.spaces.filter(s => {
+  const spaceSearchSource = searchDiscoverableSpaces.length
+    ? searchDiscoverableSpaces
+    : Server.db.spaces;
+  const rs = spaceSearchSource.filter(s => {
     if (!s.discoverable || (s.expiresAt && s.expiresAt <= now())) return false;
     return [s.name, s.description, s.nature, NATURES[s.nature]?.label]
       .filter(Boolean).join(' ').toLowerCase().includes(t);
