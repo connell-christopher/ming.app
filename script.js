@@ -497,10 +497,7 @@ function avatarStyle(hue) {
   return `background:linear-gradient(145deg,hsl(${hue} 42% 66%),hsl(${(hue + 340) % 360} 40% 40%))`;
 }
 function avatar(p, size = 44, opts = {}) {
-  const ownDiscoverable = p.id === currentUser.id && currentUser.discoverable === true && hasLocation();
-  const statusClass = p.id === currentUser.id
-    ? (ownDiscoverable ? 'on' : '')
-    : (p.status || '');
+  const statusClass = isMingUserOnline(p.id) ? 'on' : '';
   const st = statusClass ? `<span class="status ${statusClass}"></span>` : '';
   const image = p.avatarUrl
     ? `<img src="${esc(p.avatarUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;">`
@@ -1094,7 +1091,7 @@ function renderHomePeople() {
     (near.length
       ? `<div class="rail">${near.map(p => `
         <button class="pcard" data-action="person:${p.id}">
-          ${ringAvatar(p, 56, p.status === 'on')}
+          ${ringAvatar(p, 56, isMingUserOnline(p.id))}
           <div class="name">${esc(p.short)}</div>
           <div class="tag">${esc(p.tag.split(' · ')[0])}</div>
           <div class="dist">${esc(distLabel(p.km))}</div>
@@ -1507,7 +1504,7 @@ function renderDiscover() {
   const f = state.discoverFilter; const show = k => f === 'all' || f === k; let html = '';
   if (show('people')) {
     html += '<div class="section">' + sectionHead('People', null, { t: 'Nearby', a: 'go-nearby' }) + '<div class="rail">' +
-      (mingDiscoverPeople.map(p => '<button class="pcard" data-action="person:' + p.id + '">' + ringAvatar(p, 56, p.status === 'on') + '<div class="name">' + esc(p.short) + '</div><div class="tag">' + esc(p.tag) + '</div><div class="dist">' + esc(p.km == null ? 'Discoverable' : distLabel(p.km)) + '</div></button>').join('') || '<div style="padding:8px 0;color:var(--muted);font-size:13px">No other Ming members are discoverable yet.</div>') + '</div></div>';
+      (mingDiscoverPeople.map(p => '<button class="pcard" data-action="person:' + p.id + '">' + ringAvatar(p, 56, isMingUserOnline(p.id)) + '<div class="name">' + esc(p.short) + '</div><div class="tag">' + esc(p.tag) + '</div><div class="dist">' + esc(p.km == null ? 'Discoverable' : distLabel(p.km)) + '</div></button>').join('') || '<div style="padding:8px 0;color:var(--muted);font-size:13px">No other Ming members are discoverable yet.</div>') + '</div></div>';
   }
   if (show('moments')) {
     html += '<div class="section">' + sectionHead('Moments', 'Recent local moments') + '<div class="rail">' + (discoverMoments.map(m => {
@@ -1702,7 +1699,7 @@ function renderNearby() {
     <div class="section">${sectionHead('People around you', inRange.length ? `${inRange.length} within ${state.radius} km` : null)}
       ${inRange.length ? inRange.map(p => `
         <button class="prow" data-action="person:${p.id}">
-          ${ringAvatar(p, 48, p.status === 'on')}
+          ${ringAvatar(p, 48, isMingUserOnline(p.id))}
           <div class="meta"><div class="n">${esc(p.name)}</div><div class="s">${esc(p.tag)} · ${esc(p.activity)}</div></div>
           <div class="right"><div class="d">${esc(distLabel(p.km))}</div><div class="t">${esc(areaLabel())}</div></div>
         </button>`).join('')
@@ -1751,7 +1748,7 @@ function openPerson(id) {
 
   $('#person-body').innerHTML = `
     <div class="phead" style="padding-top:8px">
-      ${ringAvatar(p, 88, p.status === 'on')}
+      ${ringAvatar(p, 88, isMingUserOnline(p.id))}
       <div class="who">
         <h1>${esc(p.name)}</h1>
         <div class="u">${esc(p.tag)}</div>
@@ -1947,6 +1944,103 @@ async function loadMingMessages() {
 
 let mingMessageChannel = null;
 let mingChatChannel = null;
+
+/* Global app presence.
+   A user is online only while at least one Ming tab is visible.
+   Realtime removes the presence automatically when the socket closes. */
+let mingPresenceChannel = null;
+const mingOnlineUsers = new Set();
+const mingPresenceTabId = 'tab_' + Math.random().toString(36).slice(2);
+
+function isMingUserOnline(userId) {
+  return !!userId && mingOnlineUsers.has(String(userId));
+}
+
+function refreshPresenceViews() {
+  try {
+    if (state.tab === 'home') renderHomePeople();
+    if (state.tab === 'nearby') renderNearby();
+    if (state.tab === 'discover') renderDiscover();
+    if (state.tab === 'profile') renderProfile();
+    if (state.tab === 'person' && state.activePerson) renderPerson(state.activePerson);
+  } catch (_) {}
+}
+
+async function syncMingPresenceUsers() {
+  if (!mingPresenceChannel) return;
+
+  const next = new Set();
+  const stateMap = mingPresenceChannel.presenceState();
+
+  Object.values(stateMap || {}).forEach(entries => {
+    (Array.isArray(entries) ? entries : [entries]).forEach(entry => {
+      const id = entry?.userId;
+      if (id) next.add(String(id));
+    });
+  });
+
+  mingOnlineUsers.clear();
+  next.forEach(id => mingOnlineUsers.add(id));
+  refreshPresenceViews();
+}
+
+async function trackMingPresence() {
+  if (!mingPresenceChannel || document.hidden) return;
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user) return;
+
+  try {
+    await mingPresenceChannel.track({
+      userId: session.user.id,
+      online_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.warn('Ming: presence track failed.', error);
+  }
+}
+
+async function untrackMingPresence() {
+  if (!mingPresenceChannel) return;
+  try {
+    await mingPresenceChannel.untrack();
+  } catch (_) {}
+}
+
+async function startMingPresence() {
+  if (mingPresenceChannel) return;
+
+  const { data: { session }, error } = await supabaseClient.auth.getSession();
+  if (error || !session?.user) return;
+
+  await supabaseClient.realtime.setAuth();
+
+  const channel = supabaseClient.channel('ming:presence', {
+    config: {
+      presence: { key: mingPresenceTabId }
+    }
+  });
+
+  channel
+    .on('presence', { event: 'sync' }, syncMingPresenceUsers)
+    .on('presence', { event: 'join' }, syncMingPresenceUsers)
+    .on('presence', { event: 'leave' }, syncMingPresenceUsers);
+
+  mingPresenceChannel = channel;
+
+  channel.subscribe(async status => {
+    if (status !== 'SUBSCRIBED') {
+      if (status !== 'CLOSED' && status !== 'CHANNEL_ERROR') {
+        console.warn('Ming: presence realtime status:', status);
+      }
+      return;
+    }
+
+    await trackMingPresence();
+    await syncMingPresenceUsers();
+  });
+}
+
 let chatTypingTimer = null;
 let chatTyping = false;
 let chatOnline = false;
@@ -2699,7 +2793,7 @@ function renderChatPresenceStatus() {
   const p = byId(state.activeChat);
   if (!p) return;
   const base = hasLocation() && p.km != null ? distLabel(p.km) + ' · ' : '';
-  const status = chatTyping ? 'Typing…' : (chatOnline ? 'Online now' : (p.status === 'on' ? 'Active now' : 'Active earlier'));
+  const status = chatTyping ? 'Typing…' : (chatOnline ? 'Online now' : (isMingUserOnline(p.id) ? 'Active now' : 'Active earlier'));
   $('#chat-sub').textContent = base + status;
 }
 
@@ -5346,9 +5440,27 @@ async function boot() {
      The location request may already be running or complete by this point.
      Do not start a duplicate request here.
   */
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && state.locStatus === 'granted') requestLocation();
+  await startMingPresence();
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden) {
+      await untrackMingPresence();
+      await syncMingPresenceUsers();
+      return;
+    }
+
+    await trackMingPresence();
+    await syncMingPresenceUsers();
+
+    if (state.locStatus === 'granted') requestLocation();
   });
+
+  window.addEventListener('pagehide', () => {
+    /* Realtime will close the socket when the page is actually left.
+       Visibility handling above also removes background tabs from presence. */
+    untrackMingPresence();
+  });
+
   setInterval(tickExpiry, 60000);
 }
 boot();
