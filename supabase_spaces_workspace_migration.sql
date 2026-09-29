@@ -452,3 +452,93 @@ $$;
 
 revoke execute on function public.get_my_ming_space_files() from public, anon;
 grant execute on function public.get_my_ming_space_files() to authenticated;
+
+
+-- Keep the dedicated theme column synchronized with the theme selected during creation.
+create or replace function public.create_ming_space(
+  p_name text,
+  p_description text default '',
+  p_nature text default 'friendly',
+  p_privacy text default 'private',
+  p_require_approval boolean default false,
+  p_max_members integer default null,
+  p_hue integer default null,
+  p_location_linked boolean default false,
+  p_expires_at timestamptz default null,
+  p_features jsonb default '{}'::jsonb,
+  p_invite_ttl_hours integer default 24,
+  p_invite_max_uses integer default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user uuid := auth.uid();
+  v_space public.ming_spaces;
+  v_member public.ming_space_members;
+  v_code text;
+  v_hash text;
+  v_invite public.ming_space_invites;
+  v_features jsonb := coalesce(p_features, '{}'::jsonb);
+begin
+  if v_user is null then raise exception 'Authentication required'; end if;
+  if char_length(btrim(coalesce(p_name,''))) < 2 then raise exception 'A Space needs a name.'; end if;
+  if p_nature not in ('business','friendly','casual','silly','romantic','marketplace') then raise exception 'Unknown Space nature.'; end if;
+  if p_privacy not in ('private','approval','discoverable') then raise exception 'Unknown Space privacy.'; end if;
+  if p_max_members is not null and p_max_members <= 0 then raise exception 'Member limit must be positive.'; end if;
+
+  insert into public.ming_spaces(
+    owner_id,name,description,nature,privacy,discoverable,require_approval,max_members,
+    hue,location_linked,expires_at,features,theme
+  )
+  values(
+    v_user,btrim(p_name),coalesce(p_description,''),p_nature,
+    case when p_nature='romantic' then 'private' else p_privacy end,
+    case when p_nature='romantic' then false else p_privacy='discoverable' end,
+    (p_privacy='approval' or p_require_approval),p_max_members,p_hue,p_location_linked,
+    p_expires_at,v_features,coalesce(v_features->'theme','{}'::jsonb)
+  )
+  returning * into v_space;
+
+  insert into public.ming_space_members(space_id,user_id,role,approved)
+  values(v_space.id,v_user,'owner',true)
+  returning * into v_member;
+
+  v_code := upper(substr(md5(random()::text||clock_timestamp()::text||v_user::text),1,4)||'-'||
+                  substr(md5(random()::text||clock_timestamp()::text||v_space.id::text),1,4));
+  v_hash := encode(extensions.digest(v_code,'sha256'),'hex');
+
+  insert into public.ming_space_invites(space_id,code_hash,hint,expires_at,max_uses,version)
+  values(
+    v_space.id,v_hash,right(v_code,2),
+    case when coalesce(p_invite_ttl_hours,24)>0 then now()+make_interval(hours=>coalesce(p_invite_ttl_hours,24)) else null end,
+    p_invite_max_uses,1
+  )
+  returning * into v_invite;
+
+  return jsonb_build_object(
+    'space',jsonb_build_object(
+      'id',v_space.id,'name',v_space.name,'description',v_space.description,'nature',v_space.nature,
+      'privacy',v_space.privacy,'discoverable',v_space.discoverable,'requireApproval',v_space.require_approval,
+      'maxMembers',v_space.max_members,'hue',v_space.hue,'locationLinked',v_space.location_linked,
+      'expiresAt',v_space.expires_at,'features',v_space.features,'theme',v_space.theme,
+      'ownerId',v_space.owner_id,'createdAt',v_space.created_at
+    ),
+    'member',jsonb_build_object(
+      'spaceId',v_member.space_id,'userId',v_member.user_id,'role',v_member.role,
+      'joinedAt',v_member.joined_at,'approved',v_member.approved
+    ),
+    'invite',jsonb_build_object(
+      'id',v_invite.id,'codeHash',v_invite.code_hash,'hint',v_invite.hint,'createdAt',v_invite.created_at,
+      'expiresAt',v_invite.expires_at,'maxUses',v_invite.max_uses,'uses',v_invite.uses,
+      'revoked',v_invite.revoked,'version',v_invite.version
+    ),
+    'code',v_code
+  );
+end;
+$$;
+
+revoke execute on function public.create_ming_space(text,text,text,text,boolean,integer,integer,boolean,timestamptz,jsonb,integer,integer) from public, anon;
+grant execute on function public.create_ming_space(text,text,text,text,boolean,integer,integer,boolean,timestamptz,jsonb,integer,integer) to authenticated;
