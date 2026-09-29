@@ -3632,3 +3632,29 @@ html.theme-transitioning *::after {
     width: calc(100vw - 24px);
   }
 }
+
+/* Unread message count on the profile Messages stat */
+.profile-messages-stat {
+  position: relative;
+}
+.profile-message-unread-badge {
+  position: absolute;
+  top: 6px;
+  right: 9px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #c83b4f;
+  color: #fff;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  box-shadow: 0 0 8px rgba(200,59,79,.42);
+}
+.profile-message-unread-badge[hidden] {
+  display: none;
+}
