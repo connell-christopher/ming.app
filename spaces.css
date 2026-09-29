@@ -435,5 +435,10 @@
 }
 
 
-#screen-space .sp-bar .back{width:36px;height:36px;min-width:36px;min-height:36px;padding:0;display:grid;place-items:center;border-radius:12px}
-#screen-space .sp-bar .back svg{width:17px;height:17px}
+#screen-space .sp-bar .back{width:30px!important;height:30px!important;min-width:30px!important;min-height:30px!important;padding:0!important;display:grid!important;place-items:center;border-radius:10px!important}
+#screen-space .sp-bar .back svg{width:15px!important;height:15px!important;max-width:15px;max-height:15px}
+#screen-space .sp-bar .ic{width:34px;height:34px;min-width:34px;min-height:34px}
+#screen-space .sp-bar .ic svg{width:17px;height:17px}
+#screen-space .stack-avs .av{width:24px;height:24px;font-size:9px}
+#screen-space .mrow>.av{width:36px;height:36px;font-size:13px}
+#screen-space .sp-body .av--56,#screen-space .sp-body .av--44,#screen-space .sp-body .av--40{width:36px;height:36px;font-size:13px}
