@@ -3684,3 +3684,26 @@ html.theme-transitioning *::after {
 .search-group-count{display:inline-flex;margin-left:6px;padding:2px 6px;border-radius:999px;background:var(--surface-2)}
 .search-person-row .meta{min-width:0}
 .search-person-row .meta .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+
+/* Ming chat attachments */
+.chat-attach-btn{width:38px;height:38px;min-width:38px;border-radius:13px;display:grid;place-items:center;border:1px solid var(--border);background:var(--surface-2);color:var(--coffee)}
+.chat-attach-btn svg{width:18px;height:18px}
+.chat-attachment-preview{padding:7px 12px;border-top:1px solid var(--border);background:var(--surface)}
+.chat-attachment-preview__inner{display:flex;align-items:center;gap:10px;max-width:720px;margin:0 auto;padding:8px 10px;border:1px solid var(--border);border-radius:14px;background:var(--surface-2)}
+.chat-attachment-preview__icon{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:rgba(111,67,44,.09);color:var(--coffee);flex:0 0 auto}
+.chat-attachment-preview__icon svg{width:17px;height:17px}
+.chat-attachment-preview__copy{min-width:0;display:grid;gap:2px;flex:1}
+.chat-attachment-preview__copy strong{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-attachment-preview__copy small{font-size:10.5px;color:var(--muted)}
+.chat-attachment-preview__remove{width:30px;height:30px;border:0;border-radius:9px;background:transparent;color:var(--muted)}
+.chat-attachment--image{display:block;overflow:hidden;border-radius:15px;max-width:min(280px,70vw);background:var(--surface-2)}
+.chat-attachment--image img{display:block;width:100%;max-height:320px;object-fit:cover}
+.chat-attachment-loading{display:block;padding:26px 22px;font-size:11.5px;color:var(--muted)}
+.chat-attachment--file{min-width:210px;padding:10px;border:1px solid rgba(111,67,44,.12);border-radius:13px;background:rgba(111,67,44,.055)}
+.chat-attachment-file-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:rgba(111,67,44,.10);color:var(--coffee);flex:0 0 auto}
+.chat-attachment-file-icon svg{width:17px;height:17px}
+.chat-attachment-file-copy{min-width:0;display:grid;gap:2px;flex:1}
+.chat-attachment-file-copy strong{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-attachment-file-copy small{font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-attachment .go svg{width:14px;height:14px}
