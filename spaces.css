@@ -786,3 +786,25 @@
   stroke-linecap:round;
   stroke-linejoin:round;
 }
+
+/* Nature-specific Space palette surfaces */
+#screen-space.sp .sp-head {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sp-accent-2) 16%, var(--surface)), color-mix(in srgb, var(--surface) 96%, transparent));
+}
+#screen-space.sp .sp-tabs button.on {
+  color: var(--sp-accent-2);
+}
+#screen-space.sp .sp-tabs button.on svg {
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--sp-accent-2) 45%, transparent));
+}
+#screen-space.sp .btn--primary {
+  background: linear-gradient(135deg, var(--sp-accent-2), var(--sp-accent-3));
+  border-color: transparent;
+}
+#screen-space.sp .sp-card {
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--sp-accent-2) 7%, transparent);
+}
+#screen-space.sp .privacy-seal {
+  border-color: color-mix(in srgb, var(--sp-accent-2) 28%, var(--border));
+  background: color-mix(in srgb, var(--sp-accent-2) 7%, var(--surface));
+}
