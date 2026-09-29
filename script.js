@@ -3211,14 +3211,39 @@ async function copyChatMessage(messageId) {
   toast('Message copied', 'check');
 }
 
+let chatForwardSourceId = null;
 function forwardChatMessage(messageId) {
   const source = convoFor(state.activeChat).messages.find(x => x.id === messageId);
+  chatForwardSourceId = source?.id || null;
   if (!source) return;
   const options = conversations.filter(c => c.personId !== state.activeChat).map(c => {
     const p = byId(c.personId);
-    return p ? `<button class="opt" data-action="forward-to:${esc(c.personId)}:${encodeURIComponent(source.text || '')}"><span class="tx"><span class="t">${esc(p.short)}</span><span class="s">Forward message</span></span><span class="go">›</span></button>` : '';
+    return p ? `<button class="opt" data-action="forward-to:${esc(c.personId)}"><span class="tx"><span class="t">${esc(p.short)}</span><span class="s">Forward message</span></span><span class="go">›</span></button>` : '';
   }).join('');
   openSheet({ title:'Forward message', sub:'Choose a conversation', body: options || '<p class="center-note">No other conversations yet.</p>' });
+}
+
+async function forwardSelectedChatMessage(targetId) {
+  const source = convoFor(state.activeChat).messages.find(x => x.id === chatForwardSourceId);
+  if (!source || !isUuidPerson(targetId)) return;
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user) { toast('Please sign in again', 'alert'); return; }
+  if (source.type === 'text') {
+    closeSheet(); await openChat(targetId); await sendMessage(source.text || ''); return;
+  }
+  const rpc = await supabaseClient.rpc('ming_send_message_v3', {
+    p_recipient_id: targetId, p_body: '', p_message_type: source.type,
+    p_voice_path: source.type === 'voice' ? (source.voicePath || null) : null,
+    p_voice_duration: source.type === 'voice' ? (source.voiceDuration || null) : null,
+    p_reply_to_id: null,
+    p_attachment_path: source.type !== 'voice' ? (source.attachmentPath || null) : null,
+    p_attachment_name: source.type !== 'voice' ? (source.attachmentName || null) : null,
+    p_attachment_mime: source.type !== 'voice' ? (source.attachmentMime || null) : null,
+    p_attachment_size: source.type !== 'voice' ? (source.attachmentSize || null) : null
+  });
+  if (rpc.error) { toast('Could not forward this message.', 'alert'); return; }
+  closeSheet(); await openChat(targetId); await loadMingMessages(); renderThread();
+  toast('Message forwarded', 'check');
 }
 
 async function addChatReaction(messageId, emoji) {
@@ -5576,12 +5601,7 @@ document.addEventListener('click', async e => {
   if(verb==='chat-forward'){ forwardChatMessage(arg); }
   if(verb==='chat-react'){ /* emoji row already visible */ }
   if(verb==='chat-add-reaction'){ addChatReaction(arg, decodeURIComponent(arg2||'')); }
-  if(verb==='forward-to'){
-    const text=decodeURIComponent(arg2||'');
-    closeSheet();
-    openChat(arg);
-    setTimeout(()=>sendMessage(text),250);
-  }
+  if(verb==='forward-to') await forwardSelectedChatMessage(arg);
 });
 
 /* Moonflower composer */
