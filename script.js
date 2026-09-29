@@ -342,14 +342,92 @@ function hasOutgoingConnectionRequest(id) {
 }
 
 
-let notifications = [
-  { id: 'n1', type: 'connect', text: '<b>Maya</b> connected with you.', at: now() - 25 * 60000, read: false },
-  { id: 'n2', type: 'update', text: '<b>Alex</b> posted a Daily Update near you.', at: now() - 2.2 * HOUR, read: false },
-  { id: 'n3', type: 'message', text: '<b>Ibrahim</b> sent you a message.', at: now() - 3 * HOUR, read: false },
-  { id: 'n4', type: 'nearby', text: 'There are <b>4 active people</b> within 1 km of you.', at: now() - 5 * HOUR, read: true },
-  { id: 'n5', type: 'expiry', text: 'Your Daily Update expires in about 4 hours.', at: now() - 6 * HOUR, read: true },
-  { id: 'n6', type: 'request', text: '<b>Tomi</b> wants to connect with you.', at: now() - 3 * HOUR, read: false }
-];
+let notifications = [];
+let notificationReadIds = new Set();
+
+function notificationReadStorageKey() {
+  return currentUser.id ? 'ming_notification_reads_' + currentUser.id : 'ming_notification_reads';
+}
+
+function loadNotificationReadState() {
+  try {
+    const raw = localStorage.getItem(notificationReadStorageKey());
+    const ids = raw ? JSON.parse(raw) : [];
+    notificationReadIds = new Set(Array.isArray(ids) ? ids : []);
+  } catch (_) {
+    notificationReadIds = new Set();
+  }
+}
+
+function saveNotificationReadState() {
+  try {
+    localStorage.setItem(notificationReadStorageKey(), JSON.stringify(Array.from(notificationReadIds).slice(-300)));
+  } catch (_) {}
+}
+
+async function loadMingNotifications() {
+  try {
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError || !session?.user) return false;
+
+    loadNotificationReadState();
+    await loadMingConnections();
+    await loadMingMessages();
+
+    const next = [];
+
+    connectionRequests.forEach(r => {
+      const p = byId(r.personId);
+      const name = p?.short || p?.name || 'Someone';
+      const id = 'connreq_' + r.id;
+      next.push({
+        id, type: 'request', personId: r.personId,
+        text: '<b>' + esc(name) + '</b> wants to connect with you.',
+        at: r.at, read: notificationReadIds.has(id)
+      });
+    });
+
+    conversations.forEach(c => {
+      const unread = c.messages.filter(m => !m.me && !m.read);
+      if (!unread.length) return;
+      const latest = unread[unread.length - 1];
+      const p = byId(c.personId);
+      const name = p?.short || p?.name || 'Someone';
+      const id = 'message_' + latest.id;
+      next.push({
+        id, type: 'message', personId: c.personId,
+        text: '<b>' + esc(name) + '</b> sent you ' + (unread.length === 1 ? 'a message.' : unread.length + ' messages.'),
+        at: latest.at, read: notificationReadIds.has(id)
+      });
+    });
+
+    const { data: updates, error: updateError } = await supabaseClient
+      .rpc('get_daily_updates', { p_limit: 100 });
+
+    if (!updateError) {
+      (updates || []).forEach(row => {
+        if (row.author_id === session.user.id) return;
+        const p = byId(row.author_id);
+        const name = p?.short || row.author_display_name || 'Someone';
+        const id = 'update_' + row.id;
+        next.push({
+          id, type: 'update', updateId: row.id,
+          text: '<b>' + esc(name) + '</b> posted a Daily Update.',
+          at: new Date(row.created_at).getTime(),
+          read: notificationReadIds.has(id)
+        });
+      });
+    } else {
+      console.warn('Ming: Daily Update notifications could not be loaded.', updateError.message);
+    }
+
+    notifications = next.sort((a, b) => b.at - a.at);
+    return true;
+  } catch (error) {
+    console.warn('Ming: notification load failed.', error);
+    return false;
+  }
+}
 
 let conversations = [
   {
@@ -1697,7 +1775,6 @@ async function sendConnection(id) {
   }
 
   connections.push({ personId: id, at: now() });
-  notifications.unshift({ id: uid('n'), type: 'connect', text: `<b>${esc(p.short)}</b> accepted your connection request.`, at: now(), read: false });
   closeModal();
   toast(`Connected with ${p.short}`, 'check');
   updateNotifDot();
@@ -2700,7 +2777,7 @@ async function subscribeMingMessages() {
         }
 
         if (state.loaded.messages) renderMessages();
-        updateNotifDot();
+        void loadMingNotifications().then(() => updateNotifDot());
       }
     )
     .on(
@@ -3592,31 +3669,6 @@ function renderSearch(mode, q = '') {
 ------------------------------------------------------------ */
 const NOTIF_ICON = { connect: 'users', update: 'spark', message: 'chat', nearby: 'pin', expiry: 'clock', request: 'users' };
 
-async function syncConnectionRequestNotifications() {
-  const loaded = await loadMingConnections();
-  if (!loaded) return;
-
-  const pendingIds = new Set(connectionRequests.map(r => r.id));
-  notifications = notifications.filter(n =>
-    !String(n.id).startsWith('connreq_') || pendingIds.has(String(n.id).slice(8))
-  );
-
-  connectionRequests.forEach(r => {
-    const notificationId = 'connreq_' + r.id;
-    if (notifications.some(n => n.id === notificationId)) return;
-
-    const p = byId(r.personId);
-    const name = p?.short || p?.name || 'Someone';
-    notifications.unshift({
-      id: notificationId,
-      type: 'request',
-      text: `<b>${esc(name)}</b> wants to connect with you.`,
-      at: r.at,
-      read: false
-    });
-  });
-}
-
 function renderNotifications() {
   const host = $('#notif-body');
   host.innerHTML = notifications.length ? notifications.map(n => `
@@ -4420,7 +4472,7 @@ document.addEventListener('click', async e => {
     case 'go-messages': { const ready = await loadMingMessages(); await subscribeMingMessages(); renderMessages(); pushStack('messages'); if (!ready) toast('Messaging is not connected yet. Run supabase_messages.sql once.', 'alert'); break; }
     case 'go-notifications': {
       closeSheet();
-      await syncConnectionRequestNotifications();
+      await loadMingNotifications();
       renderNotifications();
       updateNotifDot();
       pushStack('notifications');
@@ -4441,10 +4493,22 @@ document.addEventListener('click', async e => {
 
     case 'notif': {
       const n = notifications.find(x => x.id === arg);
-      if (n) n.read = true;
-      renderNotifications(); updateNotifDot();
-      if (n && n.type === 'message') { openChat('p2'); }
-      if (n && n.type === 'request') { renderConnections(); pushStack('connections'); }
+      if (!n) break;
+      n.read = true;
+      notificationReadIds.add(n.id);
+      saveNotificationReadState();
+      renderNotifications();
+      updateNotifDot();
+
+      if (n.type === 'message' && n.personId) {
+        await openChat(n.personId);
+      } else if (n.type === 'request') {
+        await loadMingConnections();
+        renderConnections();
+        pushStack('connections');
+      } else if (n.type === 'update') {
+        setTab('home');
+      }
       break;
     }
 
@@ -4966,7 +5030,7 @@ async function boot() {
 
   // The profile still gates the first authenticated render as before.
   await mingProfileReady;
-  await syncConnectionRequestNotifications();
+  await loadMingNotifications();
   await loadMingDailyUpdates();
   startMingCallInbox();
   await restorePendingMingCall();
