@@ -5806,6 +5806,7 @@ const Server = (() => {
     orderEvents: [],      // append-only
     disputes: [],
     evidence: [],
+    files: [],
     walletAccounts: [],   // { userId, asset, available, held }
     walletEntries: [],    // append-only ledger
     audit: []             // append-only
@@ -6001,6 +6002,36 @@ const Server = (() => {
     }
   }
 
+  async function uploadSpaceFile(spaceId, file, kind = 'file', contentId = null, productId = null) {
+    if (!file || !spaceId || !session.userId) return { ok:false, error:'Missing file or Space.' };
+    const safe = String(file.name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-120);
+    const path = `${spaceId}/${session.userId}/${crypto.randomUUID()}-${safe}`;
+    const { error: uploadError } = await supabaseClient.storage.from('ming-space-media').upload(path, file, {
+      cacheControl: '3600', upsert: false, contentType: file.type || 'application/octet-stream'
+    });
+    if (uploadError) return { ok:false, error:uploadError.message || 'File upload failed.' };
+    const { data: row, error: recordError } = await supabaseClient.rpc('record_ming_space_file', {
+      p_space_id: spaceId, p_storage_path: path, p_filename: file.name || safe,
+      p_content_type: file.type || 'application/octet-stream', p_size_bytes: file.size || 0,
+      p_kind: kind, p_content_id: contentId, p_product_id: productId
+    });
+    if (recordError) {
+      await supabaseClient.storage.from('ming-space-media').remove([path]);
+      return { ok:false, error:recordError.message || 'File metadata could not be saved.' };
+    }
+    const mapped = { id:row.id, spaceId:row.space_id, ownerId:row.owner_id, contentId:row.content_id, productId:row.product_id, storagePath:row.storage_path, filename:row.filename, contentType:row.content_type, sizeBytes:Number(row.size_bytes||0), kind:row.kind, createdAt:new Date(row.created_at).getTime() };
+    db.files.unshift(mapped);
+    return { ok:true, data:{ file:mapped } };
+  }
+
+  async function openSpaceFile(fileId) {
+    const file = db.files.find(f => f.id === fileId);
+    if (!file) return;
+    const { data, error } = await supabaseClient.storage.from('ming-space-media').createSignedUrl(file.storagePath, 300);
+    if (error || !data?.signedUrl) { toast(error?.message || 'File could not be opened.', 'x'); return; }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  }
+
   async function load() {
     session.userId = currentUser.id;
     if (!isUuidPerson(session.userId)) return false;
@@ -6064,6 +6095,8 @@ const Server = (() => {
     db.content = (contentRows || []).map(row => ({ id: row.id, spaceId: row.space_id, kind: row.kind, authorId: row.author_id, at: new Date(row.created_at).getTime(), updatedAt: new Date(row.updated_at).getTime(), ...(row.payload || {}) }));
     const { data: productRows } = await supabaseClient.rpc('get_my_ming_space_products');
     db.products = (productRows || []).map(row => ({ id: row.id, spaceId: row.space_id, sellerId: row.seller_id, title: row.title, price: Number(row.price), asset: row.asset, condition: row.condition, category: row.category, qty: row.qty, handover: row.handover, description: row.description, media: row.media || [], auction: row.auction || {}, createdAt: new Date(row.created_at).getTime(), status: row.status }));
+    const { data: fileRows } = await supabaseClient.rpc('get_my_ming_space_files');
+    db.files = (fileRows || []).map(row => ({ id: row.id, spaceId: row.space_id, ownerId: row.owner_id, contentId: row.content_id, productId: row.product_id, storagePath: row.storage_path, filename: row.filename, contentType: row.content_type, sizeBytes: Number(row.size_bytes || 0), kind: row.kind, createdAt: new Date(row.created_at).getTime() }));
     const memberIds = [...new Set(db.members.map(m => m.userId).filter(id => id && id !== currentUser.id))];
     if (memberIds.length) {
       const { data: profiles, error: profileError } = await supabaseClient
@@ -6402,7 +6435,7 @@ const Server = (() => {
   }
 
   return {
-    db, session, load, submit, can, roleOf, memberCount,
+    db, session, load, submit, can, roleOf, memberCount, uploadSpaceFile, openSpaceFile,
     ROLE_SETS, RANK, ORDER_FLOW, TERMINAL, partyOf,
     account, ledger,
     orderEvents: id => db.orderEvents.filter(e => e.orderId === id),
@@ -7740,6 +7773,7 @@ function renderWallet() {
    COMPOSERS (space-native content)
 ============================================================ */
 const COMPOSERS = {
+  file: { title: 'Add a file', fields: [['title', 'Description', 'input']], kind: 'doc', accepts: '*/*' },
   announcement: { title: 'Post an announcement', fields: [['title', 'Headline', 'input'], ['body', 'Details', 'textarea']], kind: 'announcement' },
   task: { title: 'Add a task', fields: [['title', 'Task', 'input'], ['owner', 'Owner', 'input'], ['due', 'Due', 'input']], kind: 'task' },
   moment: { title: 'Share a moment', fields: [['text', 'What happened?', 'textarea']], kind: 'moment' },
@@ -7758,7 +7792,7 @@ function openComposerFor(key) {
     body: c.fields.map(([k, label, type]) => `
       <div class="field"><label for="cx-${k}">${label}</label>
         ${type === 'input' ? `<input id="cx-${k}" type="text" maxlength="80" />` : `<textarea id="cx-${k}" maxlength="240"></textarea>`}
-      </div>`).join(''),
+      </div>`).join('') + (c.accepts ? `<div class="field"><label for="cx-file">Attach a file</label><input id="cx-file" type="file" accept="${c.accepts}" /></div>` : ''),
     foot: `<button class="btn btn--primary btn--block" data-sp="post:${key}">Post</button>`
   });
   setTimeout(() => { const f = $('#cx-' + c.fields[0][0]); if (f) f.focus(); }, 240);
@@ -7770,6 +7804,7 @@ function openProductComposer() {
     sub: 'The price you set here is the price the server charges. It cannot be changed by the buyer.',
     body: `
       <div class="field"><label for="pf-title">What are you selling?</label><input id="pf-title" type="text" maxlength="60" /></div>
+      <div class="field"><label for="pf-files">Photos, video or audio</label><input id="pf-files" type="file" multiple accept="image/*,video/*,audio/*" /></div>
       <div class="field"><label for="pf-price">Price in USDT</label><input id="pf-price" type="text" inputmode="decimal" placeholder="250" /></div>
       <div class="field"><label for="pf-desc">Description</label><textarea id="pf-desc" maxlength="300" placeholder="Condition, what's included, anything wrong with it."></textarea></div>
       <div class="field"><label>Condition</label><div class="pick" id="pf-cond">
@@ -7985,7 +8020,12 @@ document.addEventListener('click', async e => {
       if (a === 'event') { const d = new Date(); payload.day = String(d.getDate()); payload.month = d.toLocaleDateString([], { month: 'short' }); payload.title = payload.title; }
       const res = await Server.submit('space.post', { spaceId: sp.activeId, kind: c.kind, payload });
       if (!res.ok) { toast(res.error, 'x'); return; }
-      closeSheet(); refreshSpace(); toast('Posted', 'check');
+      const attachment = $('#cx-file')?.files?.[0];
+      if (attachment) {
+        const up = await Server.uploadSpaceFile(sp.activeId, attachment, c.kind, res.data.row.id, null);
+        if (!up.ok) { toast(up.error, 'x'); return; }
+      }
+      closeSheet(); refreshSpace(); toast(attachment ? 'Saved with file' : 'Posted', 'check');
       break;
     }
     case 'react': await Server.submit('content.mutate', { id: a, op: 'react', key: b }); refreshSpace(); break;
@@ -8027,8 +8067,13 @@ document.addEventListener('click', async e => {
     case 'member': toast(`${nameOf(a)} — open their Ming profile from Discover`, 'users'); break;
     case 'apply': toast('Interest registered with the space owner', 'check'); break;
     case 'ask-seller': toast('Request sent to the moderators', 'check'); break;
+    case 'file-open': await Server.openSpaceFile(a); break;
     case 'loc': requestLocation(() => refreshSpace()); break;
-    case 'leave': toast('Leaving a Space needs owner transfer first', 'x'); closeSheet(); break;
+    case 'leave': {
+      const res = await Server.submit('space.leave', { spaceId: a });
+      if (!res.ok) { toast(res.error, 'x'); break; }
+      closeSheet(); sp.activeId = null; await loadSpacesFromDatabase(); renderSpaces(); popStack(); toast('Left Space', 'check'); break;
+    }
 
     case 'role': {
       const s = spaceById(a);
@@ -8105,10 +8150,17 @@ document.addEventListener('click', async e => {
         description: $('#pf-desc').value.trim() || 'No description given.',
         condition: $('#pf-cond').querySelector('[aria-pressed="true"]').dataset.pick,
         category: $('#pf-cat').querySelector('[aria-pressed="true"]').dataset.pick,
-        handover: $('#pf-hand').querySelector('[aria-pressed="true"]').dataset.pick
+        handover: $('#pf-hand').querySelector('[aria-pressed="true"]').dataset.pick,
+        auction: { enabled: false }
       });
       if (!res.ok) { toast(res.error, 'x'); return; }
-      closeSheet(); refreshSpace(); toast('Listed', 'check');
+      const files = Array.from($('#pf-files')?.files || []);
+      for (const file of files) {
+        const kind = file.type.startsWith('image/') ? 'photo' : file.type.startsWith('video/') ? 'video' : 'audio';
+        const up = await Server.uploadSpaceFile(sp.activeId, file, kind, null, res.data.row.id);
+        if (!up.ok) { toast(up.error, 'x'); break; }
+      }
+      closeSheet(); refreshSpace(); toast(files.length ? 'Listing saved with media' : 'Listed', 'check');
       break;
     }
     case 'msg-seller': closeSheet(); setTimeout(() => openChat(a), 180); break;
