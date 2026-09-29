@@ -5807,6 +5807,7 @@ const Server = (() => {
     disputes: [],
     evidence: [],
     files: [],
+    bids: [],
     walletAccounts: [],   // { userId, asset, available, held }
     walletEntries: [],    // append-only ledger
     audit: []             // append-only
@@ -6097,6 +6098,8 @@ const Server = (() => {
     db.products = (productRows || []).map(row => ({ id: row.id, spaceId: row.space_id, sellerId: row.seller_id, title: row.title, price: Number(row.price), asset: row.asset, condition: row.condition, category: row.category, qty: row.qty, handover: row.handover, description: row.description, media: row.media || [], auction: row.auction || {}, createdAt: new Date(row.created_at).getTime(), status: row.status }));
     const { data: fileRows } = await supabaseClient.rpc('get_my_ming_space_files');
     db.files = (fileRows || []).map(row => ({ id: row.id, spaceId: row.space_id, ownerId: row.owner_id, contentId: row.content_id, productId: row.product_id, storagePath: row.storage_path, filename: row.filename, contentType: row.content_type, sizeBytes: Number(row.size_bytes || 0), kind: row.kind, createdAt: new Date(row.created_at).getTime() }));
+    const { data: bidRows } = await supabaseClient.rpc('get_my_ming_space_product_bids');
+    db.bids = (bidRows || []).map(row => ({ id: row.id, productId: row.product_id, bidderId: row.bidder_id, amount: Number(row.amount), createdAt: new Date(row.created_at).getTime() }));
     const memberIds = [...new Set(db.members.map(m => m.userId).filter(id => id && id !== currentUser.id))];
     if (memberIds.length) {
       const { data: profiles, error: profileError } = await supabaseClient
@@ -6518,7 +6521,7 @@ const NATURES = {
       { name:'Rose', colors:['#FFF0F1','#D98D9C','#813C55'] },
       { name:'Moonlit', colors:['#171727','#49436E','#C9A6C8'] }
     ],
-    tabs: [['us', 'Us', 'sp-heart2'], ['memories', 'Memories', 'sp-camera'], ['calendar', 'Calendar', 'cal'], ['health', 'Wellness', 'sp-heart2'], ['plans', 'Plans', 'sp-list'], ['vault', 'Vault', 'sp-doc']]
+    tabs: [['us', 'Us', 'sp-heart2'], ['memories', 'Memories', 'sp-camera'], ['calendar', 'Calendar', 'cal'], ['health', 'Wellness', 'sp-heart2'], ['plans', 'Plans', 'sp-list'], ['names', 'Names', 'users'], ['vault', 'Vault', 'sp-doc']]
   },
   marketplace: {
     label: 'Marketplace', eyebrow: 'Trade with trust', icon: 'sp-store', hue: 150,
@@ -7616,6 +7619,18 @@ VIEWS.marketplace.cases = s => {
 };
 
 /* ---- product detail + checkout ---- */
+function openBidSheet(productId) {
+  const p = Server.db.products.find(x => x.id === productId);
+  const bids = Server.db.bids.filter(b => b.productId === productId).sort((a,b) => b.amount - a.amount);
+  const high = bids[0]?.amount || p?.price || 0;
+  openSheet({
+    title: 'Place a bid', sub: p ? p.title : 'Auction',
+    body: '<div class="sp-card"><div style="font-size:12px;color:var(--muted)">Current highest</div><div style="font-size:24px;font-weight:750;margin-top:5px">' + esc(money(high)) + '</div></div>' +
+      '<div class="field"><label for="bid-amount">Your bid in USDT</label><input id="bid-amount" type="number" min="' + (high + 0.01) + '" step="0.01" placeholder="' + (high + 1) + '" /></div>' +
+      '<div class="ephemeral-note">' + icon('shield') + '<span>Bids are timestamped and saved to this Space. Payment still uses Ming’s development-mode transaction flow.</span></div>',
+    foot: '<button class="btn btn--primary btn--block" data-sp="bid-submit:' + productId + '">Place bid</button>'
+  });
+}
 function openProduct(id) {
   const p = Server.db.products.find(x => x.id === id);
   const s = spaceById(p.spaceId);
@@ -7906,6 +7921,8 @@ function openProductComposer() {
         ${['New', 'Like new', 'Used', 'For parts'].map((c, i) => `<button type="button" data-pick="${c}" aria-pressed="${i === 1}">${c}</button>`).join('')}</div></div>
       <div class="field"><label>Category</label><div class="pick" id="pf-cat">
         ${['Electronics', 'Home', 'Clothing', 'Services'].map((c, i) => `<button type="button" data-pick="${c}" aria-pressed="${i === 0}">${c}</button>`).join('')}</div></div>
+      <div class="field"><label>Auction</label><div class="toggle-row"><span class="tx"><span class="t" style="display:block">Accept bids</span><span class="s" style="display:block">Highest valid bid wins when you close the auction.</span></span><input id="pf-auction" type="checkbox" /></div></div>
+      <div class="field"><label for="pf-auction-end">Auction end (optional)</label><input id="pf-auction-end" type="datetime-local" /></div>
       <div class="field"><label>Handover</label><div class="pick" id="pf-hand">
         ${['Pickup', 'Delivery', 'Either'].map((c, i) => `<button type="button" data-pick="${c}" aria-pressed="${i === 2}">${c}</button>`).join('')}</div></div>
       <div class="ephemeral-note">${icon('sp-camera')}<span>Photos, video and audio are uploaded to the private Space media vault and linked to this listing.</span></div>`,
@@ -8204,6 +8221,14 @@ document.addEventListener('click', async e => {
     case 'mkcat': sp.marketTab = a; refreshSpace(); break;
     case 'product': openProduct(a); break;
     case 'buy': closeSheet(); setTimeout(() => openCheckout(a), 180); break;
+    case 'bid': openBidSheet(a); break;
+    case 'bid-submit': {
+      const amount = Number($('#bid-amount')?.value || 0);
+      const { data, error } = await supabaseClient.rpc('place_ming_space_product_bid', { p_product_id: a, p_amount: amount });
+      if (error) { toast(error.message || 'Bid could not be placed.', 'x'); return; }
+      Server.db.bids.unshift({ id:data.id, productId:data.product_id, bidderId:data.bidder_id, amount:Number(data.amount), createdAt:new Date(data.created_at).getTime() });
+      closeSheet(); refreshSpace(); toast('Bid placed', 'check'); break;
+    }
     case 'pay': {
       const idem = 'idem_' + a + '_' + Date.now();
       const created = await Server.submit('order.create', { productId: a, idempotencyKey: idem });
@@ -8253,7 +8278,7 @@ document.addEventListener('click', async e => {
         condition: $('#pf-cond').querySelector('[aria-pressed="true"]').dataset.pick,
         category: $('#pf-cat').querySelector('[aria-pressed="true"]').dataset.pick,
         handover: $('#pf-hand').querySelector('[aria-pressed="true"]').dataset.pick,
-        auction: { enabled: false }
+        auction: { enabled: !!$('#pf-auction')?.checked, endsAt: $('#pf-auction-end')?.value ? new Date($('#pf-auction-end').value).toISOString() : null }
       });
       if (!res.ok) { toast(res.error, 'x'); return; }
       const files = Array.from($('#pf-files')?.files || []).concat(sp.pendingMedia || []);
