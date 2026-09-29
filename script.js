@@ -6462,7 +6462,7 @@ const NATURES = {
       { name:'Ledger', colors:['#17211F','#31524A','#B9D0C5'] },
       { name:'Studio', colors:['#1B1A20','#4A3F52','#D6B4C7'] }
     ],
-    tabs: [['brief', 'Brief', 'sp-doc'], ['work', 'Work', 'sp-list'], ['people', 'People', 'users'], ['log', 'Log', 'clock']]
+    tabs: [['brief', 'Brief', 'sp-doc'], ['work', 'Work', 'sp-list'], ['files', 'Files', 'sp-box'], ['people', 'People', 'users'], ['log', 'Log', 'clock']]
   },
   friendly: {
     label: 'Friendly', eyebrow: 'Keep your people close', icon: 'users', hue: 24,
@@ -6476,7 +6476,7 @@ const NATURES = {
       { name:'Garden', colors:['#EEF6E9','#A9C98F','#557C55'] },
       { name:'Bonfire', colors:['#FFF0DF','#D78A63','#7A3F32'] }
     ],
-    tabs: [['home', 'Home', 'home'], ['moments', 'Moments', 'sp-camera'], ['events', 'Events', 'cal'], ['people', 'People', 'users']]
+    tabs: [['home', 'Home', 'home'], ['moments', 'Moments', 'sp-camera'], ['events', 'Events', 'cal'], ['meetings', 'Meetings', 'sp-bolt'], ['people', 'People', 'users']]
   },
   casual: {
     label: 'Casual', eyebrow: 'Right now matters', icon: 'sp-bolt', hue: 160,
@@ -6518,7 +6518,7 @@ const NATURES = {
       { name:'Rose', colors:['#FFF0F1','#D98D9C','#813C55'] },
       { name:'Moonlit', colors:['#171727','#49436E','#C9A6C8'] }
     ],
-    tabs: [['us', 'Us', 'sp-heart2'], ['memories', 'Memories', 'sp-camera'], ['plans', 'Plans', 'cal'], ['lists', 'Lists', 'sp-list']]
+    tabs: [['us', 'Us', 'sp-heart2'], ['memories', 'Memories', 'sp-camera'], ['calendar', 'Calendar', 'cal'], ['health', 'Wellness', 'sp-heart2'], ['plans', 'Plans', 'sp-list'], ['vault', 'Vault', 'sp-doc']]
   },
   marketplace: {
     label: 'Marketplace', eyebrow: 'Trade with trust', icon: 'sp-store', hue: 150,
@@ -7362,7 +7362,7 @@ VIEWS.casual.people = s => membersView(s, 'Casual Spaces can close themselves on
 /* ============================================================
    SILLY
 ============================================================ */
-const STICKERS = ['🥔', '🦆', '🛸', '🧦', '🐌', '📎', '🫠', '🥁'];
+const STICKERS = ['🥔','🦆','🛸','🧦','🐌','📎','🫠','🥁','🦖','🍌','🫡','🧃','🪿','🧠','🧌','🐸','🦐','🧯','🧍','🫥','👽','💀','🤡','🫠'];
 VIEWS.silly.chaos = s => {
   const prompt = contentOf(s.id, 'prompt')[0];
   return `
@@ -7781,7 +7781,12 @@ const COMPOSERS = {
   now: { title: 'Happening now', fields: [['text', 'What is going on?', 'textarea']], kind: 'now' },
   answer: { title: 'Answer the prompt', fields: [['text', 'Go on then', 'textarea']], kind: 'answer' },
   memory: { title: 'Keep a memory', fields: [['text', 'What do you want to remember?', 'textarea'], ['when', 'When', 'input']], kind: 'memory' },
-  plan: { title: 'Add a plan', fields: [['title', 'What', 'input'], ['when', 'When', 'input'], ['where', 'Where', 'input']], kind: 'plan' }
+  plan: { title: 'Add a plan', fields: [['title', 'What', 'input'], ['when', 'When', 'input'], ['where', 'Where', 'input']], kind: 'plan' },
+  milestone: { title: 'Pin a special date', fields: [['title', 'What matters?', 'input'], ['when', 'Date', 'input']], kind: 'milestone' },
+  nickname: { title: 'Choose a sweet name', fields: [['name', 'Sweet name', 'input']], kind: 'nickname' },
+  meeting: { title: 'Host a meeting', fields: [['title', 'Meeting', 'input'], ['when', 'When', 'input'], ['agenda', 'Agenda', 'textarea']], kind: 'meeting' },
+  poll: { title: 'Create a poll', fields: [['question', 'Question', 'input'], ['option1', 'Option one', 'input'], ['option2', 'Option two', 'input'], ['option3', 'Option three', 'input']], kind: 'poll' },
+  health: { title: 'Private wellness entry', fields: [['metric', 'Metric', 'input'], ['value', 'Value', 'input'], ['when', 'Date', 'input']], kind: 'health' }
 };
 
 function openComposerFor(key) {
