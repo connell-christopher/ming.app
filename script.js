@@ -3900,7 +3900,9 @@ function renderSearch(mode, q = '') {
   const host = $('#search-body');
   if (mode === 'idle') {
     host.innerHTML = `
-      <div class="section" style="margin-top:14px">${sectionHead('Try searching for')}
+      <div class="section" style="margin-top:14px">
+        <div class="search-guidance"><strong>People are found by @username.</strong> Use a word or #tag for everything else.</div>
+        ${sectionHead('Try searching for')}
         <div class="chips" style="flex-wrap:wrap">
           ${['photographer', 'football', 'coffee', 'developer', 'visiting', 'market'].map(t => `<button class="chip" data-action="search-term:${t}">${t}</button>`).join('')}
         </div>
@@ -3919,12 +3921,14 @@ function renderSearch(mode, q = '') {
     return;
   }
 
+  const isUsernameSearch = q.trim().startsWith('@');
   const t = q.replace(/^[@#]/, '').toLowerCase();
 
-  const rp = searchPeople.filter(p =>
-    [p.username, p.name, p.tag, p.bio, p.activity, ...(p.tags || []), ...(p.interests || [])]
-      .join(' ').toLowerCase().includes(t)
-  );
+  // People are intentionally username-only. Other searches should not
+  // accidentally surface people by first name, bio, activity, or tags.
+  const rp = isUsernameSearch
+    ? searchPeople.filter(p => String(p.username || '').replace(/^@/, '').toLowerCase().includes(t))
+    : [];
   const ru = dailyUpdates.filter(u =>
     ['general', 'visitor'].includes(u.kind) && (u.title + ' ' + u.body).toLowerCase().includes(t)
   );
