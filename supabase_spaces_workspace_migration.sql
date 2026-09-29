@@ -430,3 +430,25 @@ grant execute on function public.get_my_ming_space_products() to authenticated;
 grant execute on function public.record_ming_space_file(uuid,text,text,text,bigint,text,uuid,uuid) to authenticated;
 grant execute on function public.rotate_ming_space_invite(uuid,integer,integer) to authenticated;
 grant execute on function public.leave_ming_space(uuid) to authenticated;
+
+
+create or replace function public.get_my_ming_space_files()
+returns setof public.ming_space_files
+language sql
+security definer
+set search_path = ''
+stable
+as $$
+  select f.*
+  from public.ming_space_files f
+  where exists (
+    select 1 from public.ming_space_members m
+    where m.space_id = f.space_id
+      and m.user_id = (select auth.uid())
+      and m.approved = true
+  )
+  order by f.created_at desc;
+$$;
+
+revoke execute on function public.get_my_ming_space_files() from public, anon;
+grant execute on function public.get_my_ming_space_files() to authenticated;
