@@ -7565,8 +7565,31 @@ async function openSpaces() {
   try {
     renderSpaces();
   } catch (error) {
+    /* Keep the dedicated Spaces screen usable even if an optional renderer
+       throws. Do not let one view/helper take down the whole Spaces module. */
     console.error('Ming: Spaces screen render failed:', error);
-    toast('Spaces could not be loaded right now.', 'alert');
+
+    const safeBody = document.getElementById('spaces-body');
+    if (safeBody) {
+      const safeList = mySpaces();
+      safeBody.innerHTML = `
+        <div class="section" style="padding:20px 16px">
+          <div class="section-head"><h2>Your Spaces</h2><span class="hint">${safeList.length}</span></div>
+          ${safeList.length
+            ? safeList.map(s => `
+              <button class="sp-card" data-sp="open:${s.id}" style="display:block;width:100%;text-align:left;margin-bottom:10px">
+                <strong style="display:block">${esc(s.name)}</strong>
+                <span style="display:block;color:var(--muted);font-size:12px;margin-top:4px">${esc(NATURES[s.nature]?.label || 'Space')} · ${Server.memberCount(s.id)} members</span>
+              </button>`).join('')
+            : `
+              <div class="sp-empty">
+                <p>Your Spaces are empty right now.</p>
+                <button class="btn btn--soft btn--sm" data-sp="create">Create a Space</button>
+              </div>`}
+        </div>`;
+    }
+
+    toast('Spaces loaded in safe mode.', 'info');
   }
 }
 
