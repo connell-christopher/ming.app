@@ -6652,8 +6652,10 @@ const spaceById = id => Server.db.spaces.find(s => s.id === id);
 
 async function loadSpacesFromDatabase() {
   if (typeof Server !== 'undefined' && Server.load) {
-    await Server.load();
+    try { return await Server.load(); }
+    catch (error) { console.error('Ming: Spaces database load failed:', error); return false; }
   }
+  return false;
 }
 const mySpaces = () => Server.db.members
   .filter(m => m.userId === Server.session.userId)
@@ -6769,8 +6771,9 @@ mountScreen(`
 /* ============================================================
    SPACES INDEX
 ============================================================ */
-function openSpaces() {
+async function openSpaces() {
   pushStack('spaces');
+  await loadSpacesFromDatabase();
   try { renderSpaces(); }
   catch (error) {
     console.error('Ming: Spaces screen render failed:', error);
@@ -6870,7 +6873,7 @@ function renderSpaces() {
     </div>`;
 }
 function spaceTile(s) {
-  const n = NATURES[s.nature];
+  const n = NATURES[s.nature] || NATURES.friendly || { label: 'Space', signature: '', promise: '', swatch: '#8B3543', icon: 'sp-grid' };
   const members = Server.db.members.filter(m => m.spaceId === s.id).slice(0, 4).map(m => personOf(m.userId));
   const liveCount = contentOf(s.id, 'now').length;
   return `<button class="sp-tile sp-tile--premium" data-sp="open:${s.id}" style="--sp-swatch:${n.swatch}">
@@ -8401,14 +8404,17 @@ function renderHomeSpaces() {
   const list = mySpaces();
   host.innerHTML = sectionHead('Your Spaces', null, { t: 'All', a: 'noop' }).replace('data-action="noop"', 'data-sp="spaces"') +
     `<div class="rail">
-      ${list.map(s => `
+      ${list.map(s => {
+        const n = NATURES[s.nature] || NATURES.friendly || { label: 'Space' };
+        return `
         <button class="pcard" style="width:150px;padding:0;overflow:hidden" data-sp="open:${s.id}">
           <span style="display:block;height:58px;background:${coverFor(s)}"></span>
           <span style="display:block;padding:11px 12px 13px;text-align:left">
             <span class="name" style="margin:0;display:block">${esc(s.name)}</span>
-            <span class="tag" style="display:block">${NATURES[s.nature].label} · ${Server.memberCount(s.id)}</span>
+            <span class="tag" style="display:block">${esc(n.label)} · ${Server.memberCount(s.id)}</span>
           </span>
-        </button>`).join('')}
+        </button>`;
+      }).join('')}
       <button class="pcard" style="width:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px" data-sp="create">
         <span style="width:38px;height:38px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center;color:var(--coffee)">${icon('plus')}</span>
         <span class="tag" style="white-space:normal">New Space</span>
