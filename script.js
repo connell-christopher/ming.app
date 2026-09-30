@@ -3751,6 +3751,23 @@ function renderProfile() {
       </div>
       <p class="center-note">${esc(currentUser.joined)}</p>
     </div>`;
+
+  // Bind this dynamically-rendered control directly. This keeps Profile → Your Spaces
+  // independent of the global delegated click handler.
+  const spacesButton = $('#profile-body [data-action="go-spaces"]');
+  if (spacesButton) {
+    spacesButton.addEventListener('click', async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeSheet();
+      try {
+        await openSpaces();
+      } catch (error) {
+        console.error('Ming: Your Spaces direct navigation failed:', error);
+        toast('Your Spaces could not be loaded right now.', 'alert');
+      }
+    });
+  }
 }
 
 function usernameChangeAvailable() {
