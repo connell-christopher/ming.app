@@ -1,3 +1,51 @@
+/* ============================================================
+   MING THEME — EARLY SAFE HANDLER
+   Kept independent from the rest of app boot so theme switching
+   still works even if another app feature fails during startup.
+   ============================================================ */
+(function () {
+  const KEY = 'ming-theme';
+  const EXPLICIT_KEY = 'ming-theme-explicit';
+  const root = document.documentElement;
+
+  function buttons() {
+    return Array.from(document.querySelectorAll('[data-theme-toggle]'));
+  }
+
+  function sync(theme) {
+    const dark = theme === 'dark';
+    root.setAttribute('data-theme', dark ? 'dark' : 'light');
+    buttons().forEach(btn => {
+      btn.setAttribute('aria-pressed', String(dark));
+      btn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    });
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', dark ? '#100D0B' : '#F7F2EC');
+  }
+
+  function toggle() {
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    sync(next);
+    try {
+      localStorage.setItem(KEY, next);
+      localStorage.setItem(EXPLICIT_KEY, '1');
+    } catch (_) {}
+  }
+
+  // Capture phase makes this independent of overlays or later handlers.
+  document.addEventListener('click', event => {
+    const btn = event.target && event.target.closest
+      ? event.target.closest('[data-theme-toggle]')
+      : null;
+    if (!btn) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    toggle();
+  }, true);
+
+  sync(root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
+})();
+
   /*============================
      APP.JS   
   ============================*/
