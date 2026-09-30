@@ -1057,6 +1057,7 @@ function renderHome() {
   $('#home-avatar').innerHTML = avatar(currentUser, 44);
   renderHomeLocation();
   renderHomePeople();
+  renderHomeSpaces();
   renderHomeFeed();
   renderHomeOpps();
   updateNotifDot();
@@ -8444,11 +8445,25 @@ document.addEventListener('input', e => {
    HOME RAIL — a small entry point on Ming's Home screen
 ------------------------------------------------------------ */
 (function mountHomeRail() {
+  if (document.getElementById('home-spaces')) return;
+
   const anchor = document.getElementById('home-people');
+  const homeScreen = document.querySelector('#screen-home .scroll, [data-tab="home"] .scroll');
+
+  if (!anchor && !homeScreen) {
+    console.warn('Ming: Home Spaces rail could not find a Home container yet.');
+    return;
+  }
+
   const sec = document.createElement('div');
   sec.className = 'section';
   sec.id = 'home-spaces';
-  anchor.parentNode.insertBefore(sec, anchor.nextSibling);
+
+  if (anchor?.parentNode) {
+    anchor.parentNode.insertBefore(sec, anchor.nextSibling);
+  } else {
+    homeScreen.appendChild(sec);
+  }
 })();
 
 function renderHomeSpaces() {
