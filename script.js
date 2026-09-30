@@ -5089,7 +5089,14 @@ document.addEventListener('click', async e => {
       break;
 
     case 'go-nearby': setTab('nearby'); break;
-    case 'go-spaces': closeSheet(); openSpaces(); break;
+    case 'go-spaces': {
+      e.preventDefault();
+      closeSheet();
+      requestAnimationFrame(() => {
+        openSpaces();
+      });
+      break;
+    }
     case 'go-connections': {
       const loaded = await loadMingConnections();
       renderConnections();
