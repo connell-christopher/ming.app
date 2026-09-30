@@ -3744,7 +3744,7 @@ function renderProfile() {
         <button class="menu-item profile-account-messages" data-action="go-messages">${icon('chat')}<span class="t">Messages</span><span class="profile-account-message-dot" id="profile-account-message-dot" aria-label="Unread messages"></span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="go-notifications">${icon('bell')}<span class="t">Notifications</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="go-spaces">${icon('sp-store')}<span class="t">Your Spaces</span><span class="go">${icon('chev')}</span></button>
-        <button class="menu-item" data-sp="wallet">${icon('sp-wallet')}<span class="t">Ming Wallet</span><span class="go">${icon('chev')}</span></button>
+        <button class="menu-item" data-action="go-wallet">${icon('sp-wallet')}<span class="t">Ming Wallet</span><span class="go>${icon('chev')}</span></button>
         <button class="menu-item" data-action="privacy">${icon('shield')}<span class="t">Location and privacy</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="settings">${icon('settings')}<span class="t">Settings</span><span class="go">${icon('chev')}</span></button>
       </div>
@@ -5092,9 +5092,13 @@ document.addEventListener('click', async e => {
     case 'go-spaces': {
       e.preventDefault();
       closeSheet();
-      requestAnimationFrame(() => {
-        openSpaces();
-      });
+      requestAnimationFrame(() => openSpaces());
+      break;
+    }
+    case 'go-wallet': {
+      e.preventDefault();
+      closeSheet();
+      requestAnimationFrame(() => openWallet());
       break;
     }
     case 'go-connections': {
@@ -6765,7 +6769,14 @@ mountScreen(`
 /* ============================================================
    SPACES INDEX
 ============================================================ */
-function openSpaces() { renderSpaces(); pushStack('spaces'); }
+function openSpaces() {
+  pushStack('spaces');
+  try { renderSpaces(); }
+  catch (error) {
+    console.error('Ming: Spaces screen render failed:', error);
+    toast('Spaces could not be loaded right now.', 'alert');
+  }
+}
 
 function renderSpaces() {
   renderHomeSpaces();
@@ -7818,7 +7829,14 @@ function renderDisputePanel(d, o, party) {
 /* ============================================================
    WALLET
 ============================================================ */
-function openWallet() { renderWallet(); pushStack('wallet'); }
+function openWallet() {
+  pushStack('wallet');
+  try { renderWallet(); }
+  catch (error) {
+    console.error('Ming: Wallet screen render failed:', error);
+    toast('Wallet could not be loaded right now.', 'alert');
+  }
+}
 
 function renderWallet() {
   const assets = ['USDT', 'BTC'].map(a => Server.account(Server.session.userId, a));
