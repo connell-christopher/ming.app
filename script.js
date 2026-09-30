@@ -3743,7 +3743,7 @@ function renderProfile() {
       <div class="menu-list">
         <button class="menu-item profile-account-messages" data-action="go-messages">${icon('chat')}<span class="t">Messages</span><span class="profile-account-message-dot" id="profile-account-message-dot" aria-label="Unread messages"></span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="go-notifications">${icon('bell')}<span class="t">Notifications</span><span class="go">${icon('chev')}</span></button>
-        <button class="menu-item" data-sp="spaces">${icon('sp-store')}<span class="t">Your Spaces</span><span class="go">${icon('chev')}</span></button>
+        <button class="menu-item" data-action="go-spaces">${icon('sp-store')}<span class="t">Your Spaces</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-sp="wallet">${icon('sp-wallet')}<span class="t">Ming Wallet</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="privacy">${icon('shield')}<span class="t">Location and privacy</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="settings">${icon('settings')}<span class="t">Settings</span><span class="go">${icon('chev')}</span></button>
@@ -5089,6 +5089,7 @@ document.addEventListener('click', async e => {
       break;
 
     case 'go-nearby': setTab('nearby'); break;
+    case 'go-spaces': closeSheet(); openSpaces(); break;
     case 'go-connections': {
       const loaded = await loadMingConnections();
       renderConnections();
