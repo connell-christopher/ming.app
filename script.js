@@ -7451,7 +7451,19 @@ function mountScreen(html) {
   const wrap = document.createElement('div');
   wrap.innerHTML = html.trim();
   const el = wrap.firstElementChild;
-  document.getElementById('app').insertBefore(el, document.getElementById('fab'));
+  const app = document.getElementById('app');
+  if (!app || !el) {
+    console.error('Ming: Could not mount a Spaces screen because the app container is unavailable.');
+    return null;
+  }
+
+  /* Keep stack screens before the FAB when the FAB exists. If the FAB is
+     temporarily unavailable, append safely instead of aborting the entire
+     Spaces module. */
+  const fab = document.getElementById('fab');
+  if (fab && fab.parentNode === app) app.insertBefore(el, fab);
+  else app.appendChild(el);
+
   return el;
 }
 
@@ -7518,8 +7530,12 @@ mountScreen(`
 /* scroll shadows for the new screens */
 ['#screen-spaces .scroll', '#screen-createspace .scroll', '#screen-wallet .scroll'].forEach(sel => {
   const el = document.querySelector(sel);
+  if (!el) {
+    console.warn('Ming: Spaces screen scroll target was not available during mount:', sel);
+    return;
+  }
   el.addEventListener('scroll', () => {
-    el.parentElement.querySelector('.topbar').classList.toggle('is-scrolled', el.scrollTop > 6);
+    el.parentElement.querySelector('.topbar')?.classList.toggle('is-scrolled', el.scrollTop > 6);
   }, { passive: true });
 });
 
