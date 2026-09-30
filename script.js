@@ -4436,7 +4436,7 @@ function renderProfile() {
       <div class="menu-list">
         <button class="menu-item profile-account-messages" data-action="go-messages">${icon('chat')}<span class="t">Messages</span><span class="profile-account-message-dot" id="profile-account-message-dot" aria-label="Unread messages"></span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="go-notifications">${icon('bell')}<span class="t">Notifications</span><span class="go">${icon('chev')}</span></button>
-        <button class="menu-item" data-action="go-spaces">${icon('sp-store')}<span class="t">Your Spaces</span><span class="go">${icon('chev')}</span></button>
+        <button type="button" class="menu-item" data-action="go-spaces">${icon('sp-store')}<span class="t">Your Spaces</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="go-wallet">${icon('sp-wallet')}<span class="t">Ming Wallet</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="privacy">${icon('shield')}<span class="t">Location and privacy</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="settings">${icon('settings')}<span class="t">Settings</span><span class="go">${icon('chev')}</span></button>
@@ -7527,10 +7527,28 @@ mountScreen(`
    SPACES INDEX
 ============================================================ */
 async function openSpaces() {
-  pushStack('spaces');
+  /* Navigation must happen immediately; database loading must never block the screen transition. */
+  const screen = document.getElementById('screen-spaces');
+  if (!screen) {
+    console.error('Ming: Spaces screen is not mounted.');
+    toast('Spaces could not be opened right now.', 'alert');
+    return;
+  }
+
+  if (state.stack[state.stack.length - 1] !== 'spaces') {
+    pushStack('spaces');
+  }
+
+  const body = $('#spaces-body');
+  if (body && !body.innerHTML.trim()) {
+    body.innerHTML = '<div style="padding:28px 18px;color:var(--muted);font-size:13.5px">Loading your Spaces…</div>';
+  }
+
   await loadSpacesFromDatabase();
-  try { renderSpaces(); }
-  catch (error) {
+
+  try {
+    renderSpaces();
+  } catch (error) {
     console.error('Ming: Spaces screen render failed:', error);
     toast('Spaces could not be loaded right now.', 'alert');
   }
