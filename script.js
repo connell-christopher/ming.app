@@ -6049,15 +6049,26 @@ const Server = (() => {
     session.userId = currentUser.id;
     if (!isUuidPerson(session.userId)) return false;
 
-    const { data, error } = await supabaseClient.rpc('get_my_ming_spaces');
-    if (error) {
-      console.warn('Ming: Spaces database load failed.', error.message);
+    let data;
+    try {
+      const result = await supabaseClient.rpc('get_my_ming_spaces');
+      data = result.data;
+      if (result.error) {
+        console.warn('Ming: Spaces database load failed.', result.error.message);
+        return false;
+      }
+    } catch (error) {
+      console.warn('Ming: Spaces database load request failed.', error);
       return false;
     }
 
     db.spaces = [];
     db.members = [];
     db.invites = [];
+    db.content = [];
+    db.products = [];
+    db.files = [];
+    db.bids = [];
 
     (data || []).forEach(row => {
       if (!db.spaces.some(s => s.id === row.space_id)) {
@@ -6104,14 +6115,41 @@ const Server = (() => {
       }
     });
 
-    const { data: contentRows } = await supabaseClient.rpc('get_my_ming_space_content');
-    db.content = (contentRows || []).map(row => ({ id: row.id, spaceId: row.space_id, kind: row.kind, authorId: row.author_id, at: new Date(row.created_at).getTime(), updatedAt: new Date(row.updated_at).getTime(), ...(row.payload || {}) }));
-    const { data: productRows } = await supabaseClient.rpc('get_my_ming_space_products');
-    db.products = (productRows || []).map(row => ({ id: row.id, spaceId: row.space_id, sellerId: row.seller_id, title: row.title, price: Number(row.price), asset: row.asset, condition: row.condition, category: row.category, qty: row.qty, handover: row.handover, description: row.description, media: row.media || [], auction: row.auction || {}, createdAt: new Date(row.created_at).getTime(), status: row.status }));
-    const { data: fileRows } = await supabaseClient.rpc('get_my_ming_space_files');
-    db.files = (fileRows || []).map(row => ({ id: row.id, spaceId: row.space_id, ownerId: row.owner_id, contentId: row.content_id, productId: row.product_id, storagePath: row.storage_path, filename: row.filename, contentType: row.content_type, sizeBytes: Number(row.size_bytes || 0), kind: row.kind, createdAt: new Date(row.created_at).getTime() }));
-    const { data: bidRows } = await supabaseClient.rpc('get_my_ming_space_product_bids');
-    db.bids = (bidRows || []).map(row => ({ id: row.id, productId: row.product_id, bidderId: row.bidder_id, amount: Number(row.amount), createdAt: new Date(row.created_at).getTime() }));
+    const optionalLoaders = [
+      {
+        name: 'content',
+        rpc: 'get_my_ming_space_content',
+        map: row => ({ id: row.id, spaceId: row.space_id, kind: row.kind, authorId: row.author_id, at: new Date(row.created_at).getTime(), updatedAt: new Date(row.updated_at).getTime(), ...(row.payload || {}) })
+      },
+      {
+        name: 'products',
+        rpc: 'get_my_ming_space_products',
+        map: row => ({ id: row.id, spaceId: row.space_id, sellerId: row.seller_id, title: row.title, price: Number(row.price), asset: row.asset, condition: row.condition, category: row.category, qty: row.qty, handover: row.handover, description: row.description, media: row.media || [], auction: row.auction || {}, createdAt: new Date(row.created_at).getTime(), status: row.status })
+      },
+      {
+        name: 'files',
+        rpc: 'get_my_ming_space_files',
+        map: row => ({ id: row.id, spaceId: row.space_id, ownerId: row.owner_id, contentId: row.content_id, productId: row.product_id, storagePath: row.storage_path, filename: row.filename, contentType: row.content_type, sizeBytes: Number(row.size_bytes || 0), kind: row.kind, createdAt: new Date(row.created_at).getTime() })
+      },
+      {
+        name: 'bids',
+        rpc: 'get_my_ming_space_product_bids',
+        map: row => ({ id: row.id, productId: row.product_id, bidderId: row.bidder_id, amount: Number(row.amount), createdAt: new Date(row.created_at).getTime() })
+      }
+    ];
+
+    for (const loader of optionalLoaders) {
+      try {
+        const { data: rows, error } = await supabaseClient.rpc(loader.rpc);
+        if (error) {
+          console.warn(`Ming: optional Spaces loader skipped (${loader.name}).`, error.message);
+          continue;
+        }
+        db[loader.name] = (rows || []).map(loader.map);
+      } catch (error) {
+        console.warn(`Ming: optional Spaces loader skipped (${loader.name}).`, error);
+      }
+    }
     const memberIds = [...new Set(db.members.map(m => m.userId).filter(id => id && id !== currentUser.id))];
     if (memberIds.length) {
       const { data: profiles, error: profileError } = await supabaseClient
@@ -6782,6 +6820,14 @@ async function openSpaces() {
 }
 
 function renderSpaces() {
+  const body = $('#spaces-body');
+  if (!body) return;
+
+  /* A stale filter must never be able to break the entire Spaces screen. */
+  if (sp.indexFilter !== 'all' && !NATURES[sp.indexFilter]) {
+    sp.indexFilter = 'all';
+  }
+
   renderHomeSpaces();
   const list = mySpaces();
   const filters = [['all', 'All'], ...Object.entries(NATURES).map(([k, n]) => [k, n.label])];
@@ -6791,7 +6837,7 @@ function renderSpaces() {
   const owned = list.filter(s => Server.roleOf(s.id) === 'owner').length;
   const selectedNature = sp.indexFilter !== 'all' ? NATURES[sp.indexFilter] : null;
 
-  $('#spaces-body').innerHTML = `
+  body.innerHTML = `
     <div class="spaces-hero spaces-hero--command">
       <div class="spaces-hero__eyebrow">${icon('sp-grid')} MING SPACES <span class="spaces-live-pill"><i></i> YOUR WORLDS</span></div>
       <div class="spaces-command-copy">
