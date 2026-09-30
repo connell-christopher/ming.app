@@ -1,4 +1,4 @@
-  /*============================ 
+  /*============================
      APP.JS   
   ============================*/
   /* ============================================================
@@ -5681,13 +5681,6 @@ async function boot() {
   if (typeof Server !== 'undefined') {
     Server.session.userId = currentUser.id;
     await Server.load();
-
-    // Spaces must be populated before Home/Profile are rendered.
-    // Re-run the load once after authentication is ready so a stale
-    // pre-profile render can never leave the Spaces UI empty.
-    if (typeof mySpaces === 'function' && mySpaces().length === 0) {
-      await Server.load();
-    }
   }
   setupMingNotificationAudioUnlock();
   await loadMingNotifications();
@@ -8474,24 +8467,8 @@ document.addEventListener('input', e => {
 })();
 
 function renderHomeSpaces() {
-  let host = document.getElementById('home-spaces');
-
-  // The Home screen can be rendered before the Spaces rail is mounted.
-  // Always recover the host here instead of silently returning.
-  if (!host) {
-    const anchor = document.getElementById('home-people');
-    const homeScreen = document.querySelector('#screen-home .scroll, [data-tab="home"] .scroll');
-    const parent = anchor?.parentNode || homeScreen;
-    if (!parent) return;
-
-    host = document.createElement('div');
-    host.className = 'section';
-    host.id = 'home-spaces';
-
-    if (anchor?.parentNode) anchor.parentNode.insertBefore(host, anchor.nextSibling);
-    else parent.appendChild(host);
-  }
-
+  const host = document.getElementById('home-spaces');
+  if (!host) return;
   const list = mySpaces();
   host.innerHTML = sectionHead('Your Spaces', null, { t: 'All', a: 'noop' }).replace('data-action="noop"', 'data-sp="spaces"') +
     `<div class="rail">
