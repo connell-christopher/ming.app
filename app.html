@@ -943,5 +943,43 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="script.js?v=20260930-2130-spaces-wallet-mount-1"></script>
 
+<!-- Spaces/Wallet DOM fallback: guarantees their stack screens exist even if
+     an earlier Spaces module statement aborts before dynamic mounting. -->
+<script>
+(function () {
+  function ensureScreen(id, html) {
+    if (document.getElementById(id)) return;
+    var app = document.getElementById('app');
+    if (!app) return;
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html.trim();
+    var el = wrap.firstElementChild;
+    if (!el) return;
+    var fab = document.getElementById('fab');
+    if (fab && fab.parentNode === app) app.insertBefore(el, fab);
+    else app.appendChild(el);
+  }
+
+  ensureScreen('screen-spaces', `
+<section class="screen screen--stack has-nav" id="screen-spaces" aria-label="Your Spaces">
+  <header class="topbar"><div class="topbar-row">
+    <button class="icon-btn back-btn" data-back aria-label="Back"><svg><use href="#i-back"/></svg></button>
+    <div style="flex:1 1 auto"><div class="topbar-title">Spaces</div><div class="topbar-sub">Your own worlds inside Ming</div></div>
+    <button class="icon-btn" data-sp="join" aria-label="Join with a code"><svg><use href="#i-sp-key"/></svg></button>
+  </div></header>
+  <div class="scroll" data-scroll><div id="spaces-body"></div></div>
+</section>`);
+
+  ensureScreen('screen-wallet', `
+<section class="screen screen--stack wallet-shell" id="screen-wallet" aria-label="Ming Wallet">
+  <header class="topbar"><div class="topbar-row">
+    <button class="icon-btn back-btn" data-back aria-label="Back"><svg><use href="#i-back"/></svg></button>
+    <div style="flex:1 1 auto"><div class="topbar-title">Ming Wallet</div><div class="topbar-sub">Development mode</div></div>
+  </div></header>
+  <div class="scroll" data-scroll><div id="wallet-body"></div></div>
+</section>`);
+})();
+</script>
+
 </body>
 </html>
