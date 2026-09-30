@@ -5092,7 +5092,14 @@ document.addEventListener('click', async e => {
     case 'go-spaces': {
       e.preventDefault();
       closeSheet();
-      requestAnimationFrame(() => openSpaces());
+
+      try {
+        await openSpaces();
+      } catch (error) {
+        console.error('Ming: Your Spaces navigation failed:', error);
+        toast('Your Spaces could not be loaded right now.', 'alert');
+      }
+
       break;
     }
     case 'go-wallet': {
