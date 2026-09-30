@@ -7579,7 +7579,13 @@ function renderSpaces() {
     sp.indexFilter = 'all';
   }
 
-  renderHomeSpaces();
+  /* The Home Spaces rail is auxiliary. A failure there must never prevent
+     the dedicated Spaces screen from rendering. */
+  try {
+    renderHomeSpaces();
+  } catch (error) {
+    console.warn('Ming: Home Spaces rail refresh skipped while opening Spaces.', error);
+  }
   const list = mySpaces();
   const filters = [['all', 'All'], ...Object.entries(NATURES).map(([k, n]) => [k, n.label])];
   const visible = sp.indexFilter === 'all' ? list : list.filter(s => s.nature === sp.indexFilter);
