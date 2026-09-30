@@ -56,6 +56,640 @@
   sync(root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
 })();
 
+/*=============================
+   MOON-SKY.JS
+=============================*/
+/* ============================================================
+   ming — Moonflower
+   moon-sky.js  ·  a single canvas, one render loop, mounted into
+   whichever Moonflower screen is currently active.
+
+   Ming is the world outside; this is the world inside. The engine
+   never touches app.js's state or Moonflower's data (goals, notes,
+   reminders, chat) — it only draws the environment behind it.
+
+   Two atmospheres share this canvas and one render loop:
+     mode 'dark'  — moon, cool stars, a rare occasional eclipse
+     mode 'light' — sun, warm atmosphere, faint drifting dust
+   The mode follows Ming's existing global theme toggle by watching
+   <html data-theme> — the same self-wiring already used below to
+   move the canvas between screens. theme.js is never touched.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const COARSE = matchMedia('(pointer: coarse)').matches;
+  const cores = navigator.hardwareConcurrency || 4;
+
+  /* ---- one-time device tier ---- */
+  function pickTier() {
+    if (REDUCED) return 'still';
+    if (cores <= 2 || (COARSE && innerWidth < 380)) return 'low';
+    if (cores >= 6 && !COARSE) return 'high';
+    return 'mid';
+  }
+  const TIERS = {
+    still: { stars: 90, sat: 0, neb: 1, shoot: 0, dpr: 1, parallax: 0 },
+    low: { stars: 70, sat: 2, neb: 1, shoot: 1, dpr: 1, parallax: 0.4 },
+    mid: { stars: 150, sat: 3, neb: 2, shoot: 2, dpr: 1.5, parallax: 0.7 },
+    high: { stars: 240, sat: 5, neb: 3, shoot: 2, dpr: 2, parallax: 1 }
+  };
+
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+
+  /* dark atmosphere */
+  const NIGHT = {
+    space: '#02030A', shadow: '#0B0D16', grey: '#8F929B',
+    light: '#DDE2EA', silver: '#BFC5D0', blue: '#11182A', violet: '#28233D'
+  };
+  /* light atmosphere — evolves from Ming's own warm palette, not a
+     plain white flip: quiet cream/gold, sunlight through a still room */
+  const DAY = {
+    sky: '#F7EEE0', skyEdge: '#EEDFC5', dust: '#E7CFA6',
+    sunCore: '#FFF7E6', sunMid: '#F3D9A6', sunEdge: '#D9A75C', cloud: '#EADFC9'
+  };
+
+  function initialMode() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function MoonSky() {
+    this.canvas = document.createElement('canvas');
+    this.canvas.className = 'msky';
+    this.canvas.setAttribute('aria-hidden', 'true');
+    this.ctx = this.canvas.getContext('2d', { alpha: true });
+    this.tier = pickTier();
+    this.cfg = TIERS[this.tier];
+    this.mounted = null;
+    this.running = false;
+    this.w = 0; this.h = 0; this.dpr = 1;
+    this.t0 = performance.now();
+    this.introStart = null;
+    this.slowFrames = 0; this.frameChecks = 0;
+    this.pointer = { x: 0, y: 0, tx: 0, ty: 0 };
+    this.orientReady = false;
+
+    /* mode: 0 = dark/moon, 1 = light/sun. mix eases toward target so a
+       theme switch reads as time passing, not a hard cut */
+    this.mode = initialMode();
+    this.mix = this.mode === 'light' ? 1 : 0;
+    this.mixTarget = this.mix;
+
+    /* eclipse: dark-mode only, rare, cinematic. Eligible after a
+       while, then again after a long randomized gap. Phases advance
+       against accumulated dark-mode viewing time, not wall clock, so
+       it never fires while the person is looking at daylight. */
+    this.eclipse = { phase: 'idle', t: 0, next: rand(45, 90), darkTime: 0 };
+    this.onEclipse = null;
+
+    this._genField();
+    this._ro = new ResizeObserver(() => this._resize());
+    this._raf = null;
+
+    this._onPointer = e => {
+      if (!this.cfg.parallax) return;
+      this.pointer.tx = clamp((e.clientX / innerWidth) * 2 - 1, -1, 1);
+      this.pointer.ty = clamp((e.clientY / innerHeight) * 2 - 1, -1, 1);
+    };
+    this._onOrient = e => {
+      if (!this.cfg.parallax || e.gamma === null) return;
+      this.pointer.tx = clamp(e.gamma / 28, -1, 1);
+      this.pointer.ty = clamp((e.beta - 40) / 28, -1, 1);
+    };
+    this._onFirstTap = () => {
+      if (this.orientReady) return;
+      this.orientReady = true;
+      if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
+        DeviceOrientationEvent.requestPermission().then(r => {
+          if (r === 'granted') window.addEventListener('deviceorientation', this._onOrient);
+        }).catch(() => {});
+      } else if (typeof DeviceOrientationEvent !== 'undefined') {
+        window.addEventListener('deviceorientation', this._onOrient);
+      }
+    };
+  }
+
+  MoonSky.prototype._genField = function () {
+    const c = this.cfg;
+    this.stars = [];
+    for (let i = 0; i < c.stars; i++) {
+      const depth = Math.pow(Math.random(), 1.6); // biased toward far (small/dim)
+      this.stars.push({
+        x: Math.random(), y: Math.random(),
+        r: lerp(0.4, 1.9, depth),
+        base: lerp(0.15, 0.95, depth),
+        depth,
+        phase: rand(0, Math.PI * 2),
+        speed: rand(0.6, 1.6),
+        warm: Math.random() < 0.18
+      });
+    }
+    this.nebula = [];
+    for (let i = 0; i < c.neb; i++) {
+      this.nebula.push({
+        x: rand(0.1, 0.9), y: rand(0.05, 0.7), r: rand(0.28, 0.46),
+        hue: Math.random() < 0.5 ? NIGHT.violet : NIGHT.blue,
+        alpha: rand(0.12, 0.22), phase: rand(0, Math.PI * 2)
+      });
+    }
+    this.sats = [];
+    for (let i = 0; i < c.sat; i++) this._newSat();
+    this.shots = [];
+    this._nextShot = rand(1800, 4600);
+    this.body = { xf: rand(0.68, 0.82), yf: rand(0.2, 0.34), rf: rand(0.24, 0.29), craters: null };
+    const cr = [];
+    for (let i = 0; i < 15; i++) {
+      const a = rand(0, Math.PI * 2), d = rand(0.05, 0.82) * rand(0.4, 1);
+      cr.push({ dx: Math.cos(a) * d, dy: Math.sin(a) * d, r: rand(0.05, 0.16), shade: rand(0.12, 0.32) });
+    }
+    this.body.craters = cr;
+    this.rays = [];
+    for (let i = 0; i < 6; i++) this.rays.push({ a: rand(0, Math.PI * 2), w: rand(0.16, 0.3), speed: rand(0.004, 0.01) });
+  };
+
+  MoonSky.prototype._newSat = function () {
+    const edge = Math.floor(rand(0, 4));
+    const pos = { x: 0, y: 0 };
+    if (edge === 0) { pos.x = rand(0, 1); pos.y = -0.05; }
+    else if (edge === 1) { pos.x = 1.05; pos.y = rand(0, 1); }
+    else if (edge === 2) { pos.x = rand(0, 1); pos.y = 1.05; }
+    else { pos.x = -0.05; pos.y = rand(0, 1); }
+    const target = { x: rand(0.1, 0.9), y: rand(0.1, 0.9) };
+    const speed = rand(0.006, 0.014);
+    const ang = Math.atan2(target.y - pos.y, target.x - pos.x);
+    this.sats.push({
+      x: pos.x, y: pos.y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
+      blink: rand(0, 6), r: rand(1.1, 1.8)
+    });
+  };
+
+  MoonSky.prototype._spawnShot = function () {
+    const c = this.cfg;
+    if (this.shots.length >= c.shoot) return;
+    const fromTop = Math.random() < 0.7;
+    const x = fromTop ? rand(0.1, 0.95) : (Math.random() < 0.5 ? -0.02 : 1.02);
+    const y = fromTop ? -0.02 : rand(0.05, 0.5);
+    const ang = rand(0.35, 0.85) * (Math.random() < 0.5 ? 1 : -1) + Math.PI / 2 * (fromTop ? 1 : 0.4);
+    const speed = rand(0.55, 1.3);
+    const big = Math.random() < 0.15;
+    this.shots.push({
+      x, y, vx: Math.cos(ang) * speed * (fromTop ? 1 : (x < 0 ? 1 : -1)),
+      vy: Math.sin(ang) * speed * 0.7 + 0.25,
+      life: 0, max: rand(0.7, big ? 1.6 : 1.1), len: big ? rand(120, 190) : rand(55, 110),
+      w: big ? rand(1.6, 2.2) : rand(0.8, 1.4)
+    });
+  };
+
+  /* ---- theme: called by the <html data-theme> watcher below ---- */
+  MoonSky.prototype.setMode = function (mode) {
+    if (mode !== 'light' && mode !== 'dark') return;
+    if (this.mode === mode) return;
+    this.mode = mode;
+    this.mixTarget = mode === 'light' ? 1 : 0;
+    // leaving the dark atmosphere mid-eclipse: let it recede quickly
+    // rather than freezing an occluder over a moon that is fading out
+    if (mode === 'light' && this.eclipse.phase !== 'idle' && this.eclipse.phase !== 'recede') {
+      this.eclipse.phase = 'recede'; this.eclipse.t = 0;
+    }
+    // the "still" tier never runs a render loop, so give it an
+    // immediate, un-animated redraw rather than a stale atmosphere
+    if (this.tier === 'still') {
+      this.mix = this.mixTarget;
+      if (this.mounted) this._draw(performance.now());
+    }
+  };
+
+  /* ---- lifecycle ---- */
+  MoonSky.prototype.mountTo = function (el) {
+    if (this.mounted === el) { this.start(); return; }
+    if (this.mounted) this._ro.unobserve(this.mounted);
+    this.mounted = el;
+    el.insertBefore(this.canvas, el.firstChild);
+    el.addEventListener('pointerdown', this._onFirstTap, { once: true, passive: true });
+    this._ro.observe(el);
+    this._resize();
+    this.introStart = performance.now();
+    this.start();
+  };
+
+  MoonSky.prototype._resize = function () {
+    if (!this.mounted) return;
+    const r = this.mounted.getBoundingClientRect();
+    this.dpr = Math.min(devicePixelRatio || 1, this.cfg.dpr);
+    this.w = Math.max(1, Math.round(r.width));
+    this.h = Math.max(1, Math.round(r.height));
+    this.canvas.width = this.w * this.dpr;
+    this.canvas.height = this.h * this.dpr;
+    this.canvas.style.width = this.w + 'px';
+    this.canvas.style.height = this.h + 'px';
+  };
+
+  MoonSky.prototype.start = function () {
+    if (this.running) return;
+    this.running = true;
+    if (this.cfg.parallax) {
+      window.addEventListener('pointermove', this._onPointer, { passive: true });
+    }
+    document.addEventListener('visibilitychange', this._onVis || (this._onVis = () => {
+      if (document.hidden) this.stop(); else if (this.mounted) this.start();
+    }));
+    this._lastT = performance.now();
+    if (this.tier === 'still') { this._draw(performance.now()); this.running = false; return; }
+    const step = t => { this._frame(t); if (this.running) this._raf = requestAnimationFrame(step); };
+    this._raf = requestAnimationFrame(step);
+  };
+
+  MoonSky.prototype.stop = function () {
+    this.running = false;
+    if (this._raf) cancelAnimationFrame(this._raf);
+    window.removeEventListener('pointermove', this._onPointer);
+  };
+
+  MoonSky.prototype._frame = function (t) {
+    const start = performance.now();
+    this._draw(t);
+    const dt = performance.now() - start;
+    if (this.frameChecks < 240) {
+      this.frameChecks++;
+      if (dt > 20) this.slowFrames++;
+      if (this.frameChecks === 240 && this.slowFrames > 140 && this.tier !== 'low' && this.tier !== 'still') {
+        this.tier = this.tier === 'high' ? 'mid' : 'low';
+        this.cfg = TIERS[this.tier];
+        this._genField();
+      }
+    }
+  };
+
+  /* ---- eclipse state machine (dark mode only) ----
+     approach → align (peak, corona + dip) → recede → idle, then a
+     long randomized wait before it's eligible again. */
+  MoonSky.prototype._advanceEclipse = function (dtSec) {
+    const e = this.eclipse;
+    if (this.mode !== 'dark' || this.mix > 0.05) { e.darkTime = 0; return; }
+    e.darkTime += dtSec;
+
+    if (e.phase === 'idle') {
+      if (e.darkTime >= e.next) { e.phase = 'approach'; e.t = 0; }
+      return;
+    }
+    e.t += dtSec;
+    const DUR = { approach: 6, align: 3.2, recede: 6.5 };
+    if (e.phase === 'approach' && e.t >= DUR.approach) { e.phase = 'align'; e.t = 0; if (this.onEclipse) this.onEclipse(); }
+    else if (e.phase === 'align' && e.t >= DUR.align) { e.phase = 'recede'; e.t = 0; }
+    else if (e.phase === 'recede' && e.t >= DUR.recede) {
+      e.phase = 'idle'; e.t = 0; e.darkTime = 0; e.next = rand(150, 320);
+    }
+  };
+
+  /* 0 = no eclipse influence, 1 = full alignment (peak dimming) */
+  MoonSky.prototype._eclipseK = function () {
+    const e = this.eclipse;
+    if (e.phase === 'idle') return 0;
+    const DUR = { approach: 6, align: 3.2, recede: 6.5 };
+    if (e.phase === 'approach') return clamp(e.t / DUR.approach, 0, 1);
+    if (e.phase === 'align') return 1;
+    return clamp(1 - e.t / DUR.recede, 0, 1);
+  };
+
+  /* ---- draw ---- */
+  MoonSky.prototype._draw = function (t) {
+    const ctx = this.ctx, w = this.w, h = this.h, dpr = this.dpr;
+    const dtSec = clamp((t - (this._lastT || t)) / 1000, 0, 0.25);
+    this._lastT = t;
+    this.mix = lerp(this.mix, this.mixTarget, clamp(dtSec * 1.1, 0, 1));
+    this._advanceEclipse(dtSec);
+    const eK = this._eclipseK();
+    this.eclipsing = eK > 0.02 && this.mix < 0.5;
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    const mix = this.mix; // 0 dark .. 1 light
+
+    /* sky fill — cross-faded, never a hard swap */
+    ctx.fillStyle = NIGHT.space;
+    ctx.fillRect(0, 0, w, h);
+    if (mix > 0.002) {
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, DAY.sky);
+      sky.addColorStop(1, DAY.skyEdge);
+      ctx.save();
+      ctx.globalAlpha = mix;
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+
+    const time = (t - this.t0) / 1000;
+    const intro = this.introStart ? clamp((t - this.introStart) / 1400, 0, 1) : 1;
+    const introEase = 1 - Math.pow(1 - intro, 3);
+    const dim = 1 - eK * 0.4; // eclipse ambient dip
+
+    if (this.cfg.parallax) {
+      this.pointer.x = lerp(this.pointer.x, this.pointer.tx, 0.05);
+      this.pointer.y = lerp(this.pointer.y, this.pointer.ty, 0.05);
+    }
+    const px = this.pointer.x, py = this.pointer.y;
+
+    const bodyX = this.body.xf * w;
+    const bodyY = this.body.yf * h + (this.tier === 'still' ? 0 : Math.sin(time * 0.06) * 4);
+    const bodyR = this.body.rf * Math.min(w, h * 1.15);
+
+    /* nebula / soft cloud — farthest, barely moves, hue crosses over */
+    ctx.save();
+    ctx.translate(px * 5, py * 5);
+    this.nebula.forEach(n => {
+      const nx = n.x * w + Math.sin(time * 0.05 + n.phase) * 10;
+      const ny = n.y * h + Math.cos(time * 0.04 + n.phase) * 8;
+      const r = n.r * Math.max(w, h);
+      const nightA = n.alpha * introEase * (1 - mix) * dim;
+      if (nightA > 0.003) {
+        const g = ctx.createRadialGradient(nx, ny, 0, nx, ny, r);
+        g.addColorStop(0, hexA(n.hue, nightA));
+        g.addColorStop(1, hexA(n.hue, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(nx, ny, r, 0, 7); ctx.fill();
+      }
+      const dayA = n.alpha * 0.55 * introEase * mix;
+      if (dayA > 0.003) {
+        const g2 = ctx.createRadialGradient(nx, ny, 0, nx, ny, r);
+        g2.addColorStop(0, hexA(DAY.cloud, dayA));
+        g2.addColorStop(1, hexA(DAY.cloud, 0));
+        ctx.fillStyle = g2;
+        ctx.beginPath(); ctx.arc(nx, ny, r, 0, 7); ctx.fill();
+      }
+    });
+    ctx.restore();
+
+    /* stars ⇄ dust — same positions and twinkle, color/alpha crosses over */
+    const still = this.tier === 'still';
+    const pulseBoost = (this._pulseUntil && t < this._pulseUntil)
+      ? 0.22 * ((this._pulseUntil - t) / 900)
+      : 0;
+    for (let i = 0; i < this.stars.length; i++) {
+      const s = this.stars[i];
+      const factor = lerp(3, 20, s.depth) * this.cfg.parallax;
+      const sx = s.x * w + px * factor;
+      const sy = s.y * h + py * factor;
+      let a = s.base;
+      if (!still) a *= 0.72 + 0.28 * Math.sin(time * s.speed + s.phase);
+      const dm = Math.hypot(sx - bodyX, sy - bodyY);
+      const glowBoost = dm < bodyR * 3.2 ? (1 - dm / (bodyR * 3.2)) * 0.35 : 0;
+      const nightA = clamp((a + glowBoost + pulseBoost) * dim, 0, 1) * introEase * (1 - mix);
+      const dayA = a * 0.22 * mix * introEase; // faint dust, deliberately subtle
+      if (nightA > 0.004) {
+        ctx.beginPath();
+        ctx.fillStyle = s.warm ? `rgba(223,214,196,${nightA})` : `rgba(221,226,234,${nightA})`;
+        ctx.arc(sx, sy, s.r, 0, 7);
+        ctx.fill();
+        if (s.r > 1.5 && nightA > 0.6) {
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(221,226,234,${nightA * 0.12})`;
+          ctx.arc(sx, sy, s.r * 3.2, 0, 7);
+          ctx.fill();
+        }
+      }
+      if (dayA > 0.004) {
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(217,167,92,${dayA})`;
+        ctx.arc(sx, sy, s.r * 0.85, 0, 7);
+        ctx.fill();
+      }
+    }
+
+    ctx.save();
+    ctx.translate(px * 6 * this.cfg.parallax, py * 6 * this.cfg.parallax);
+
+    /* sun bloom + disc (fades in as mix → 1) */
+    if (mix > 0.01) {
+      ctx.save();
+      ctx.globalAlpha = mix * introEase;
+      const sunBloomR = bodyR * 2.9;
+      const sbloom = ctx.createRadialGradient(bodyX, bodyY, bodyR * 0.3, bodyX, bodyY, sunBloomR);
+      sbloom.addColorStop(0, hexA(DAY.sunEdge, 0.28));
+      sbloom.addColorStop(1, hexA(DAY.sunEdge, 0));
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = sbloom;
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, sunBloomR, 0, 7); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+
+      if (!still) {
+        this.rays.forEach(ray => {
+          const a0 = ray.a + time * ray.speed;
+          ctx.save();
+          ctx.translate(bodyX, bodyY);
+          ctx.rotate(a0);
+          const rg = ctx.createRadialGradient(0, 0, bodyR * 0.9, 0, 0, bodyR * 2.4);
+          rg.addColorStop(0, hexA(DAY.sunMid, 0.05));
+          rg.addColorStop(1, hexA(DAY.sunMid, 0));
+          ctx.fillStyle = rg;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.arc(0, 0, bodyR * 2.4, -ray.w / 2, ray.w / 2);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+        });
+      }
+
+      const sun = ctx.createRadialGradient(
+        bodyX - bodyR * 0.25, bodyY - bodyR * 0.28, bodyR * 0.1,
+        bodyX, bodyY, bodyR * 0.86
+      );
+      sun.addColorStop(0, DAY.sunCore);
+      sun.addColorStop(0.55, DAY.sunMid);
+      sun.addColorStop(1, DAY.sunEdge);
+      ctx.fillStyle = sun;
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR * 0.86, 0, 7); ctx.fill();
+      ctx.restore();
+    }
+
+    /* moon bloom + disc + craters (fades in as mix → 0) */
+    if (mix < 0.99) {
+      const moonAlpha = (1 - mix) * introEase * dim;
+      const bloomR = bodyR * 2.6;
+      const bloom = ctx.createRadialGradient(bodyX - bodyR * 0.3, bodyY - bodyR * 0.3, bodyR * 0.4, bodyX, bodyY, bloomR);
+      bloom.addColorStop(0, `rgba(224,227,238,${0.30 * moonAlpha})`);
+      bloom.addColorStop(1, 'rgba(224,227,238,0)');
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = bloom;
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, bloomR, 0, 7); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = moonAlpha;
+      const disc = ctx.createRadialGradient(
+        bodyX - bodyR * 0.38, bodyY - bodyR * 0.4, bodyR * 0.15,
+        bodyX, bodyY, bodyR
+      );
+      disc.addColorStop(0, '#F1F0EE');
+      disc.addColorStop(0.42, NIGHT.light);
+      disc.addColorStop(0.75, NIGHT.silver);
+      disc.addColorStop(1, NIGHT.shadow);
+      ctx.fillStyle = disc;
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.fill();
+
+      ctx.save();
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.clip();
+      this.body.craters.forEach(cr => {
+        const cx = bodyX + cr.dx * bodyR, cy = bodyY + cr.dy * bodyR, r = cr.r * bodyR;
+        const lit = ((cx - bodyX) < 0) ? 1 : 0.4;
+        const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
+        g.addColorStop(0, `rgba(11,13,22,0)`);
+        g.addColorStop(0.6, `rgba(11,13,22,${cr.shade * 0.5 * lit})`);
+        g.addColorStop(1, `rgba(11,13,22,${cr.shade * lit})`);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill();
+      });
+      const rim = ctx.createRadialGradient(bodyX - bodyR * 0.5, bodyY - bodyR * 0.5, bodyR * 0.7, bodyX - bodyR * 0.5, bodyY - bodyR * 0.5, bodyR * 1.05);
+      rim.addColorStop(0, 'rgba(255,255,255,0)');
+      rim.addColorStop(1, 'rgba(255,255,255,.18)');
+      ctx.fillStyle = rim;
+      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.fill();
+      ctx.restore();
+      ctx.restore();
+
+      /* eclipse occluder + corona, drawn only while it's actually happening */
+      if (eK > 0.02) {
+        const approach = this.eclipse.phase === 'recede' ? 1 - eK : eK;
+        const ox = bodyX + (1 - approach) * bodyR * 2.4;
+        const oy = bodyY - (1 - approach) * bodyR * 0.6;
+        ctx.save();
+        ctx.globalAlpha = moonAlpha;
+        ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.clip();
+        ctx.fillStyle = NIGHT.space;
+        ctx.beginPath(); ctx.arc(ox, oy, bodyR * 1.02, 0, 7); ctx.fill();
+        ctx.restore();
+        if (this.eclipse.phase === 'align') {
+          const corona = ctx.createRadialGradient(bodyX, bodyY, bodyR * 0.94, bodyX, bodyY, bodyR * 1.16);
+          corona.addColorStop(0, 'rgba(255,255,255,0)');
+          corona.addColorStop(0.7, `rgba(255,246,232,${0.5 * moonAlpha})`);
+          corona.addColorStop(1, 'rgba(255,246,232,0)');
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = corona;
+          ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR * 1.16, 0, 7); ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+    ctx.restore();
+
+    /* satellites — a night-sky detail, fades out with the moon */
+    if (!still && mix < 0.9) {
+      const dt = 1 / 60;
+      const satA = (1 - mix) * dim;
+      this.sats.forEach((s, idx) => {
+        s.x += s.vx; s.y += s.vy; s.blink += dt;
+        if (s.x < -0.1 || s.x > 1.1 || s.y < -0.1 || s.y > 1.1) { this.sats.splice(idx, 1); this._newSat(); return; }
+        const sx = s.x * w + px * 10 * this.cfg.parallax, sy = s.y * h + py * 10 * this.cfg.parallax;
+        const blink = 0.4 + 0.6 * Math.max(0, Math.sin(s.blink * 1.3));
+        const tlen = 9, ang = Math.atan2(s.vy, s.vx);
+        const g = ctx.createLinearGradient(sx, sy, sx - Math.cos(ang) * tlen, sy - Math.sin(ang) * tlen);
+        g.addColorStop(0, `rgba(200,208,224,${0.5 * introEase * satA})`);
+        g.addColorStop(1, 'rgba(200,208,224,0)');
+        ctx.strokeStyle = g; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - Math.cos(ang) * tlen, sy - Math.sin(ang) * tlen); ctx.stroke();
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(216,222,232,${blink * introEase * satA})`;
+        ctx.arc(sx, sy, s.r, 0, 7); ctx.fill();
+      });
+    }
+
+    /* shooting stars — same, night-only */
+    if (!still && mix < 0.9) {
+      this._nextShot -= 16.7;
+      if (this._nextShot <= 0) { this._spawnShot(); this._nextShot = rand(2200, 8600); }
+      const shotA = (1 - mix) * dim;
+      for (let i = this.shots.length - 1; i >= 0; i--) {
+        const sh = this.shots[i];
+        sh.life += 1 / 60;
+        sh.x += sh.vx * 0.012; sh.y += sh.vy * 0.012;
+        sh.vx *= 1.012; sh.vy *= 1.012;
+        const alpha = (sh.life < sh.max * 0.15
+          ? sh.life / (sh.max * 0.15)
+          : clamp(1 - (sh.life - sh.max * 0.15) / (sh.max * 0.85), 0, 1)) * shotA;
+        if (sh.life >= sh.max || alpha <= 0) { this.shots.splice(i, 1); continue; }
+        const hx = sh.x * w, hy = sh.y * h;
+        const ang = Math.atan2(sh.vy, sh.vx);
+        const tx = hx - Math.cos(ang) * sh.len, ty = hy - Math.sin(ang) * sh.len;
+        const g = ctx.createLinearGradient(hx, hy, tx, ty);
+        g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+        g.addColorStop(0.4, `rgba(221,226,234,${alpha * 0.5})`);
+        g.addColorStop(1, 'rgba(221,226,234,0)');
+        ctx.strokeStyle = g; ctx.lineWidth = sh.w; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  };
+
+  function hexA(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  /* ---- react to Moonflower-specific moments ---- */
+  MoonSky.prototype.pulse = function () {
+    // a brief brightening, used when a message lands inside "Talk to Me"
+    if (this.tier === 'still') return;
+    const boost = 900;
+    this._pulseUntil = performance.now() + boost;
+  };
+
+  /* ============================================================
+     auto-wiring — no changes to app.js or theme.js required.
+     One observer moves the canvas between Moonflower's two screens;
+     a second watches the global theme and crossfades this engine's
+     own atmosphere to match, independently of anything else that
+     also reacts to that same attribute.
+  ============================================================ */
+  const sky = new MoonSky();
+  window.MoonSky = sky;
+
+  const ids = ['screen-moonflower', 'screen-moonroom'];
+  const screens = ids.map(id => document.getElementById(id)).filter(Boolean);
+
+  function sync() {
+    const active = screens.find(s => s.classList.contains('is-active'));
+    if (active) sky.mountTo(active);
+    else sky.stop();
+  }
+  screens.forEach(s => new MutationObserver(sync).observe(s, { attributes: true, attributeFilter: ['class'] }));
+  sync();
+
+  new MutationObserver(() => sky.setMode(initialMode()))
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /*============================
      APP.JS   
   ============================*/
@@ -8578,638 +9212,6 @@ function seedNewSpace(space) {
   return space;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*=============================
-   MOON-SKY.JS
-=============================*/
-/* ============================================================
-   ming — Moonflower
-   moon-sky.js  ·  a single canvas, one render loop, mounted into
-   whichever Moonflower screen is currently active.
-
-   Ming is the world outside; this is the world inside. The engine
-   never touches app.js's state or Moonflower's data (goals, notes,
-   reminders, chat) — it only draws the environment behind it.
-
-   Two atmospheres share this canvas and one render loop:
-     mode 'dark'  — moon, cool stars, a rare occasional eclipse
-     mode 'light' — sun, warm atmosphere, faint drifting dust
-   The mode follows Ming's existing global theme toggle by watching
-   <html data-theme> — the same self-wiring already used below to
-   move the canvas between screens. theme.js is never touched.
-   ============================================================ */
-(function () {
-  'use strict';
-
-  const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const COARSE = matchMedia('(pointer: coarse)').matches;
-  const cores = navigator.hardwareConcurrency || 4;
-
-  /* ---- one-time device tier ---- */
-  function pickTier() {
-    if (REDUCED) return 'still';
-    if (cores <= 2 || (COARSE && innerWidth < 380)) return 'low';
-    if (cores >= 6 && !COARSE) return 'high';
-    return 'mid';
-  }
-  const TIERS = {
-    still: { stars: 90, sat: 0, neb: 1, shoot: 0, dpr: 1, parallax: 0 },
-    low: { stars: 70, sat: 2, neb: 1, shoot: 1, dpr: 1, parallax: 0.4 },
-    mid: { stars: 150, sat: 3, neb: 2, shoot: 2, dpr: 1.5, parallax: 0.7 },
-    high: { stars: 240, sat: 5, neb: 3, shoot: 2, dpr: 2, parallax: 1 }
-  };
-
-  const rand = (a, b) => a + Math.random() * (b - a);
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const lerp = (a, b, t) => a + (b - a) * t;
-
-  /* dark atmosphere */
-  const NIGHT = {
-    space: '#02030A', shadow: '#0B0D16', grey: '#8F929B',
-    light: '#DDE2EA', silver: '#BFC5D0', blue: '#11182A', violet: '#28233D'
-  };
-  /* light atmosphere — evolves from Ming's own warm palette, not a
-     plain white flip: quiet cream/gold, sunlight through a still room */
-  const DAY = {
-    sky: '#F7EEE0', skyEdge: '#EEDFC5', dust: '#E7CFA6',
-    sunCore: '#FFF7E6', sunMid: '#F3D9A6', sunEdge: '#D9A75C', cloud: '#EADFC9'
-  };
-
-  function initialMode() {
-    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-  }
-
-  function MoonSky() {
-    this.canvas = document.createElement('canvas');
-    this.canvas.className = 'msky';
-    this.canvas.setAttribute('aria-hidden', 'true');
-    this.ctx = this.canvas.getContext('2d', { alpha: true });
-    this.tier = pickTier();
-    this.cfg = TIERS[this.tier];
-    this.mounted = null;
-    this.running = false;
-    this.w = 0; this.h = 0; this.dpr = 1;
-    this.t0 = performance.now();
-    this.introStart = null;
-    this.slowFrames = 0; this.frameChecks = 0;
-    this.pointer = { x: 0, y: 0, tx: 0, ty: 0 };
-    this.orientReady = false;
-
-    /* mode: 0 = dark/moon, 1 = light/sun. mix eases toward target so a
-       theme switch reads as time passing, not a hard cut */
-    this.mode = initialMode();
-    this.mix = this.mode === 'light' ? 1 : 0;
-    this.mixTarget = this.mix;
-
-    /* eclipse: dark-mode only, rare, cinematic. Eligible after a
-       while, then again after a long randomized gap. Phases advance
-       against accumulated dark-mode viewing time, not wall clock, so
-       it never fires while the person is looking at daylight. */
-    this.eclipse = { phase: 'idle', t: 0, next: rand(45, 90), darkTime: 0 };
-    this.onEclipse = null;
-
-    this._genField();
-    this._ro = new ResizeObserver(() => this._resize());
-    this._raf = null;
-
-    this._onPointer = e => {
-      if (!this.cfg.parallax) return;
-      this.pointer.tx = clamp((e.clientX / innerWidth) * 2 - 1, -1, 1);
-      this.pointer.ty = clamp((e.clientY / innerHeight) * 2 - 1, -1, 1);
-    };
-    this._onOrient = e => {
-      if (!this.cfg.parallax || e.gamma === null) return;
-      this.pointer.tx = clamp(e.gamma / 28, -1, 1);
-      this.pointer.ty = clamp((e.beta - 40) / 28, -1, 1);
-    };
-    this._onFirstTap = () => {
-      if (this.orientReady) return;
-      this.orientReady = true;
-      if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
-        DeviceOrientationEvent.requestPermission().then(r => {
-          if (r === 'granted') window.addEventListener('deviceorientation', this._onOrient);
-        }).catch(() => {});
-      } else if (typeof DeviceOrientationEvent !== 'undefined') {
-        window.addEventListener('deviceorientation', this._onOrient);
-      }
-    };
-  }
-
-  MoonSky.prototype._genField = function () {
-    const c = this.cfg;
-    this.stars = [];
-    for (let i = 0; i < c.stars; i++) {
-      const depth = Math.pow(Math.random(), 1.6); // biased toward far (small/dim)
-      this.stars.push({
-        x: Math.random(), y: Math.random(),
-        r: lerp(0.4, 1.9, depth),
-        base: lerp(0.15, 0.95, depth),
-        depth,
-        phase: rand(0, Math.PI * 2),
-        speed: rand(0.6, 1.6),
-        warm: Math.random() < 0.18
-      });
-    }
-    this.nebula = [];
-    for (let i = 0; i < c.neb; i++) {
-      this.nebula.push({
-        x: rand(0.1, 0.9), y: rand(0.05, 0.7), r: rand(0.28, 0.46),
-        hue: Math.random() < 0.5 ? NIGHT.violet : NIGHT.blue,
-        alpha: rand(0.12, 0.22), phase: rand(0, Math.PI * 2)
-      });
-    }
-    this.sats = [];
-    for (let i = 0; i < c.sat; i++) this._newSat();
-    this.shots = [];
-    this._nextShot = rand(1800, 4600);
-    this.body = { xf: rand(0.68, 0.82), yf: rand(0.2, 0.34), rf: rand(0.24, 0.29), craters: null };
-    const cr = [];
-    for (let i = 0; i < 15; i++) {
-      const a = rand(0, Math.PI * 2), d = rand(0.05, 0.82) * rand(0.4, 1);
-      cr.push({ dx: Math.cos(a) * d, dy: Math.sin(a) * d, r: rand(0.05, 0.16), shade: rand(0.12, 0.32) });
-    }
-    this.body.craters = cr;
-    this.rays = [];
-    for (let i = 0; i < 6; i++) this.rays.push({ a: rand(0, Math.PI * 2), w: rand(0.16, 0.3), speed: rand(0.004, 0.01) });
-  };
-
-  MoonSky.prototype._newSat = function () {
-    const edge = Math.floor(rand(0, 4));
-    const pos = { x: 0, y: 0 };
-    if (edge === 0) { pos.x = rand(0, 1); pos.y = -0.05; }
-    else if (edge === 1) { pos.x = 1.05; pos.y = rand(0, 1); }
-    else if (edge === 2) { pos.x = rand(0, 1); pos.y = 1.05; }
-    else { pos.x = -0.05; pos.y = rand(0, 1); }
-    const target = { x: rand(0.1, 0.9), y: rand(0.1, 0.9) };
-    const speed = rand(0.006, 0.014);
-    const ang = Math.atan2(target.y - pos.y, target.x - pos.x);
-    this.sats.push({
-      x: pos.x, y: pos.y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
-      blink: rand(0, 6), r: rand(1.1, 1.8)
-    });
-  };
-
-  MoonSky.prototype._spawnShot = function () {
-    const c = this.cfg;
-    if (this.shots.length >= c.shoot) return;
-    const fromTop = Math.random() < 0.7;
-    const x = fromTop ? rand(0.1, 0.95) : (Math.random() < 0.5 ? -0.02 : 1.02);
-    const y = fromTop ? -0.02 : rand(0.05, 0.5);
-    const ang = rand(0.35, 0.85) * (Math.random() < 0.5 ? 1 : -1) + Math.PI / 2 * (fromTop ? 1 : 0.4);
-    const speed = rand(0.55, 1.3);
-    const big = Math.random() < 0.15;
-    this.shots.push({
-      x, y, vx: Math.cos(ang) * speed * (fromTop ? 1 : (x < 0 ? 1 : -1)),
-      vy: Math.sin(ang) * speed * 0.7 + 0.25,
-      life: 0, max: rand(0.7, big ? 1.6 : 1.1), len: big ? rand(120, 190) : rand(55, 110),
-      w: big ? rand(1.6, 2.2) : rand(0.8, 1.4)
-    });
-  };
-
-  /* ---- theme: called by the <html data-theme> watcher below ---- */
-  MoonSky.prototype.setMode = function (mode) {
-    if (mode !== 'light' && mode !== 'dark') return;
-    if (this.mode === mode) return;
-    this.mode = mode;
-    this.mixTarget = mode === 'light' ? 1 : 0;
-    // leaving the dark atmosphere mid-eclipse: let it recede quickly
-    // rather than freezing an occluder over a moon that is fading out
-    if (mode === 'light' && this.eclipse.phase !== 'idle' && this.eclipse.phase !== 'recede') {
-      this.eclipse.phase = 'recede'; this.eclipse.t = 0;
-    }
-    // the "still" tier never runs a render loop, so give it an
-    // immediate, un-animated redraw rather than a stale atmosphere
-    if (this.tier === 'still') {
-      this.mix = this.mixTarget;
-      if (this.mounted) this._draw(performance.now());
-    }
-  };
-
-  /* ---- lifecycle ---- */
-  MoonSky.prototype.mountTo = function (el) {
-    if (this.mounted === el) { this.start(); return; }
-    if (this.mounted) this._ro.unobserve(this.mounted);
-    this.mounted = el;
-    el.insertBefore(this.canvas, el.firstChild);
-    el.addEventListener('pointerdown', this._onFirstTap, { once: true, passive: true });
-    this._ro.observe(el);
-    this._resize();
-    this.introStart = performance.now();
-    this.start();
-  };
-
-  MoonSky.prototype._resize = function () {
-    if (!this.mounted) return;
-    const r = this.mounted.getBoundingClientRect();
-    this.dpr = Math.min(devicePixelRatio || 1, this.cfg.dpr);
-    this.w = Math.max(1, Math.round(r.width));
-    this.h = Math.max(1, Math.round(r.height));
-    this.canvas.width = this.w * this.dpr;
-    this.canvas.height = this.h * this.dpr;
-    this.canvas.style.width = this.w + 'px';
-    this.canvas.style.height = this.h + 'px';
-  };
-
-  MoonSky.prototype.start = function () {
-    if (this.running) return;
-    this.running = true;
-    if (this.cfg.parallax) {
-      window.addEventListener('pointermove', this._onPointer, { passive: true });
-    }
-    document.addEventListener('visibilitychange', this._onVis || (this._onVis = () => {
-      if (document.hidden) this.stop(); else if (this.mounted) this.start();
-    }));
-    this._lastT = performance.now();
-    if (this.tier === 'still') { this._draw(performance.now()); this.running = false; return; }
-    const step = t => { this._frame(t); if (this.running) this._raf = requestAnimationFrame(step); };
-    this._raf = requestAnimationFrame(step);
-  };
-
-  MoonSky.prototype.stop = function () {
-    this.running = false;
-    if (this._raf) cancelAnimationFrame(this._raf);
-    window.removeEventListener('pointermove', this._onPointer);
-  };
-
-  MoonSky.prototype._frame = function (t) {
-    const start = performance.now();
-    this._draw(t);
-    const dt = performance.now() - start;
-    if (this.frameChecks < 240) {
-      this.frameChecks++;
-      if (dt > 20) this.slowFrames++;
-      if (this.frameChecks === 240 && this.slowFrames > 140 && this.tier !== 'low' && this.tier !== 'still') {
-        this.tier = this.tier === 'high' ? 'mid' : 'low';
-        this.cfg = TIERS[this.tier];
-        this._genField();
-      }
-    }
-  };
-
-  /* ---- eclipse state machine (dark mode only) ----
-     approach → align (peak, corona + dip) → recede → idle, then a
-     long randomized wait before it's eligible again. */
-  MoonSky.prototype._advanceEclipse = function (dtSec) {
-    const e = this.eclipse;
-    if (this.mode !== 'dark' || this.mix > 0.05) { e.darkTime = 0; return; }
-    e.darkTime += dtSec;
-
-    if (e.phase === 'idle') {
-      if (e.darkTime >= e.next) { e.phase = 'approach'; e.t = 0; }
-      return;
-    }
-    e.t += dtSec;
-    const DUR = { approach: 6, align: 3.2, recede: 6.5 };
-    if (e.phase === 'approach' && e.t >= DUR.approach) { e.phase = 'align'; e.t = 0; if (this.onEclipse) this.onEclipse(); }
-    else if (e.phase === 'align' && e.t >= DUR.align) { e.phase = 'recede'; e.t = 0; }
-    else if (e.phase === 'recede' && e.t >= DUR.recede) {
-      e.phase = 'idle'; e.t = 0; e.darkTime = 0; e.next = rand(150, 320);
-    }
-  };
-
-  /* 0 = no eclipse influence, 1 = full alignment (peak dimming) */
-  MoonSky.prototype._eclipseK = function () {
-    const e = this.eclipse;
-    if (e.phase === 'idle') return 0;
-    const DUR = { approach: 6, align: 3.2, recede: 6.5 };
-    if (e.phase === 'approach') return clamp(e.t / DUR.approach, 0, 1);
-    if (e.phase === 'align') return 1;
-    return clamp(1 - e.t / DUR.recede, 0, 1);
-  };
-
-  /* ---- draw ---- */
-  MoonSky.prototype._draw = function (t) {
-    const ctx = this.ctx, w = this.w, h = this.h, dpr = this.dpr;
-    const dtSec = clamp((t - (this._lastT || t)) / 1000, 0, 0.25);
-    this._lastT = t;
-    this.mix = lerp(this.mix, this.mixTarget, clamp(dtSec * 1.1, 0, 1));
-    this._advanceEclipse(dtSec);
-    const eK = this._eclipseK();
-    this.eclipsing = eK > 0.02 && this.mix < 0.5;
-
-    ctx.save();
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, w, h);
-
-    const mix = this.mix; // 0 dark .. 1 light
-
-    /* sky fill — cross-faded, never a hard swap */
-    ctx.fillStyle = NIGHT.space;
-    ctx.fillRect(0, 0, w, h);
-    if (mix > 0.002) {
-      const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, DAY.sky);
-      sky.addColorStop(1, DAY.skyEdge);
-      ctx.save();
-      ctx.globalAlpha = mix;
-      ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, w, h);
-      ctx.restore();
-    }
-
-    const time = (t - this.t0) / 1000;
-    const intro = this.introStart ? clamp((t - this.introStart) / 1400, 0, 1) : 1;
-    const introEase = 1 - Math.pow(1 - intro, 3);
-    const dim = 1 - eK * 0.4; // eclipse ambient dip
-
-    if (this.cfg.parallax) {
-      this.pointer.x = lerp(this.pointer.x, this.pointer.tx, 0.05);
-      this.pointer.y = lerp(this.pointer.y, this.pointer.ty, 0.05);
-    }
-    const px = this.pointer.x, py = this.pointer.y;
-
-    const bodyX = this.body.xf * w;
-    const bodyY = this.body.yf * h + (this.tier === 'still' ? 0 : Math.sin(time * 0.06) * 4);
-    const bodyR = this.body.rf * Math.min(w, h * 1.15);
-
-    /* nebula / soft cloud — farthest, barely moves, hue crosses over */
-    ctx.save();
-    ctx.translate(px * 5, py * 5);
-    this.nebula.forEach(n => {
-      const nx = n.x * w + Math.sin(time * 0.05 + n.phase) * 10;
-      const ny = n.y * h + Math.cos(time * 0.04 + n.phase) * 8;
-      const r = n.r * Math.max(w, h);
-      const nightA = n.alpha * introEase * (1 - mix) * dim;
-      if (nightA > 0.003) {
-        const g = ctx.createRadialGradient(nx, ny, 0, nx, ny, r);
-        g.addColorStop(0, hexA(n.hue, nightA));
-        g.addColorStop(1, hexA(n.hue, 0));
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(nx, ny, r, 0, 7); ctx.fill();
-      }
-      const dayA = n.alpha * 0.55 * introEase * mix;
-      if (dayA > 0.003) {
-        const g2 = ctx.createRadialGradient(nx, ny, 0, nx, ny, r);
-        g2.addColorStop(0, hexA(DAY.cloud, dayA));
-        g2.addColorStop(1, hexA(DAY.cloud, 0));
-        ctx.fillStyle = g2;
-        ctx.beginPath(); ctx.arc(nx, ny, r, 0, 7); ctx.fill();
-      }
-    });
-    ctx.restore();
-
-    /* stars ⇄ dust — same positions and twinkle, color/alpha crosses over */
-    const still = this.tier === 'still';
-    const pulseBoost = (this._pulseUntil && t < this._pulseUntil)
-      ? 0.22 * ((this._pulseUntil - t) / 900)
-      : 0;
-    for (let i = 0; i < this.stars.length; i++) {
-      const s = this.stars[i];
-      const factor = lerp(3, 20, s.depth) * this.cfg.parallax;
-      const sx = s.x * w + px * factor;
-      const sy = s.y * h + py * factor;
-      let a = s.base;
-      if (!still) a *= 0.72 + 0.28 * Math.sin(time * s.speed + s.phase);
-      const dm = Math.hypot(sx - bodyX, sy - bodyY);
-      const glowBoost = dm < bodyR * 3.2 ? (1 - dm / (bodyR * 3.2)) * 0.35 : 0;
-      const nightA = clamp((a + glowBoost + pulseBoost) * dim, 0, 1) * introEase * (1 - mix);
-      const dayA = a * 0.22 * mix * introEase; // faint dust, deliberately subtle
-      if (nightA > 0.004) {
-        ctx.beginPath();
-        ctx.fillStyle = s.warm ? `rgba(223,214,196,${nightA})` : `rgba(221,226,234,${nightA})`;
-        ctx.arc(sx, sy, s.r, 0, 7);
-        ctx.fill();
-        if (s.r > 1.5 && nightA > 0.6) {
-          ctx.beginPath();
-          ctx.fillStyle = `rgba(221,226,234,${nightA * 0.12})`;
-          ctx.arc(sx, sy, s.r * 3.2, 0, 7);
-          ctx.fill();
-        }
-      }
-      if (dayA > 0.004) {
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(217,167,92,${dayA})`;
-        ctx.arc(sx, sy, s.r * 0.85, 0, 7);
-        ctx.fill();
-      }
-    }
-
-    ctx.save();
-    ctx.translate(px * 6 * this.cfg.parallax, py * 6 * this.cfg.parallax);
-
-    /* sun bloom + disc (fades in as mix → 1) */
-    if (mix > 0.01) {
-      ctx.save();
-      ctx.globalAlpha = mix * introEase;
-      const sunBloomR = bodyR * 2.9;
-      const sbloom = ctx.createRadialGradient(bodyX, bodyY, bodyR * 0.3, bodyX, bodyY, sunBloomR);
-      sbloom.addColorStop(0, hexA(DAY.sunEdge, 0.28));
-      sbloom.addColorStop(1, hexA(DAY.sunEdge, 0));
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = sbloom;
-      ctx.beginPath(); ctx.arc(bodyX, bodyY, sunBloomR, 0, 7); ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-
-      if (!still) {
-        this.rays.forEach(ray => {
-          const a0 = ray.a + time * ray.speed;
-          ctx.save();
-          ctx.translate(bodyX, bodyY);
-          ctx.rotate(a0);
-          const rg = ctx.createRadialGradient(0, 0, bodyR * 0.9, 0, 0, bodyR * 2.4);
-          rg.addColorStop(0, hexA(DAY.sunMid, 0.05));
-          rg.addColorStop(1, hexA(DAY.sunMid, 0));
-          ctx.fillStyle = rg;
-          ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.arc(0, 0, bodyR * 2.4, -ray.w / 2, ray.w / 2);
-          ctx.closePath(); ctx.fill();
-          ctx.restore();
-        });
-      }
-
-      const sun = ctx.createRadialGradient(
-        bodyX - bodyR * 0.25, bodyY - bodyR * 0.28, bodyR * 0.1,
-        bodyX, bodyY, bodyR * 0.86
-      );
-      sun.addColorStop(0, DAY.sunCore);
-      sun.addColorStop(0.55, DAY.sunMid);
-      sun.addColorStop(1, DAY.sunEdge);
-      ctx.fillStyle = sun;
-      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR * 0.86, 0, 7); ctx.fill();
-      ctx.restore();
-    }
-
-    /* moon bloom + disc + craters (fades in as mix → 0) */
-    if (mix < 0.99) {
-      const moonAlpha = (1 - mix) * introEase * dim;
-      const bloomR = bodyR * 2.6;
-      const bloom = ctx.createRadialGradient(bodyX - bodyR * 0.3, bodyY - bodyR * 0.3, bodyR * 0.4, bodyX, bodyY, bloomR);
-      bloom.addColorStop(0, `rgba(224,227,238,${0.30 * moonAlpha})`);
-      bloom.addColorStop(1, 'rgba(224,227,238,0)');
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = bloom;
-      ctx.beginPath(); ctx.arc(bodyX, bodyY, bloomR, 0, 7); ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.restore();
-
-      ctx.save();
-      ctx.globalAlpha = moonAlpha;
-      const disc = ctx.createRadialGradient(
-        bodyX - bodyR * 0.38, bodyY - bodyR * 0.4, bodyR * 0.15,
-        bodyX, bodyY, bodyR
-      );
-      disc.addColorStop(0, '#F1F0EE');
-      disc.addColorStop(0.42, NIGHT.light);
-      disc.addColorStop(0.75, NIGHT.silver);
-      disc.addColorStop(1, NIGHT.shadow);
-      ctx.fillStyle = disc;
-      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.fill();
-
-      ctx.save();
-      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.clip();
-      this.body.craters.forEach(cr => {
-        const cx = bodyX + cr.dx * bodyR, cy = bodyY + cr.dy * bodyR, r = cr.r * bodyR;
-        const lit = ((cx - bodyX) < 0) ? 1 : 0.4;
-        const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
-        g.addColorStop(0, `rgba(11,13,22,0)`);
-        g.addColorStop(0.6, `rgba(11,13,22,${cr.shade * 0.5 * lit})`);
-        g.addColorStop(1, `rgba(11,13,22,${cr.shade * lit})`);
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.fill();
-      });
-      const rim = ctx.createRadialGradient(bodyX - bodyR * 0.5, bodyY - bodyR * 0.5, bodyR * 0.7, bodyX - bodyR * 0.5, bodyY - bodyR * 0.5, bodyR * 1.05);
-      rim.addColorStop(0, 'rgba(255,255,255,0)');
-      rim.addColorStop(1, 'rgba(255,255,255,.18)');
-      ctx.fillStyle = rim;
-      ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.fill();
-      ctx.restore();
-      ctx.restore();
-
-      /* eclipse occluder + corona, drawn only while it's actually happening */
-      if (eK > 0.02) {
-        const approach = this.eclipse.phase === 'recede' ? 1 - eK : eK;
-        const ox = bodyX + (1 - approach) * bodyR * 2.4;
-        const oy = bodyY - (1 - approach) * bodyR * 0.6;
-        ctx.save();
-        ctx.globalAlpha = moonAlpha;
-        ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR, 0, 7); ctx.clip();
-        ctx.fillStyle = NIGHT.space;
-        ctx.beginPath(); ctx.arc(ox, oy, bodyR * 1.02, 0, 7); ctx.fill();
-        ctx.restore();
-        if (this.eclipse.phase === 'align') {
-          const corona = ctx.createRadialGradient(bodyX, bodyY, bodyR * 0.94, bodyX, bodyY, bodyR * 1.16);
-          corona.addColorStop(0, 'rgba(255,255,255,0)');
-          corona.addColorStop(0.7, `rgba(255,246,232,${0.5 * moonAlpha})`);
-          corona.addColorStop(1, 'rgba(255,246,232,0)');
-          ctx.save();
-          ctx.globalCompositeOperation = 'lighter';
-          ctx.fillStyle = corona;
-          ctx.beginPath(); ctx.arc(bodyX, bodyY, bodyR * 1.16, 0, 7); ctx.fill();
-          ctx.restore();
-        }
-      }
-    }
-    ctx.restore();
-
-    /* satellites — a night-sky detail, fades out with the moon */
-    if (!still && mix < 0.9) {
-      const dt = 1 / 60;
-      const satA = (1 - mix) * dim;
-      this.sats.forEach((s, idx) => {
-        s.x += s.vx; s.y += s.vy; s.blink += dt;
-        if (s.x < -0.1 || s.x > 1.1 || s.y < -0.1 || s.y > 1.1) { this.sats.splice(idx, 1); this._newSat(); return; }
-        const sx = s.x * w + px * 10 * this.cfg.parallax, sy = s.y * h + py * 10 * this.cfg.parallax;
-        const blink = 0.4 + 0.6 * Math.max(0, Math.sin(s.blink * 1.3));
-        const tlen = 9, ang = Math.atan2(s.vy, s.vx);
-        const g = ctx.createLinearGradient(sx, sy, sx - Math.cos(ang) * tlen, sy - Math.sin(ang) * tlen);
-        g.addColorStop(0, `rgba(200,208,224,${0.5 * introEase * satA})`);
-        g.addColorStop(1, 'rgba(200,208,224,0)');
-        ctx.strokeStyle = g; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - Math.cos(ang) * tlen, sy - Math.sin(ang) * tlen); ctx.stroke();
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(216,222,232,${blink * introEase * satA})`;
-        ctx.arc(sx, sy, s.r, 0, 7); ctx.fill();
-      });
-    }
-
-    /* shooting stars — same, night-only */
-    if (!still && mix < 0.9) {
-      this._nextShot -= 16.7;
-      if (this._nextShot <= 0) { this._spawnShot(); this._nextShot = rand(2200, 8600); }
-      const shotA = (1 - mix) * dim;
-      for (let i = this.shots.length - 1; i >= 0; i--) {
-        const sh = this.shots[i];
-        sh.life += 1 / 60;
-        sh.x += sh.vx * 0.012; sh.y += sh.vy * 0.012;
-        sh.vx *= 1.012; sh.vy *= 1.012;
-        const alpha = (sh.life < sh.max * 0.15
-          ? sh.life / (sh.max * 0.15)
-          : clamp(1 - (sh.life - sh.max * 0.15) / (sh.max * 0.85), 0, 1)) * shotA;
-        if (sh.life >= sh.max || alpha <= 0) { this.shots.splice(i, 1); continue; }
-        const hx = sh.x * w, hy = sh.y * h;
-        const ang = Math.atan2(sh.vy, sh.vx);
-        const tx = hx - Math.cos(ang) * sh.len, ty = hy - Math.sin(ang) * sh.len;
-        const g = ctx.createLinearGradient(hx, hy, tx, ty);
-        g.addColorStop(0, `rgba(255,255,255,${alpha})`);
-        g.addColorStop(0.4, `rgba(221,226,234,${alpha * 0.5})`);
-        g.addColorStop(1, 'rgba(221,226,234,0)');
-        ctx.strokeStyle = g; ctx.lineWidth = sh.w; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
-      }
-    }
-
-    ctx.restore();
-  };
-
-  function hexA(hex, a) {
-    const n = parseInt(hex.slice(1), 16);
-    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    return `rgba(${r},${g},${b},${a})`;
-  }
-
-  /* ---- react to Moonflower-specific moments ---- */
-  MoonSky.prototype.pulse = function () {
-    // a brief brightening, used when a message lands inside "Talk to Me"
-    if (this.tier === 'still') return;
-    const boost = 900;
-    this._pulseUntil = performance.now() + boost;
-  };
-
-  /* ============================================================
-     auto-wiring — no changes to app.js or theme.js required.
-     One observer moves the canvas between Moonflower's two screens;
-     a second watches the global theme and crossfades this engine's
-     own atmosphere to match, independently of anything else that
-     also reacts to that same attribute.
-  ============================================================ */
-  const sky = new MoonSky();
-  window.MoonSky = sky;
-
-  const ids = ['screen-moonflower', 'screen-moonroom'];
-  const screens = ids.map(id => document.getElementById(id)).filter(Boolean);
-
-  function sync() {
-    const active = screens.find(s => s.classList.contains('is-active'));
-    if (active) sky.mountTo(active);
-    else sky.stop();
-  }
-  screens.forEach(s => new MutationObserver(sync).observe(s, { attributes: true, attributeFilter: ['class'] }));
-  sync();
-
-  new MutationObserver(() => sky.setMode(initialMode()))
-    .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-})();
 
 
 
