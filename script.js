@@ -1,7 +1,7 @@
 /* ============================================================
    MING THEME — EARLY SAFE HANDLER
-   Kept independent from the rest of app boot so theme switching
-   still works even if another app feature fails during startup.
+   Independent from app boot; keeps the existing MoonSky engine
+   synchronized without changing the rest of the theme system.
    ============================================================ */
 (function () {
   const KEY = 'ming-theme';
@@ -15,12 +15,22 @@
   function sync(theme) {
     const dark = theme === 'dark';
     root.setAttribute('data-theme', dark ? 'dark' : 'light');
+
     buttons().forEach(btn => {
       btn.setAttribute('aria-pressed', String(dark));
       btn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
     });
+
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', dark ? '#100D0B' : '#F7F2EC');
+
+    // MoonSky owns Moonflower's sun/moon atmosphere and night effects.
+    // Notify it directly as well as leaving its existing observer intact.
+    try {
+      if (window.MoonSky && typeof window.MoonSky.setMode === 'function') {
+        window.MoonSky.setMode(dark ? 'dark' : 'light');
+      }
+    } catch (_) {}
   }
 
   function toggle() {
@@ -32,7 +42,7 @@
     } catch (_) {}
   }
 
-  // Capture phase makes this independent of overlays or later handlers.
+  // Capture phase keeps the toggle usable even if another app handler fails.
   document.addEventListener('click', event => {
     const btn = event.target && event.target.closest
       ? event.target.closest('[data-theme-toggle]')
@@ -46,7 +56,7 @@
   sync(root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
 })();
 
-  /*============================
+/*============================
      APP.JS   
   ============================*/
   /* ============================================================
