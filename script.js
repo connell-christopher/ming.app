@@ -8103,18 +8103,65 @@ function openJoinSheet() {
 ============================================================ */
 function openSpace(id, tab) {
   const s = spaceById(id);
-  if (!s) return;
-  sp.activeId = id;
-  sp.tab = tab || NATURES[s.nature].tabs[0][0];
+  if (!s) {
+    console.warn('Ming: Space could not be opened because it is not in the loaded Spaces data.', id);
+    return;
+  }
+
+  const nature = NATURES[s.nature];
   const screen = $('#screen-space');
+  if (!nature || !screen) {
+    console.error('Ming: Space open failed.', {
+      id,
+      nature: s.nature,
+      natureKnown: !!nature,
+      screenExists: !!screen
+    });
+    return;
+  }
+
+  const firstTab = Array.isArray(nature.tabs) && nature.tabs.length ? nature.tabs[0][0] : null;
+  const nextTab = tab || firstTab;
+  if (!nextTab || typeof VIEWS[s.nature]?.[nextTab] !== 'function') {
+    console.error('Ming: Space has no valid initial view.', {
+      id,
+      nature: s.nature,
+      requestedTab: tab,
+      firstTab: nextTab,
+      availableTabs: Object.keys(VIEWS[s.nature] || {})
+    });
+    return;
+  }
+
+  sp.activeId = id;
+  sp.tab = nextTab;
+
   screen.dataset.nature = s.nature;
   const theme = spaceTheme(s);
   screen.style.setProperty('--sp-accent', theme.colors[0]);
   screen.style.setProperty('--sp-accent-2', theme.colors[1]);
   screen.style.setProperty('--sp-accent-3', theme.colors[2]);
   screen.style.setProperty('--sp-theme-name', JSON.stringify(theme.name || 'Ming'));
-  renderSpace();
+
+  /*
+    Enter the Space before rendering its contents. That way a view/helper
+    failure cannot leave the user stranded on the Spaces index.
+  */
   pushStack('space');
+
+  try {
+    renderSpace();
+  } catch (error) {
+    console.error('Ming: Space content render failed:', error, {
+      id,
+      nature: s.nature,
+      tab: sp.tab
+    });
+    const body = $('#sp-body');
+    if (body) {
+      body.innerHTML = '<div class="sp-empty"><p>This Space could not display its contents right now.</p></div>';
+    }
+  }
 }
 
 function renderSpace() {
