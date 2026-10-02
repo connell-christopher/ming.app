@@ -7309,62 +7309,6 @@ const NATURES = {
 };
 
 
-VIEWS.business.files = s => {
-  const files = Server.db.files.filter(f => f.spaceId === s.id);
-  const docs = contentOf(s.id, 'doc');
-  return '<div class="sp-sec"><h3>Workspace files <span><button data-sp="new:file">Add</button></span></h3>' +
-    (files.length ? files.map(f => '<button class="sp-card" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left" data-sp="file-open:' + f.id + '">' +
-      icon(f.contentType.startsWith('image/') ? 'sp-camera' : f.contentType.startsWith('video/') ? 'sp-bolt' : 'sp-doc') +
-      '<span style="flex:1"><b>' + esc(f.filename) + '</b><small style="display:block;color:var(--muted);margin-top:3px">' + esc(f.contentType) + ' · ' + Math.max(1, Math.round(f.sizeBytes / 1024)) + ' KB</small></span>' +
-      icon('chev') + '</button>').join('') : spEmpty('No files have been shared yet.', {t:'Add a file',a:'new:file'})) +
-    '</div><div class="sp-sec"><h3>Documents</h3>' +
-    (docs.length ? docs.map(d => '<div class="sp-card"><b>' + esc(d.title || 'Document') + '</b><p style="font-size:12px;color:var(--muted);margin-top:5px">' + esc(d.body || 'Saved in this Space.') + '</p></div>').join('') : '<div class="sp-card"><span style="color:var(--muted)">No document notes yet.</span></div>') +
-    '</div>';
-};
-
-VIEWS.friendly.meetings = s => {
-  const meetings = contentOf(s.id, 'meeting');
-  const polls = contentOf(s.id, 'poll');
-  return '<div class="sp-sec"><h3>Meetings <span><button data-sp="new:meeting">Host</button></span></h3>' +
-    (meetings.length ? meetings.map(m => '<div class="sp-card"><b>' + esc(m.title) + '</b><div style="font-size:12px;color:var(--muted);margin-top:5px">' + esc(m.when || '') + '</div><p style="font-size:13px;line-height:1.5;margin-top:8px">' + esc(m.agenda || '') + '</p><div style="margin-top:10px"><button class="btn btn--soft btn--sm" data-sp="new:poll">Add a poll</button></div></div>').join('') : spEmpty('No meetings yet.', {t:'Host a meeting',a:'new:meeting'})) +
-    '</div><div class="sp-sec"><h3>Room decisions</h3>' +
-    (polls.length ? polls.map(pollCard).join('') : spEmpty('No polls yet.', {t:'Create a poll',a:'new:poll'})) +
-    '</div>';
-};
-
-VIEWS.romantic.names = s => {
-  const names = contentOf(s.id, 'nickname');
-  return '<div class="privacy-seal">' + icon('lock') + '<span>Sweet names are private to this Space.</span></div>' +
-    '<div class="sp-sec"><h3>Your names <span><button data-sp="new:nickname">Add</button></span></h3>' +
-    (names.length ? names.map(n => '<div class="sp-card"><b>' + esc(n.name) + '</b><div style="font-size:12px;color:var(--muted);margin-top:5px">chosen by ' + esc(nameOf(n.authorId)) + '</div></div>').join('') : spEmpty('Give each other a name that belongs here.', {t:'Choose a sweet name',a:'new:nickname'})) +
-    '</div>';
-};
-
-VIEWS.romantic.calendar = s => {
-  const milestones = contentOf(s.id, 'milestone');
-  const plans = contentOf(s.id, 'plan');
-  const all = milestones.concat(plans).sort((a,b) => String(a.when || '').localeCompare(String(b.when || '')));
-  return '<div class="privacy-seal">' + icon('lock') + '<span>Your shared calendar lives only inside this Space.</span></div>' +
-    '<div class="sp-sec"><h3>Dates & plans <span><button data-sp="new:milestone">Pin date</button></span></h3>' +
-    (all.length ? all.map(x => '<div class="sp-card"><b>' + esc(x.title || 'Plan') + '</b><div style="font-size:12px;color:var(--muted);margin-top:5px">' + esc(x.when || '') + (x.where ? ' · ' + esc(x.where) : '') + '</div></div>').join('') : spEmpty('Nothing pinned yet.', {t:'Pin a special date',a:'new:milestone'})) +
-    '</div>';
-};
-
-VIEWS.romantic.health = s => {
-  const entries = contentOf(s.id, 'health');
-  return '<div class="privacy-seal">' + icon('lock') + '<span>Private wellness tracking. It is visible only to members of this Space and is not used for public discovery.</span></div>' +
-    '<div class="sp-sec"><h3>Wellness log <span><button data-sp="new:health">Add</button></span></h3>' +
-    (entries.length ? entries.map(h => '<div class="sp-card"><div style="display:flex;justify-content:space-between;gap:10px"><b>' + esc(h.metric) + '</b><span>' + esc(h.value) + '</span></div><div style="font-size:11.5px;color:var(--muted);margin-top:5px">' + esc(h.when || '') + '</div></div>').join('') : spEmpty('No private wellness entries yet.', {t:'Add an entry',a:'new:health'})) +
-    '</div>';
-};
-
-VIEWS.romantic.vault = s => {
-  const files = Server.db.files.filter(f => f.spaceId === s.id);
-  return '<div class="privacy-seal">' + icon('lock') + '<span>A private vault for sensitive memories, plans and files. Keep personal information here only if both people agree.</span></div>' +
-    '<div class="sp-sec"><h3>Private files <span><button data-sp="new:file">Add</button></span></h3>' +
-    (files.length ? files.map(f => '<button class="sp-card" style="display:flex;gap:10px;align-items:center;width:100%;text-align:left" data-sp="file-open:' + f.id + '">' + icon('sp-doc') + '<span style="flex:1"><b>' + esc(f.filename) + '</b><small style="display:block;color:var(--muted);margin-top:3px">' + esc(f.contentType) + '</small></span>' + icon('chev') + '</button>').join('') : spEmpty('Your private vault is empty.', {t:'Save something',a:'new:file'})) +
-    '</div>';
-};
 
 const ORDER_STATES = {
   pending: { t: 'Awaiting payment', cls: '' },
@@ -8082,6 +8026,64 @@ function coverFor(s) {
    BUSINESS
 ============================================================ */
 const VIEWS = { business: {}, friendly: {}, casual: {}, silly: {}, romantic: {}, marketplace: {} };
+
+VIEWS.business.files = s => {
+  const files = Server.db.files.filter(f => f.spaceId === s.id);
+  const docs = contentOf(s.id, 'doc');
+  return '<div class="sp-sec"><h3>Workspace files <span><button data-sp="new:file">Add</button></span></h3>' +
+    (files.length ? files.map(f => '<button class="sp-card" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left" data-sp="file-open:' + f.id + '">' +
+      icon(f.contentType.startsWith('image/') ? 'sp-camera' : f.contentType.startsWith('video/') ? 'sp-bolt' : 'sp-doc') +
+      '<span style="flex:1"><b>' + esc(f.filename) + '</b><small style="display:block;color:var(--muted);margin-top:3px">' + esc(f.contentType) + ' · ' + Math.max(1, Math.round(f.sizeBytes / 1024)) + ' KB</small></span>' +
+      icon('chev') + '</button>').join('') : spEmpty('No files have been shared yet.', {t:'Add a file',a:'new:file'})) +
+    '</div><div class="sp-sec"><h3>Documents</h3>' +
+    (docs.length ? docs.map(d => '<div class="sp-card"><b>' + esc(d.title || 'Document') + '</b><p style="font-size:12px;color:var(--muted);margin-top:5px">' + esc(d.body || 'Saved in this Space.') + '</p></div>').join('') : '<div class="sp-card"><span style="color:var(--muted)">No document notes yet.</span></div>') +
+    '</div>';
+};
+
+VIEWS.friendly.meetings = s => {
+  const meetings = contentOf(s.id, 'meeting');
+  const polls = contentOf(s.id, 'poll');
+  return '<div class="sp-sec"><h3>Meetings <span><button data-sp="new:meeting">Host</button></span></h3>' +
+    (meetings.length ? meetings.map(m => '<div class="sp-card"><b>' + esc(m.title) + '</b><div style="font-size:12px;color:var(--muted);margin-top:5px">' + esc(m.when || '') + '</div><p style="font-size:13px;line-height:1.5;margin-top:8px">' + esc(m.agenda || '') + '</p><div style="margin-top:10px"><button class="btn btn--soft btn--sm" data-sp="new:poll">Add a poll</button></div></div>').join('') : spEmpty('No meetings yet.', {t:'Host a meeting',a:'new:meeting'})) +
+    '</div><div class="sp-sec"><h3>Room decisions</h3>' +
+    (polls.length ? polls.map(pollCard).join('') : spEmpty('No polls yet.', {t:'Create a poll',a:'new:poll'})) +
+    '</div>';
+};
+
+VIEWS.romantic.names = s => {
+  const names = contentOf(s.id, 'nickname');
+  return '<div class="privacy-seal">' + icon('lock') + '<span>Sweet names are private to this Space.</span></div>' +
+    '<div class="sp-sec"><h3>Your names <span><button data-sp="new:nickname">Add</button></span></h3>' +
+    (names.length ? names.map(n => '<div class="sp-card"><b>' + esc(n.name) + '</b><div style="font-size:12px;color:var(--muted);margin-top:5px">chosen by ' + esc(nameOf(n.authorId)) + '</div></div>').join('') : spEmpty('Give each other a name that belongs here.', {t:'Choose a sweet name',a:'new:nickname'})) +
+    '</div>';
+};
+
+VIEWS.romantic.calendar = s => {
+  const milestones = contentOf(s.id, 'milestone');
+  const plans = contentOf(s.id, 'plan');
+  const all = milestones.concat(plans).sort((a,b) => String(a.when || '').localeCompare(String(b.when || '')));
+  return '<div class="privacy-seal">' + icon('lock') + '<span>Your shared calendar lives only inside this Space.</span></div>' +
+    '<div class="sp-sec"><h3>Dates & plans <span><button data-sp="new:milestone">Pin date</button></span></h3>' +
+    (all.length ? all.map(x => '<div class="sp-card"><b>' + esc(x.title || 'Plan') + '</b><div style="font-size:12px;color:var(--muted);margin-top:5px">' + esc(x.when || '') + (x.where ? ' · ' + esc(x.where) : '') + '</div></div>').join('') : spEmpty('Nothing pinned yet.', {t:'Pin a special date',a:'new:milestone'})) +
+    '</div>';
+};
+
+VIEWS.romantic.health = s => {
+  const entries = contentOf(s.id, 'health');
+  return '<div class="privacy-seal">' + icon('lock') + '<span>Private wellness tracking. It is visible only to members of this Space and is not used for public discovery.</span></div>' +
+    '<div class="sp-sec"><h3>Wellness log <span><button data-sp="new:health">Add</button></span></h3>' +
+    (entries.length ? entries.map(h => '<div class="sp-card"><div style="display:flex;justify-content:space-between;gap:10px"><b>' + esc(h.metric) + '</b><span>' + esc(h.value) + '</span></div><div style="font-size:11.5px;color:var(--muted);margin-top:5px">' + esc(h.when || '') + '</div></div>').join('') : spEmpty('No private wellness entries yet.', {t:'Add an entry',a:'new:health'})) +
+    '</div>';
+};
+
+VIEWS.romantic.vault = s => {
+  const files = Server.db.files.filter(f => f.spaceId === s.id);
+  return '<div class="privacy-seal">' + icon('lock') + '<span>A private vault for sensitive memories, plans and files. Keep personal information here only if both people agree.</span></div>' +
+    '<div class="sp-sec"><h3>Private files <span><button data-sp="new:file">Add</button></span></h3>' +
+    (files.length ? files.map(f => '<button class="sp-card" style="display:flex;gap:10px;align-items:center;width:100%;text-align:left" data-sp="file-open:' + f.id + '">' + icon('sp-doc') + '<span style="flex:1"><b>' + esc(f.filename) + '</b><small style="display:block;color:var(--muted);margin-top:3px">' + esc(f.contentType) + '</small></span>' + icon('chev') + '</button>').join('') : spEmpty('Your private vault is empty.', {t:'Save something',a:'new:file'})) +
+    '</div>';
+};
+
 
 VIEWS.business.brief = s => {
   const notes = contentOf(s.id, 'announcement');
