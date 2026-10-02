@@ -7309,8 +7309,6 @@ const NATURES = {
 };
 
 /* Spaces initialization is complete. */
-window.__mingSpacesReady = true;
-
 VIEWS.business.files = s => {
   const files = Server.db.files.filter(f => f.spaceId === s.id);
   const docs = contentOf(s.id, 'doc');
@@ -7447,6 +7445,9 @@ const mySpaces = () => {
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 };
 const contentOf = (spaceId, kind) => Server.db.content.filter(c => c.spaceId === spaceId && c.kind === kind);
+
+/* Spaces-only boot marker: set this only after the Spaces state declarations (including sp and mySpaces) are initialized. */
+window.__mingSpacesReady = true;
 const money = (n, asset = 'USDT') => (asset === 'BTC' ? n.toFixed(5) : n.toFixed(2)) + ' ' + asset;
 
 function nameOf(userId) {
