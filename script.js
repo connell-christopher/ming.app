@@ -7543,43 +7543,65 @@ mountScreen(`
    SPACES INDEX
 ============================================================ */
 async function openSpaces() {
-  /* Navigation must happen immediately; database loading must never block the screen transition. */
-  const screen = document.getElementById('screen-spaces');
-  if (!screen) {
-    console.error('Ming: Spaces screen is not mounted.');
-    toast('Spaces could not be opened right now.', 'alert');
-    return;
-  }
-
-  if (state.stack[state.stack.length - 1] !== 'spaces') {
-    pushStack('spaces');
-  }
-
-  const body = $('#spaces-body');
-  if (body && !body.innerHTML.trim()) {
-    body.innerHTML = '<div style="padding:28px 18px;color:var(--muted);font-size:13.5px">Loading your Spaces…</div>';
-  }
-
-  await loadSpacesFromDatabase();
-
+  /* Spaces-only navigation: never allow a Spaces renderer/database problem
+     to escape back into Profile navigation. */
   try {
-    renderSpaces();
-  } catch (error) {
-    /* Keep the dedicated Spaces screen usable even if an optional renderer
-       throws. Do not let one view/helper take down the whole Spaces module. */
-    console.error('Ming: Spaces screen render failed:', error);
+    const screen = document.getElementById('screen-spaces');
+    if (!screen) {
+      console.error('Ming: Spaces screen is not mounted.');
+      toast('Spaces could not be opened right now.', 'alert');
+      return false;
+    }
 
-    const safeBody = document.getElementById('spaces-body');
-    if (safeBody) {
-      const safeList = mySpaces();
+    if (state.stack[state.stack.length - 1] !== 'spaces') {
+      pushStack('spaces');
+    }
+
+    const body = $('#spaces-body');
+    if (body && !body.innerHTML.trim()) {
+      body.innerHTML = '<div style="padding:28px 18px;color:var(--muted);font-size:13.5px">Loading your Spaces…</div>';
+    }
+
+    /* Database loading is already isolated inside loadSpacesFromDatabase().
+       A backend failure therefore leaves the local Spaces mirror usable. */
+    await loadSpacesFromDatabase();
+
+    try {
+      renderSpaces();
+      return true;
+    } catch (error) {
+      console.error('Ming: Spaces renderer failed:', error);
+
+      /* Spaces-only emergency renderer. Do not call renderSpaces(), mySpaces(),
+         renderHomeSpaces(), or any location/profile renderer again from here. */
+      const safeBody = document.getElementById('spaces-body');
+      if (!safeBody) return false;
+
+      const db = (typeof Server !== 'undefined' && Server.db) ? Server.db : {};
+      const spaces = Array.isArray(db.spaces) ? db.spaces : [];
+      const members = Array.isArray(db.members) ? db.members : [];
+      const userId = Server?.session?.userId || currentUser?.id || null;
+
+      const safeList = userId
+        ? spaces.filter(space => members.some(member =>
+            member.spaceId === space.id && member.userId === userId
+          ))
+        : [];
+
       safeBody.innerHTML = `
         <div class="section" style="padding:20px 16px">
-          <div class="section-head"><h2>Your Spaces</h2><span class="hint">${safeList.length}</span></div>
+          <div class="section-head">
+            <h2>Your Spaces</h2>
+            <span class="hint">${safeList.length}</span>
+          </div>
           ${safeList.length
-            ? safeList.map(s => `
-              <button class="sp-card" data-sp="open:${s.id}" style="display:block;width:100%;text-align:left;margin-bottom:10px">
-                <strong style="display:block">${esc(s.name)}</strong>
-                <span style="display:block;color:var(--muted);font-size:12px;margin-top:4px">${esc(NATURES[s.nature]?.label || 'Space')} · ${Server.memberCount(s.id)} members</span>
+            ? safeList.map(space => `
+              <button class="sp-card" data-sp="open:${esc(space.id)}"
+                style="display:block;width:100%;text-align:left;margin-bottom:10px">
+                <strong style="display:block">${esc(space.name || 'Space')}</strong>
+                <span style="display:block;color:var(--muted);font-size:12px;margin-top:4px">
+                  ${esc(String(space.nature || 'Space'))}
+                </span>
               </button>`).join('')
             : `
               <div class="sp-empty">
@@ -7587,9 +7609,27 @@ async function openSpaces() {
                 <button class="btn btn--soft btn--sm" data-sp="create">Create a Space</button>
               </div>`}
         </div>`;
+
+      return true;
+    }
+  } catch (error) {
+    /* Last Spaces-only guard. The Profile button must never receive this
+       exception and turn it into a generic navigation failure. */
+    console.error('Ming: Spaces navigation failed inside Spaces module:', error);
+
+    const safeBody = document.getElementById('spaces-body');
+    if (safeBody) {
+      safeBody.innerHTML = `
+        <div class="section" style="padding:20px 16px">
+          <div class="section-head"><h2>Your Spaces</h2></div>
+          <div class="sp-empty">
+            <p>Spaces could not finish rendering.</p>
+            <button class="btn btn--soft btn--sm" data-sp="create">Create a Space</button>
+          </div>
+        </div>`;
     }
 
-    toast('Spaces loaded in safe mode.', 'info');
+    return false;
   }
 }
 
