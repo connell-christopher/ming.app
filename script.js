@@ -7308,8 +7308,6 @@ const NATURES = {
   }
 };
 
-/* Spaces initialization is complete. */
-window.__mingSpacesReady = true;
 
 VIEWS.business.files = s => {
   const files = Server.db.files.filter(f => f.spaceId === s.id);
@@ -7545,20 +7543,6 @@ mountScreen(`
    SPACES INDEX
 ============================================================ */
 async function openSpaces() {
-  /* Spaces-only boot guard: if navigation is requested before the Spaces
-     declarations have finished initializing, queue it until this script
-     has completed its Spaces setup. */
-  if (!window.__mingSpacesReady) {
-    if (!window.__mingSpacesOpenQueued) {
-      window.__mingSpacesOpenQueued = true;
-      setTimeout(() => {
-        window.__mingSpacesOpenQueued = false;
-        openSpaces();
-      }, 0);
-    }
-    return;
-  }
-
   /* Navigation must happen immediately; database loading must never block the screen transition. */
   const screen = document.getElementById('screen-spaces');
   if (!screen) {
