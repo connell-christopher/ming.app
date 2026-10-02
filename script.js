@@ -7408,17 +7408,44 @@ const sp = {
 const spaceById = id => Server.db.spaces.find(s => s.id === id);
 
 async function loadSpacesFromDatabase() {
-  if (typeof Server !== 'undefined' && Server.load) {
-    try { return await Server.load(); }
-    catch (error) { console.error('Ming: Spaces database load failed:', error); return false; }
+  if (typeof Server === 'undefined' || typeof Server.load !== 'function') {
+    console.error('Ming: Spaces database loader is unavailable.');
+    return false;
   }
-  return false;
+
+  try {
+    /* Spaces-only session sync: make sure the Spaces backend uses the
+       authenticated Supabase user before loading membership data. */
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
+
+    if (error || !session?.user?.id) {
+      console.warn('Ming: Spaces could not resolve the authenticated user.', error?.message || 'No session');
+      return false;
+    }
+
+    if (currentUser.id !== session.user.id) {
+      currentUser.id = session.user.id;
+    }
+
+    Server.session.userId = session.user.id;
+    return await Server.load();
+  } catch (error) {
+    console.error('Ming: Spaces database load failed:', error);
+    return false;
+  }
 }
-const mySpaces = () => Server.db.members
-  .filter(m => m.userId === Server.session.userId)
-  .map(m => spaceById(m.spaceId))
-  .filter(Boolean)
-  .sort((a, b) => b.createdAt - a.createdAt);
+
+const mySpaces = () => {
+  const members = Array.isArray(Server?.db?.members) ? Server.db.members : [];
+  const spaces = Array.isArray(Server?.db?.spaces) ? Server.db.spaces : [];
+  const userId = Server?.session?.userId || currentUser?.id;
+
+  return members
+    .filter(m => m.userId === userId)
+    .map(m => spaces.find(s => s.id === m.spaceId))
+    .filter(Boolean)
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+};
 const contentOf = (spaceId, kind) => Server.db.content.filter(c => c.spaceId === spaceId && c.kind === kind);
 const money = (n, asset = 'USDT') => (asset === 'BTC' ? n.toFixed(5) : n.toFixed(2)) + ' ' + asset;
 
