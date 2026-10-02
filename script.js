@@ -1,4 +1,4 @@
-/* ============================================================
+/* ============================================================ 
    MING THEME — EARLY SAFE HANDLER
    Independent from app boot; keeps the existing MoonSky engine
    synchronized without changing the rest of the theme system.
@@ -7308,7 +7308,7 @@ const NATURES = {
   }
 };
 
-/* Spaces initialization is complete. */
+
 VIEWS.business.files = s => {
   const files = Server.db.files.filter(f => f.spaceId === s.id);
   const docs = contentOf(s.id, 'doc');
@@ -7406,48 +7406,18 @@ const sp = {
 const spaceById = id => Server.db.spaces.find(s => s.id === id);
 
 async function loadSpacesFromDatabase() {
-  if (typeof Server === 'undefined' || typeof Server.load !== 'function') {
-    console.error('Ming: Spaces database loader is unavailable.');
-    return false;
+  if (typeof Server !== 'undefined' && Server.load) {
+    try { return await Server.load(); }
+    catch (error) { console.error('Ming: Spaces database load failed:', error); return false; }
   }
-
-  try {
-    /* Spaces-only session sync: make sure the Spaces backend uses the
-       authenticated Supabase user before loading membership data. */
-    const { data: { session }, error } = await supabaseClient.auth.getSession();
-
-    if (error || !session?.user?.id) {
-      console.warn('Ming: Spaces could not resolve the authenticated user.', error?.message || 'No session');
-      return false;
-    }
-
-    if (currentUser.id !== session.user.id) {
-      currentUser.id = session.user.id;
-    }
-
-    Server.session.userId = session.user.id;
-    return await Server.load();
-  } catch (error) {
-    console.error('Ming: Spaces database load failed:', error);
-    return false;
-  }
+  return false;
 }
-
-const mySpaces = () => {
-  const members = Array.isArray(Server?.db?.members) ? Server.db.members : [];
-  const spaces = Array.isArray(Server?.db?.spaces) ? Server.db.spaces : [];
-  const userId = Server?.session?.userId || currentUser?.id;
-
-  return members
-    .filter(m => m.userId === userId)
-    .map(m => spaces.find(s => s.id === m.spaceId))
-    .filter(Boolean)
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-};
+const mySpaces = () => Server.db.members
+  .filter(m => m.userId === Server.session.userId)
+  .map(m => spaceById(m.spaceId))
+  .filter(Boolean)
+  .sort((a, b) => b.createdAt - a.createdAt);
 const contentOf = (spaceId, kind) => Server.db.content.filter(c => c.spaceId === spaceId && c.kind === kind);
-
-/* Spaces-only boot marker: set this only after the Spaces state declarations (including sp and mySpaces) are initialized. */
-window.__mingSpacesReady = true;
 const money = (n, asset = 'USDT') => (asset === 'BTC' ? n.toFixed(5) : n.toFixed(2)) + ' ' + asset;
 
 function nameOf(userId) {
@@ -7573,20 +7543,6 @@ mountScreen(`
    SPACES INDEX
 ============================================================ */
 async function openSpaces() {
-  /* Spaces-only boot guard: if navigation is requested before the Spaces
-     declarations have finished initializing, queue it until this script
-     has completed its Spaces setup. */
-  if (!window.__mingSpacesReady) {
-    if (!window.__mingSpacesOpenQueued) {
-      window.__mingSpacesOpenQueued = true;
-      setTimeout(() => {
-        window.__mingSpacesOpenQueued = false;
-        openSpaces();
-      }, 0);
-    }
-    return;
-  }
-
   /* Navigation must happen immediately; database loading must never block the screen transition. */
   const screen = document.getElementById('screen-spaces');
   if (!screen) {
@@ -7609,31 +7565,8 @@ async function openSpaces() {
   try {
     renderSpaces();
   } catch (error) {
-    /* Keep the dedicated Spaces screen usable even if an optional renderer
-       throws. Do not let one view/helper take down the whole Spaces module. */
     console.error('Ming: Spaces screen render failed:', error);
-
-    const safeBody = document.getElementById('spaces-body');
-    if (safeBody) {
-      const safeList = mySpaces();
-      safeBody.innerHTML = `
-        <div class="section" style="padding:20px 16px">
-          <div class="section-head"><h2>Your Spaces</h2><span class="hint">${safeList.length}</span></div>
-          ${safeList.length
-            ? safeList.map(s => `
-              <button class="sp-card" data-sp="open:${s.id}" style="display:block;width:100%;text-align:left;margin-bottom:10px">
-                <strong style="display:block">${esc(s.name)}</strong>
-                <span style="display:block;color:var(--muted);font-size:12px;margin-top:4px">${esc(NATURES[s.nature]?.label || 'Space')} · ${Server.memberCount(s.id)} members</span>
-              </button>`).join('')
-            : `
-              <div class="sp-empty">
-                <p>Your Spaces are empty right now.</p>
-                <button class="btn btn--soft btn--sm" data-sp="create">Create a Space</button>
-              </div>`}
-        </div>`;
-    }
-
-    toast('Spaces loaded in safe mode.', 'info');
+    toast('Spaces could not be loaded right now.', 'alert');
   }
 }
 
@@ -7646,13 +7579,7 @@ function renderSpaces() {
     sp.indexFilter = 'all';
   }
 
-  /* The Home Spaces rail is auxiliary. A failure there must never prevent
-     the dedicated Spaces screen from rendering. */
-  try {
-    renderHomeSpaces();
-  } catch (error) {
-    console.warn('Ming: Home Spaces rail refresh skipped while opening Spaces.', error);
-  }
+  renderHomeSpaces();
   const list = mySpaces();
   const filters = [['all', 'All'], ...Object.entries(NATURES).map(([k, n]) => [k, n.label])];
   const visible = sp.indexFilter === 'all' ? list : list.filter(s => s.nature === sp.indexFilter);
