@@ -1,4 +1,4 @@
-/* ============================================================ 
+/* ============================================================
    MING THEME — EARLY SAFE HANDLER
    Independent from app boot; keeps the existing MoonSky engine
    synchronized without changing the rest of the theme system.
