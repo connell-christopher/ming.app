@@ -7543,53 +7543,93 @@ mountScreen(`
    SPACES INDEX
 ============================================================ */
 async function openSpaces() {
-  /* Navigation must happen immediately; database loading must never block the screen transition. */
-  const screen = document.getElementById('screen-spaces');
-  if (!screen) {
-    console.error('Ming: Spaces screen is not mounted.');
-    toast('Spaces could not be opened right now.', 'alert');
-    return;
-  }
-
-  if (state.stack[state.stack.length - 1] !== 'spaces') {
-    pushStack('spaces');
-  }
-
-  const body = $('#spaces-body');
-  if (body && !body.innerHTML.trim()) {
-    body.innerHTML = '<div style="padding:28px 18px;color:var(--muted);font-size:13.5px">Loading your Spaces…</div>';
-  }
-
-  await loadSpacesFromDatabase();
+  /* Spaces-only diagnostic boundary.
+     Normal Spaces behavior is unchanged; this records the exact stage if
+     navigation, data loading, or rendering throws so the generic profile
+     error cannot hide the real cause. */
+  let spacesStage = 'start';
 
   try {
-    renderSpaces();
-  } catch (error) {
-    /* Keep the dedicated Spaces screen usable even if an optional renderer
-       throws. Do not let one view/helper take down the whole Spaces module. */
-    console.error('Ming: Spaces screen render failed:', error);
-
-    const safeBody = document.getElementById('spaces-body');
-    if (safeBody) {
-      const safeList = mySpaces();
-      safeBody.innerHTML = `
-        <div class="section" style="padding:20px 16px">
-          <div class="section-head"><h2>Your Spaces</h2><span class="hint">${safeList.length}</span></div>
-          ${safeList.length
-            ? safeList.map(s => `
-              <button class="sp-card" data-sp="open:${s.id}" style="display:block;width:100%;text-align:left;margin-bottom:10px">
-                <strong style="display:block">${esc(s.name)}</strong>
-                <span style="display:block;color:var(--muted);font-size:12px;margin-top:4px">${esc(NATURES[s.nature]?.label || 'Space')} · ${Server.memberCount(s.id)} members</span>
-              </button>`).join('')
-            : `
-              <div class="sp-empty">
-                <p>Your Spaces are empty right now.</p>
-                <button class="btn btn--soft btn--sm" data-sp="create">Create a Space</button>
-              </div>`}
-        </div>`;
+    spacesStage = 'screen lookup';
+    const screen = document.getElementById('screen-spaces');
+    if (!screen) {
+      const diagnostic = new Error('Spaces screen is not mounted.');
+      console.error('Ming: Spaces diagnostic failure:', {
+        stage: spacesStage,
+        error: diagnostic,
+        appExists: !!document.getElementById('app'),
+        spacesScreenExists: false,
+        spacesBodyExists: !!document.getElementById('spaces-body')
+      });
+      toast('Spaces could not be opened right now.', 'alert');
+      return;
     }
 
-    toast('Spaces loaded in safe mode.', 'info');
+    spacesStage = 'navigation';
+    if (state.stack[state.stack.length - 1] !== 'spaces') {
+      pushStack('spaces');
+    }
+
+    spacesStage = 'initial body';
+    const body = $('#spaces-body');
+    if (body && !body.innerHTML.trim()) {
+      body.innerHTML = '<div style="padding:28px 18px;color:var(--muted);font-size:13.5px">Loading your Spaces…</div>';
+    }
+
+    spacesStage = 'database load';
+    const loaded = await loadSpacesFromDatabase();
+
+    spacesStage = 'render';
+    try {
+      renderSpaces();
+    } catch (error) {
+      /* Keep the dedicated Spaces screen usable even if an optional renderer
+         throws. Do not let one view/helper take down the whole Spaces module. */
+      console.error('Ming: Spaces screen render failed:', error, {
+        stage: spacesStage,
+        databaseLoadResult: loaded,
+        spacesCount: Array.isArray(Server?.db?.spaces) ? Server.db.spaces.length : 'unavailable',
+        memberCount: Array.isArray(Server?.db?.members) ? Server.db.members.length : 'unavailable',
+        contentCount: Array.isArray(Server?.db?.content) ? Server.db.content.length : 'unavailable'
+      });
+
+      const safeBody = document.getElementById('spaces-body');
+      if (safeBody) {
+        const safeList = mySpaces();
+        safeBody.innerHTML = `
+          <div class="section" style="padding:20px 16px">
+            <div class="section-head"><h2>Your Spaces</h2><span class="hint">${safeList.length}</span></div>
+            ${safeList.length
+              ? safeList.map(s => `
+                <button class="sp-card" data-sp="open:${s.id}" style="display:block;width:100%;text-align:left;margin-bottom:10px">
+                  <strong style="display:block">${esc(s.name)}</strong>
+                  <span style="display:block;color:var(--muted);font-size:12px;margin-top:4px">${esc(NATURES[s.nature]?.label || 'Space')} · ${Server.memberCount(s.id)} members</span>
+                </button>`).join('')
+              : `
+                <div class="sp-empty">
+                  <p>Your Spaces are empty right now.</p>
+                  <button class="btn btn--soft btn--sm" data-sp="create">Create a Space</button>
+                </div>`}
+          </div>`;
+      }
+
+      toast('Spaces loaded in safe mode.', 'info');
+    }
+  } catch (error) {
+    console.error('Ming: Spaces diagnostic failure:', {
+      stage: spacesStage,
+      error,
+      message: error?.message || String(error),
+      name: error?.name || 'Error',
+      stack: error?.stack || '',
+      screenExists: !!document.getElementById('screen-spaces'),
+      bodyExists: !!document.getElementById('spaces-body'),
+      serverExists: typeof Server !== 'undefined',
+      serverLoadExists: typeof Server !== 'undefined' && typeof Server.load === 'function',
+      spacesCount: typeof Server !== 'undefined' && Array.isArray(Server.db?.spaces) ? Server.db.spaces.length : 'unavailable',
+      memberCount: typeof Server !== 'undefined' && Array.isArray(Server.db?.members) ? Server.db.members.length : 'unavailable'
+    });
+    throw error;
   }
 }
 
