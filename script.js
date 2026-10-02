@@ -7406,46 +7406,17 @@ const sp = {
 const spaceById = id => Server.db.spaces.find(s => s.id === id);
 
 async function loadSpacesFromDatabase() {
-  if (typeof Server === 'undefined' || typeof Server.load !== 'function') {
-    console.error('Ming: Spaces database loader is unavailable.');
-    return false;
+  if (typeof Server !== 'undefined' && Server.load) {
+    try { return await Server.load(); }
+    catch (error) { console.error('Ming: Spaces database load failed:', error); return false; }
   }
-
-  try {
-    /*
-      Resolve the authenticated user here before asking the Spaces backend
-      for membership data. This keeps Spaces independent of profile hydration.
-    */
-    const { data: { session }, error } = await supabaseClient.auth.getSession();
-
-    if (error || !session?.user?.id) {
-      console.warn('Ming: Spaces could not resolve the authenticated user.', error?.message || 'No session');
-      return false;
-    }
-
-    if (currentUser.id !== session.user.id) {
-      currentUser.id = session.user.id;
-    }
-
-    Server.session.userId = session.user.id;
-    return await Server.load();
-  } catch (error) {
-    console.error('Ming: Spaces database load failed:', error);
-    return false;
-  }
+  return false;
 }
-
-const mySpaces = () => {
-  const members = Array.isArray(Server?.db?.members) ? Server.db.members : [];
-  const spaces = Array.isArray(Server?.db?.spaces) ? Server.db.spaces : [];
-  const userId = Server?.session?.userId || currentUser?.id;
-
-  return members
-    .filter(m => m.userId === userId)
-    .map(m => spaces.find(s => s.id === m.spaceId))
-    .filter(Boolean)
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-};
+const mySpaces = () => Server.db.members
+  .filter(m => m.userId === Server.session.userId)
+  .map(m => spaceById(m.spaceId))
+  .filter(Boolean)
+  .sort((a, b) => b.createdAt - a.createdAt);
 const contentOf = (spaceId, kind) => Server.db.content.filter(c => c.spaceId === spaceId && c.kind === kind);
 const money = (n, asset = 'USDT') => (asset === 'BTC' ? n.toFixed(5) : n.toFixed(2)) + ' ' + asset;
 
@@ -7572,93 +7543,53 @@ mountScreen(`
    SPACES INDEX
 ============================================================ */
 async function openSpaces() {
-  /* Spaces-only diagnostic boundary.
-     Normal Spaces behavior is unchanged; this records the exact stage if
-     navigation, data loading, or rendering throws so the generic profile
-     error cannot hide the real cause. */
-  let spacesStage = 'start';
+  /* Navigation must happen immediately; database loading must never block the screen transition. */
+  const screen = document.getElementById('screen-spaces');
+  if (!screen) {
+    console.error('Ming: Spaces screen is not mounted.');
+    toast('Spaces could not be opened right now.', 'alert');
+    return;
+  }
+
+  if (state.stack[state.stack.length - 1] !== 'spaces') {
+    pushStack('spaces');
+  }
+
+  const body = $('#spaces-body');
+  if (body && !body.innerHTML.trim()) {
+    body.innerHTML = '<div style="padding:28px 18px;color:var(--muted);font-size:13.5px">Loading your Spaces…</div>';
+  }
+
+  await loadSpacesFromDatabase();
 
   try {
-    spacesStage = 'screen lookup';
-    const screen = document.getElementById('screen-spaces');
-    if (!screen) {
-      const diagnostic = new Error('Spaces screen is not mounted.');
-      console.error('Ming: Spaces diagnostic failure:', {
-        stage: spacesStage,
-        error: diagnostic,
-        appExists: !!document.getElementById('app'),
-        spacesScreenExists: false,
-        spacesBodyExists: !!document.getElementById('spaces-body')
-      });
-      toast('Spaces could not be opened right now.', 'alert');
-      return;
-    }
-
-    spacesStage = 'navigation';
-    if (state.stack[state.stack.length - 1] !== 'spaces') {
-      pushStack('spaces');
-    }
-
-    spacesStage = 'initial body';
-    const body = $('#spaces-body');
-    if (body && !body.innerHTML.trim()) {
-      body.innerHTML = '<div style="padding:28px 18px;color:var(--muted);font-size:13.5px">Loading your Spaces…</div>';
-    }
-
-    spacesStage = 'database load';
-    const loaded = await loadSpacesFromDatabase();
-
-    spacesStage = 'render';
-    try {
-      renderSpaces();
-    } catch (error) {
-      /* Keep the dedicated Spaces screen usable even if an optional renderer
-         throws. Do not let one view/helper take down the whole Spaces module. */
-      console.error('Ming: Spaces screen render failed:', error, {
-        stage: spacesStage,
-        databaseLoadResult: loaded,
-        spacesCount: Array.isArray(Server?.db?.spaces) ? Server.db.spaces.length : 'unavailable',
-        memberCount: Array.isArray(Server?.db?.members) ? Server.db.members.length : 'unavailable',
-        contentCount: Array.isArray(Server?.db?.content) ? Server.db.content.length : 'unavailable'
-      });
-
-      const safeBody = document.getElementById('spaces-body');
-      if (safeBody) {
-        const safeList = mySpaces();
-        safeBody.innerHTML = `
-          <div class="section" style="padding:20px 16px">
-            <div class="section-head"><h2>Your Spaces</h2><span class="hint">${safeList.length}</span></div>
-            ${safeList.length
-              ? safeList.map(s => `
-                <button class="sp-card" data-sp="open:${s.id}" style="display:block;width:100%;text-align:left;margin-bottom:10px">
-                  <strong style="display:block">${esc(s.name)}</strong>
-                  <span style="display:block;color:var(--muted);font-size:12px;margin-top:4px">${esc(NATURES[s.nature]?.label || 'Space')} · ${Server.memberCount(s.id)} members</span>
-                </button>`).join('')
-              : `
-                <div class="sp-empty">
-                  <p>Your Spaces are empty right now.</p>
-                  <button class="btn btn--soft btn--sm" data-sp="create">Create a Space</button>
-                </div>`}
-          </div>`;
-      }
-
-      toast('Spaces loaded in safe mode.', 'info');
-    }
+    renderSpaces();
   } catch (error) {
-    console.error('Ming: Spaces diagnostic failure:', {
-      stage: spacesStage,
-      error,
-      message: error?.message || String(error),
-      name: error?.name || 'Error',
-      stack: error?.stack || '',
-      screenExists: !!document.getElementById('screen-spaces'),
-      bodyExists: !!document.getElementById('spaces-body'),
-      serverExists: typeof Server !== 'undefined',
-      serverLoadExists: typeof Server !== 'undefined' && typeof Server.load === 'function',
-      spacesCount: typeof Server !== 'undefined' && Array.isArray(Server.db?.spaces) ? Server.db.spaces.length : 'unavailable',
-      memberCount: typeof Server !== 'undefined' && Array.isArray(Server.db?.members) ? Server.db.members.length : 'unavailable'
-    });
-    throw error;
+    /* Keep the dedicated Spaces screen usable even if an optional renderer
+       throws. Do not let one view/helper take down the whole Spaces module. */
+    console.error('Ming: Spaces screen render failed:', error);
+
+    const safeBody = document.getElementById('spaces-body');
+    if (safeBody) {
+      const safeList = mySpaces();
+      safeBody.innerHTML = `
+        <div class="section" style="padding:20px 16px">
+          <div class="section-head"><h2>Your Spaces</h2><span class="hint">${safeList.length}</span></div>
+          ${safeList.length
+            ? safeList.map(s => `
+              <button class="sp-card" data-sp="open:${s.id}" style="display:block;width:100%;text-align:left;margin-bottom:10px">
+                <strong style="display:block">${esc(s.name)}</strong>
+                <span style="display:block;color:var(--muted);font-size:12px;margin-top:4px">${esc(NATURES[s.nature]?.label || 'Space')} · ${Server.memberCount(s.id)} members</span>
+              </button>`).join('')
+            : `
+              <div class="sp-empty">
+                <p>Your Spaces are empty right now.</p>
+                <button class="btn btn--soft btn--sm" data-sp="create">Create a Space</button>
+              </div>`}
+        </div>`;
+    }
+
+    toast('Spaces loaded in safe mode.', 'info');
   }
 }
 
@@ -8103,65 +8034,18 @@ function openJoinSheet() {
 ============================================================ */
 function openSpace(id, tab) {
   const s = spaceById(id);
-  if (!s) {
-    console.warn('Ming: Space could not be opened because it is not in the loaded Spaces data.', id);
-    return;
-  }
-
-  const nature = NATURES[s.nature];
-  const screen = $('#screen-space');
-  if (!nature || !screen) {
-    console.error('Ming: Space open failed.', {
-      id,
-      nature: s.nature,
-      natureKnown: !!nature,
-      screenExists: !!screen
-    });
-    return;
-  }
-
-  const firstTab = Array.isArray(nature.tabs) && nature.tabs.length ? nature.tabs[0][0] : null;
-  const nextTab = tab || firstTab;
-  if (!nextTab || typeof VIEWS[s.nature]?.[nextTab] !== 'function') {
-    console.error('Ming: Space has no valid initial view.', {
-      id,
-      nature: s.nature,
-      requestedTab: tab,
-      firstTab: nextTab,
-      availableTabs: Object.keys(VIEWS[s.nature] || {})
-    });
-    return;
-  }
-
+  if (!s) return;
   sp.activeId = id;
-  sp.tab = nextTab;
-
+  sp.tab = tab || NATURES[s.nature].tabs[0][0];
+  const screen = $('#screen-space');
   screen.dataset.nature = s.nature;
   const theme = spaceTheme(s);
   screen.style.setProperty('--sp-accent', theme.colors[0]);
   screen.style.setProperty('--sp-accent-2', theme.colors[1]);
   screen.style.setProperty('--sp-accent-3', theme.colors[2]);
   screen.style.setProperty('--sp-theme-name', JSON.stringify(theme.name || 'Ming'));
-
-  /*
-    Enter the Space before rendering its contents. That way a view/helper
-    failure cannot leave the user stranded on the Spaces index.
-  */
+  renderSpace();
   pushStack('space');
-
-  try {
-    renderSpace();
-  } catch (error) {
-    console.error('Ming: Space content render failed:', error, {
-      id,
-      nature: s.nature,
-      tab: sp.tab
-    });
-    const body = $('#sp-body');
-    if (body) {
-      body.innerHTML = '<div class="sp-empty"><p>This Space could not display its contents right now.</p></div>';
-    }
-  }
 }
 
 function renderSpace() {
