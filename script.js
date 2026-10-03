@@ -1739,7 +1739,7 @@ async function loadMingDailyUpdates() {
       return false;
     }
 
-    dailyUpdates = (rows || []).map(row => {
+    dailyUpdates = await Promise.all((rows || []).map(async row => {
       const name = row.author_display_name || 'Ming user';
       const profile = {
         id: row.author_id,
@@ -1785,7 +1785,7 @@ async function loadMingDailyUpdates() {
         comments: [],
         commentsCount: Number(row.comments_count || 0)
       };
-    });
+    }));
 
     return true;
   } catch (error) {
