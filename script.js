@@ -1986,7 +1986,6 @@ async function toggleLike(id) {
     });
   } catch (error) {
     console.warn('Ming: Daily Update like failed.', error.message);
-    toast('Could not update reaction.', 'alert');
   }
 }
 
