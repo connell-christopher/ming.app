@@ -55,6 +55,8 @@ using (
   and (storage.foldername(name))[1] = (select auth.uid())::text
 );
 
+drop function if exists public.get_daily_updates(integer);
+
 create or replace function public.get_daily_updates(
   p_limit integer default 50
 )
