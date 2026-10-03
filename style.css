@@ -1325,6 +1325,18 @@ input[type="range"]::-moz-range-thumb {
 .modal .row { display: flex; gap: 10px; margin-top: 20px; }
 .modal .row .btn { flex: 1 1 0; }
 
+
+/* Daily Update image viewing */
+.upd-media img[data-media-image] {
+  touch-action: manipulation;
+  cursor: zoom-in;
+  transition: transform var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+}
+.upd-media img[data-media-image]:active {
+  transform: scale(.985);
+  opacity: .94;
+}
+
 /* ---------- 21. Forms ---------- */
 .field { margin-top: 16px; }
 .field label {
