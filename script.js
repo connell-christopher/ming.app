@@ -1114,6 +1114,102 @@ async function loadMingNotifications() {
       console.warn('Ming: Daily Update notifications could not be loaded.', updateError.message);
     }
 
+    /* Post activity notifications: likes and comments on the current user's posts. */
+    try {
+      const { data: myPosts, error: myPostsError } = await supabaseClient
+        .from('daily_updates')
+        .select('id, title, created_at')
+        .eq('author_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (!myPostsError && myPosts?.length) {
+        const postIds = myPosts.map(row => row.id);
+        const postById = new Map(myPosts.map(row => [row.id, row]));
+        const [likesResult, commentsResult] = await Promise.all([
+          supabaseClient
+            .from('daily_update_likes')
+            .select('id, update_id, user_id, created_at')
+            .in('update_id', postIds)
+            .neq('user_id', session.user.id)
+            .order('created_at', { ascending: false })
+            .limit(100),
+          supabaseClient
+            .from('daily_update_comments')
+            .select('id, update_id, author_id, body, created_at')
+            .in('update_id', postIds)
+            .neq('author_id', session.user.id)
+            .order('created_at', { ascending: false })
+            .limit(100)
+        ]);
+
+        if (likesResult.error) {
+          console.warn('Ming: post-like notifications could not be loaded.', likesResult.error.message);
+        }
+        if (commentsResult.error) {
+          console.warn('Ming: post-comment notifications could not be loaded.', commentsResult.error.message);
+        }
+
+        const likeRows = likesResult.error ? [] : (likesResult.data || []);
+        const commentRows = commentsResult.error ? [] : (commentsResult.data || []);
+        const actorIds = [...new Set([
+          ...likeRows.map(row => row.user_id),
+          ...commentRows.map(row => row.author_id)
+        ].filter(id => id && id !== session.user.id))];
+
+        const actorMap = new Map();
+        if (actorIds.length) {
+          const { data: actors, error: actorsError } = await supabaseClient
+            .from('profiles')
+            .select('id, display_name, username, avatar_url')
+            .in('id', actorIds);
+
+          if (!actorsError) {
+            (actors || []).forEach(actor => actorMap.set(actor.id, actor));
+          } else {
+            console.warn('Ming: post notification profiles could not be loaded.', actorsError.message);
+          }
+        }
+
+        const actorName = id => {
+          const actor = actorMap.get(id);
+          return actor?.display_name || (actor?.username ? '@' + String(actor.username).replace(/^@/, '') : 'Someone');
+        };
+
+        likeRows.forEach(row => {
+          const post = postById.get(row.update_id);
+          if (!post) return;
+          const id = 'post_like_' + row.id;
+          next.push({
+            id,
+            type: 'like',
+            personId: row.user_id,
+            updateId: row.update_id,
+            text: '<b>' + esc(actorName(row.user_id)) + '</b> liked your post' + (post.title ? ' “' + esc(post.title) + '”' : '') + '.',
+            at: new Date(row.created_at).getTime(),
+            read: notificationReadIds.has(id)
+          });
+        });
+
+        commentRows.forEach(row => {
+          const post = postById.get(row.update_id);
+          if (!post) return;
+          const id = 'post_comment_' + row.id;
+          next.push({
+            id,
+            type: 'comment',
+            personId: row.author_id,
+            updateId: row.update_id,
+            text: '<b>' + esc(actorName(row.author_id)) + '</b> commented on your post' + (post.title ? ' “' + esc(post.title) + '”' : '') + '.',
+            at: new Date(row.created_at).getTime(),
+            read: notificationReadIds.has(id)
+          });
+        });
+      }
+    } catch (postNotificationError) {
+      console.warn('Ming: post activity notifications failed.', postNotificationError);
+    }
+
     notifications = next.sort((a, b) => b.at - a.at);
     rememberAndPopupNewMingNotifications(notifications);
     updateNotifDot();
@@ -4389,6 +4485,93 @@ function moonAct(text) {
 /* ------------------------------------------------------------
    PROFILE
 ------------------------------------------------------------ */
+let profileContentTab = 'posts';
+let profileLikedUpdates = [];
+let profileLikesLoaded = false;
+
+async function loadMingProfileLikedUpdates() {
+  if (!isUuidPerson(currentUser.id)) return false;
+
+  try {
+    const { data: rows, error } = await supabaseClient
+      .rpc('get_daily_updates', { p_limit: 100 });
+
+    if (error) {
+      console.warn('Ming: liked Daily Updates could not be loaded.', error.message);
+      return false;
+    }
+
+    profileLikedUpdates = (rows || [])
+      .filter(row => row.liked === true)
+      .map(row => {
+        const name = row.author_display_name || 'Ming user';
+        const profile = {
+          id: row.author_id,
+          name,
+          short: name.split(' ')[0] || name,
+          hue: 24,
+          tag: row.author_headline || 'Ming member',
+          interests: [],
+          bio: row.author_bio || '',
+          avatarUrl: row.author_avatar_url || '',
+          username: row.author_username ? '@' + row.author_username.replace(/^@/, '') : '',
+          activity: row.author_activity || '',
+          status: 'on',
+          visitor: false,
+          km: null
+        };
+
+        if (row.author_id !== currentUser.id) {
+          const existing = mingConnectionProfiles.get(row.author_id);
+          mingConnectionProfiles.set(row.author_id, { ...(existing || {}), ...profile });
+        }
+
+        return {
+          id: row.id,
+          authorId: row.author_id,
+          kind: row.kind,
+          title: row.title,
+          body: row.body,
+          createdAt: new Date(row.created_at).getTime(),
+          likes: Number(row.likes || 0),
+          liked: true,
+          comments: [],
+          commentsCount: Number(row.comments_count || 0)
+        };
+      });
+
+    profileLikesLoaded = true;
+    return true;
+  } catch (error) {
+    console.warn('Ming: liked Daily Updates load failed.', error);
+    return false;
+  }
+}
+
+function profileLikedUpdateCard(u) {
+  const p = u.authorId === currentUser.id ? currentUser : byId(u.authorId);
+  const h = hoursLeft(u);
+  const pct = Math.max(2, Math.round((h / 24) * 100));
+
+  return `<article class="upd" id="profile-upd-${u.id}">
+    <div class="upd-top">
+      ${avatar(p, 36)}
+      <div class="who">
+        <div class="n">${esc(p.short || p.name)}</div>
+        <div class="m">Liked by you · ${esc(timeAgo(u.createdAt))}</div>
+      </div>
+      ${kindPill(u.kind)}
+    </div>
+    <h3>${esc(u.title)}</h3>
+    <p>${esc(u.body)}</p>
+    <div class="upd-foot">
+      <span class="act is-on" aria-label="You liked this update">${icon('heart')}<span>${u.likes}</span></span>
+      <span class="act" aria-label="Replies">${icon('chat')}<span>${u.commentsCount}</span></span>
+      <span class="expiry"><span class="life ${h < 4 ? 'low' : ''}"><i style="width:${pct}%"></i></span>${esc(lifeLabel(u))}</span>
+    </div>
+  </article>`;
+}
+
 function renderProfile() {
   const mine = liveUpdates().filter(u => u.authorId === currentUser.id);
   $('#profile-body').innerHTML = `
@@ -4429,8 +4612,23 @@ function renderProfile() {
     <div class="section">${sectionHead('Interests and services')}
       <div class="tags">${currentUser.interests.map(i => `<span class="tag-pill">${esc(i)}</span>`).join('')}</div>
     </div>
-    <div class="section" id="my-updates">${sectionHead('Your Daily Updates', 'Gone in 24 hours')}
-      ${mine.length ? mine.map(updateCard).join('') : emptyState('No live updates', 'Anything you share disappears after 24 hours. Nothing to maintain.', { t: 'Share an update', a: 'create:update' })}
+    <div class="section" id="my-updates">
+      ${sectionHead('Your activity', profileContentTab === 'posts' ? 'Your posts' : 'Posts you liked')}
+      <div style="display:flex;gap:8px;padding:0 0 14px">
+        <button class="btn ${profileContentTab === 'posts' ? 'btn--primary' : 'btn--soft'} btn--sm" data-action="profile-content:posts">Posts</button>
+        <button class="btn ${profileContentTab === 'likes' ? 'btn--primary' : 'btn--soft'} btn--sm" data-action="profile-content:likes">Likes</button>
+      </div>
+      <div id="profile-content-list">
+        ${profileContentTab === 'likes'
+          ? (!profileLikesLoaded
+              ? '<p style="padding:12px 0;color:var(--muted);font-size:13.5px">Loading your likes…</p>'
+              : (profileLikedUpdates.length
+                  ? profileLikedUpdates.map(profileLikedUpdateCard).join('')
+                  : emptyState('No liked posts yet', 'Posts you like will appear here while they are live.')))
+          : (mine.length
+              ? mine.map(updateCard).join('')
+              : emptyState('No live posts', 'Anything you share disappears after 24 hours. Nothing to maintain.', { t: 'Share an update', a: 'create:update' }))}
+      </div>
     </div>
     <div class="section">${sectionHead('Your account')}
       <div class="menu-list">
@@ -4841,7 +5039,7 @@ function renderSearch(mode, q = '') {
 /* ------------------------------------------------------------
    NOTIFICATIONS
 ------------------------------------------------------------ */
-const NOTIF_ICON = { connect: 'users', update: 'spark', message: 'chat', nearby: 'pin', expiry: 'clock', request: 'users' };
+const NOTIF_ICON = { connect: 'users', update: 'spark', message: 'chat', nearby: 'pin', expiry: 'clock', request: 'users', like: 'heart', comment: 'chat' };
 
 function renderNotifications() {
   const host = $('#notif-body');
@@ -5836,6 +6034,16 @@ document.addEventListener('click', async e => {
     }
     case 'go-updates': $('#my-updates').scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
 
+    case 'profile-content': {
+      profileContentTab = arg === 'likes' ? 'likes' : 'posts';
+      if (profileContentTab === 'likes' && !profileLikesLoaded) {
+        await loadMingProfileLikedUpdates();
+      }
+      renderProfile();
+      setTimeout(() => $('#my-updates')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 40);
+      break;
+    }
+
     case 'enable-location': closeSheet(); requestLocation(() => { if (state.tab !== 'nearby') return; }); break;
     case 'expand-radius': state.radius = 5; renderNearby(); toast('Discovery area expanded to 5 km', 'pin'); break;
 
@@ -5864,6 +6072,14 @@ document.addEventListener('click', async e => {
         pushStack('connections');
       } else if (n.type === 'update') {
         setTab('home');
+      } else if ((n.type === 'like' || n.type === 'comment') && n.updateId) {
+        profileContentTab = 'posts';
+        setTab('profile');
+        setTimeout(() => {
+          renderProfile();
+          const post = document.getElementById('upd-' + n.updateId);
+          if (post) post.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 80);
       }
       break;
     }
