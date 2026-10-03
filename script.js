@@ -1950,7 +1950,7 @@ function updateCard(u) {
     </div>
     <h3>${esc(u.title)}</h3>
     <p>${esc(u.body)}</p>
-    ${Array.isArray(u.media) && u.media.length ? `<div class="upd-media" style="display:grid;gap:9px;margin:12px 0 2px">${u.media.map(m => m.mime.startsWith('video/') ? `<video src="${esc(m.url)}" controls playsinline preload="none" style="display:block;width:100%;max-height:420px;border-radius:14px;background:#000"></video>` : `<img src="${esc(m.url)}" alt="${esc(m.name || 'Post image')}" loading="lazy" style="display:block;width:100%;max-height:420px;object-fit:cover;border-radius:14px;background:var(--surface-2)" />`).join('')}</div>` : ''}
+    ${Array.isArray(u.media) && u.media.length ? `<div class="upd-media" style="display:grid;gap:9px;margin:12px 0 2px">${u.media.map(m => m.mime.startsWith('video/') ? `<video src="${esc(m.url)}" controls playsinline preload="none" style="display:block;width:100%;max-height:420px;border-radius:14px;background:#000"></video>` : `<img src="${esc(m.url)}" alt="${esc(m.name || 'Post image')}" loading="lazy" data-media-image data-media-url="${esc(m.url)}" data-media-name="${esc(m.name || 'Ming image')}" style="display:block;width:100%;max-height:420px;object-fit:cover;border-radius:14px;background:var(--surface-2);cursor:zoom-in;user-select:none;-webkit-user-drag:none" />`).join('')}</div>` : ''}
     <div class="upd-foot">
       <button class="act ${u.liked ? 'is-on' : ''}" data-action="like:${u.id}" aria-pressed="${u.liked}" aria-label="React to this update">
         ${icon('heart')}<span>${u.likes}</span>
@@ -1965,6 +1965,82 @@ function updateCard(u) {
       <span class="expiry"><span class="life ${h < 4 ? 'low' : ''}"><i style="width:${pct}%"></i></span>${esc(lifeLabel(u))}</span>
     </div>
   </article>`;
+}
+
+
+function openDailyUpdateImage(url, name) {
+  if (!url) return;
+
+  openModal({
+    title: 'Photo',
+    fields: \`
+      <div style="display:flex;align-items:center;justify-content:center;min-height:180px">
+        <img src="\${esc(url)}" alt="\${esc(name || 'Post image')}" style="display:block;width:100%;max-height:68vh;object-fit:contain;border-radius:16px;background:#111;user-select:none;-webkit-user-drag:none" />
+      </div>\`,
+    actions: [
+      { t: 'Close', cls: 'btn--primary', a: 'close-modal' }
+    ]
+  });
+}
+
+async function downloadDailyUpdateImage(url, name) {
+  if (!url) return;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Image request failed');
+
+    const blob = await response.blob();
+    const type = blob.type || 'image/jpeg';
+    const extension = type.split('/')[1]?.split(';')[0] || 'jpg';
+    const fallbackName = \`ming-image-\${Date.now()}.\${extension}\`;
+    const safeName = (name || fallbackName)
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .replace(/\.+/g, '.')
+      .slice(0, 120) || fallbackName;
+
+    const filename = /\.[a-zA-Z0-9]{2,5}$/.test(safeName)
+      ? safeName
+      : \`\${safeName}.\${extension}\`;
+
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+
+    toast('Image downloaded', 'check');
+  } catch (error) {
+    console.warn('Ming: image download failed.', error);
+    toast('Could not download image.', 'alert');
+  }
+}
+
+function openDailyUpdateImageActions(img) {
+  const url = img?.dataset?.mediaUrl;
+  const name = img?.dataset?.mediaName || 'Ming image';
+  if (!url) return;
+
+  state.imageAction = { url, name };
+
+  openSheet({
+    title: 'Image',
+    sub: 'Choose what you want to do with this photo.',
+    body: \`
+      <button class="opt" data-action="view-post-image">
+        <span class="ic">\${icon('search')}</span>
+        <span class="tx"><span class="t">View image</span><span class="s">Open a larger view</span></span>
+        <span class="go">\${icon('chev')}</span>
+      </button>
+      <button class="opt" data-action="download-post-image">
+        <span class="ic">\${icon('download')}</span>
+        <span class="tx"><span class="t">Download image</span><span class="s">Save this photo to your device</span></span>
+        <span class="go">\${icon('chev')}</span>
+      </button>\`
+  });
 }
 
 async function getDailyUpdateShareData(id) {
@@ -6099,6 +6175,41 @@ async function saveAvatarCrop() {
   toast('Profile photo updated', 'check');
 }
 
+let dailyUpdateImageLongPressTimer = null;
+let dailyUpdateImageLongPressTarget = null;
+
+document.addEventListener('contextmenu', e => {
+  const image = e.target.closest('[data-media-image]');
+  if (!image) return;
+  e.preventDefault();
+  openDailyUpdateImageActions(image);
+});
+
+document.addEventListener('touchstart', e => {
+  const image = e.target.closest?.('[data-media-image]');
+  if (!image) return;
+
+  dailyUpdateImageLongPressTarget = image;
+  clearTimeout(dailyUpdateImageLongPressTimer);
+
+  dailyUpdateImageLongPressTimer = setTimeout(() => {
+    if (dailyUpdateImageLongPressTarget === image) {
+      openDailyUpdateImageActions(image);
+      dailyUpdateImageLongPressTarget = null;
+    }
+  }, 550);
+}, { passive: true });
+
+document.addEventListener('touchmove', () => {
+  clearTimeout(dailyUpdateImageLongPressTimer);
+  dailyUpdateImageLongPressTarget = null;
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  clearTimeout(dailyUpdateImageLongPressTimer);
+  dailyUpdateImageLongPressTarget = null;
+}, { passive: true });
+
 /* ------------------------------------------------------------
    TOASTS
 ------------------------------------------------------------ */
@@ -6132,6 +6243,13 @@ document.addEventListener('click', async e => {
   const navBtn = e.target.closest('#nav button');
   if (navBtn) { setTab(navBtn.dataset.nav); return; }
 
+  const image = e.target.closest('[data-media-image]');
+  if (image) {
+    e.preventDefault();
+    openDailyUpdateImage(image.dataset.mediaUrl, image.dataset.mediaName);
+    return;
+  }
+
   const host = e.target.closest('[data-action]');
   if (!host) return;
   const [verb, arg, arg2] = host.dataset.action.split(':');
@@ -6145,6 +6263,18 @@ document.addEventListener('click', async e => {
     case 'send-update': await sendDailyUpdateToConnection(arg, arg2); break;
     case 'download-update': await downloadDailyUpdate(arg); break;
     case 'delete-update': deleteUpdate(arg); break;
+    case 'view-post-image': {
+      const imageAction = state.imageAction;
+      closeSheet();
+      if (imageAction) openDailyUpdateImage(imageAction.url, imageAction.name);
+      break;
+    }
+    case 'download-post-image': {
+      const imageAction = state.imageAction;
+      closeSheet();
+      if (imageAction) await downloadDailyUpdateImage(imageAction.url, imageAction.name);
+      break;
+    }
 
     case 'confirm-delete':
       closeModal();
