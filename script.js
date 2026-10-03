@@ -1967,32 +1967,143 @@ function updateCard(u) {
   </article>`;
 }
 
-async function shareDailyUpdate(id) {
+async function getDailyUpdateShareData(id) {
   const u = dailyUpdates.find(x => x.id === id);
-  if (!u) return;
+  if (!u) return null;
 
   const p = u.authorId === currentUser.id ? currentUser : byId(u.authorId);
   const title = u.title || 'Ming Daily Update';
   const text = [p?.name ? p.name + ': ' + title : title, u.body || ''].filter(Boolean).join(' — ');
-  const url = window.location.href.split('#')[0];
+  const url = new URL(window.location.href);
+  url.hash = '';
+  url.searchParams.set('update', id);
+
+  return { u, p, title, text, url: url.toString() };
+}
+
+async function shareDailyUpdate(id) {
+  const data = await getDailyUpdateShareData(id);
+  if (!data) return;
+
+  const connected = connections
+    .filter(c => c.personId && isConnected(c.personId))
+    .map(c => byId(c.personId))
+    .filter(Boolean);
+
+  openSheet({
+    title: 'Share update',
+    sub: 'Send it to a connection, another app, or save the media to your device.',
+    body: `
+      <div class="chat-action-grid" style="margin-bottom:12px">
+        <button data-action="share-external:${esc(id)}"><span style="font-size:24px">↗</span><br>Other apps</button>
+        <button data-action="download-update:${esc(id)}"><span style="font-size:24px">↓</span><br>Download</button>
+      </div>
+      <div class="section" style="padding:0">
+        <div class="section-head"><div><h2>Send to a connection</h2><p>Only people you're connected with</p></div></div>
+        ${connected.length ? connected.map(p => `
+          <button class="opt" data-action="send-update:${esc(id)}:${esc(p.id)}">
+            ${avatar(p, 42)}
+            <span class="tx"><span class="t">${esc(p.short || p.name)}</span><span class="s">${esc(p.username || 'Connected')}</span></span>
+            <span class="go">${icon('send')}</span>
+          </button>`).join('') : '<p class="center-note">No connections yet. Connect with someone to send updates directly.</p>'}
+      </div>`
+  });
+}
+
+async function shareDailyUpdateExternal(id) {
+  const data = await getDailyUpdateShareData(id);
+  if (!data) return;
 
   try {
     if (navigator.share) {
-      await navigator.share({ title, text, url });
+      await navigator.share({
+        title: data.title,
+        text: data.text,
+        url: data.url
+      });
+      closeSheet();
       return;
     }
-    await navigator.clipboard.writeText(url);
+    await navigator.clipboard.writeText(data.url);
+    closeSheet();
     toast('Update link copied', 'check');
   } catch (error) {
     if (error?.name === 'AbortError') return;
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(data.url);
+      closeSheet();
       toast('Update link copied', 'check');
     } catch (_) {
       toast('Could not share this update.', 'alert');
     }
   }
 }
+
+async function sendDailyUpdateToConnection(updateId, personId) {
+  const data = await getDailyUpdateShareData(updateId);
+  if (!data || !isUuidPerson(personId) || !isConnected(personId)) {
+    toast('You can only send updates to your connections.', 'alert');
+    return;
+  }
+
+  const message = `Shared a Daily Update: ${data.title}
+${data.body || ''}
+${data.url}`.trim();
+
+  closeSheet();
+  await openChat(personId);
+  await sendMessage(message);
+  toast('Update sent', 'check');
+}
+
+async function downloadDailyUpdate(id) {
+  const data = await getDailyUpdateShareData(id);
+  if (!data) return;
+
+  const media = Array.isArray(data.u.media) ? data.u.media : [];
+  if (!media.length) {
+    toast('This update has no photo or video to download.', 'alert');
+    return;
+  }
+
+  closeSheet();
+  let completed = 0;
+
+  for (let index = 0; index < media.length; index++) {
+    const item = media[index];
+    if (!item?.url) continue;
+
+    try {
+      const response = await fetch(item.url);
+      if (!response.ok) throw new Error('Media request failed');
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const extension = (item.name || '').includes('.')
+        ? item.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '')
+        : (item.mime || '').split('/')[1]?.replace(/[^a-z0-9]/g, '') || 'bin';
+      const safeName = (item.name || `ming-update-${data.u.id}-${index + 1}`)
+        .replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filename = safeName.includes('.')
+        ? safeName
+        : `${safeName}.${extension || 'bin'}`;
+
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+      completed += 1;
+      await sleep(180);
+    } catch (error) {
+      console.warn('Ming: Daily Update media download failed.', error);
+    }
+  }
+
+  toast(completed ? (completed === media.length ? 'Media downloaded' : `${completed} media file(s) downloaded`) : 'Could not download the media.', completed ? 'check' : 'alert');
+}
+
 
 async function toggleLike(id) {
   const u = dailyUpdates.find(x => x.id === id);
@@ -5930,6 +6041,9 @@ document.addEventListener('click', async e => {
     case 'like': toggleLike(arg); break;
     case 'comments': openComments(arg); break;
     case 'share-update': await shareDailyUpdate(arg); break;
+    case 'share-external': await shareDailyUpdateExternal(arg); break;
+    case 'send-update': await sendDailyUpdateToConnection(arg, arg2); break;
+    case 'download-update': await downloadDailyUpdate(arg); break;
     case 'delete-update': deleteUpdate(arg); break;
 
     case 'confirm-delete':
