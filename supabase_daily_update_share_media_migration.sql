@@ -1,4 +1,14 @@
 -- Ming Daily Update sharing media support
+-- Keep the chat message_type constraint aligned with the attachment support below.
+-- Existing databases may still allow only text/voice/image, which causes file
+-- attachments to fail before the RPC can insert them.
+alter table public.messages
+drop constraint if exists messages_message_type_check;
+
+alter table public.messages
+add constraint messages_message_type_check
+check (message_type in ('text','voice','image','file'));
+
 -- Run this once in the Supabase SQL Editor.
 -- This only extends the existing private chat attachment bucket so
 -- Daily Update photos/videos can be sent as actual files to connections.
