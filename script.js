@@ -1762,12 +1762,23 @@ async function loadMingDailyUpdates() {
         mingConnectionProfiles.set(row.author_id, { ...(existing || {}), ...profile });
       }
 
+      const media = Array.isArray(row.media) ? row.media : [];
+      const resolvedMedia = await Promise.all(media.map(async item => {
+        const path = typeof item === 'string' ? item : item?.path;
+        if (!path) return null;
+        try {
+          const { data: signed, error: signedError } = await supabaseClient.storage.from('ming-post-media').createSignedUrl(path, 3600);
+          if (signedError || !signed?.signedUrl) return null;
+          return { path, url: signed.signedUrl, name: typeof item === 'string' ? path.split('/').pop() : (item?.name || path.split('/').pop()), mime: typeof item === 'string' ? '' : (item?.mime || '') };
+        } catch (_) { return null; }
+      }));
       return {
         id: row.id,
         authorId: row.author_id,
         kind: row.kind,
         title: row.title,
         body: row.body,
+        media: resolvedMedia.filter(Boolean),
         createdAt: new Date(row.created_at).getTime(),
         likes: Number(row.likes || 0),
         liked: !!row.liked,
@@ -1939,6 +1950,7 @@ function updateCard(u) {
     </div>
     <h3>${esc(u.title)}</h3>
     <p>${esc(u.body)}</p>
+    ${Array.isArray(u.media) && u.media.length ? `<div class="upd-media" style="display:grid;gap:9px;margin:12px 0 2px">${u.media.map(m => m.mime.startsWith('video/') ? `<video src="${esc(m.url)}" controls playsinline preload="metadata" style="display:block;width:100%;max-height:420px;border-radius:14px;background:#000"></video>` : `<img src="${esc(m.url)}" alt="${esc(m.name || 'Post image')}" loading="lazy" style="display:block;width:100%;max-height:420px;object-fit:cover;border-radius:14px;background:var(--surface-2)" />`).join('')}</div>` : ''}
     <div class="upd-foot">
       <button class="act ${u.liked ? 'is-on' : ''}" data-action="like:${u.id}" aria-pressed="${u.liked}" aria-label="React to this update">
         ${icon('heart')}<span>${u.likes}</span>
@@ -2090,7 +2102,7 @@ async function deleteMingDailyUpdate(id) {
   return true;
 }
 
-async function createUpdate(kind, title, body, activityMeta = null) {
+async function createUpdate(kind, title, body, activityMeta = null, mediaFiles = []) {
   if (!isUuidPerson(currentUser.id)) {
     toast('Please sign in again.', 'alert');
     return false;
@@ -2110,6 +2122,28 @@ async function createUpdate(kind, title, body, activityMeta = null) {
     title: cleanTitle,
     body: cleanBody || 'No extra details.'
   };
+
+  const files = Array.isArray(mediaFiles) ? mediaFiles.filter(Boolean) : [];
+  if (files.length > 4) { toast('You can attach up to 4 photos or videos.', 'alert'); return false; }
+  const uploadedMedia = [];
+  for (const file of files) {
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    if (!isImage && !isVideo) { toast('Only photos and videos can be attached.', 'alert'); return false; }
+    const maxBytes = isVideo ? 50 * 1024 * 1024 : 15 * 1024 * 1024;
+    if (file.size > maxBytes) { toast(isVideo ? 'Videos must be 50 MB or smaller.' : 'Photos must be 15 MB or smaller.', 'alert'); return false; }
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 90) || (isVideo ? 'video' : 'photo');
+    const path = currentUser.id + '/' + crypto.randomUUID() + '-' + safeName;
+    const { error: uploadError } = await supabaseClient.storage.from('ming-post-media').upload(path, file, { contentType: file.type, cacheControl: '3600', upsert: false });
+    if (uploadError) {
+      if (uploadedMedia.length) await supabaseClient.storage.from('ming-post-media').remove(uploadedMedia.map(x => x.path)).catch(() => {});
+      console.warn('Ming: post media upload failed.', uploadError.message);
+      toast('Could not upload the photo or video.', 'alert');
+      return false;
+    }
+    uploadedMedia.push({ path, name: file.name, mime: file.type });
+  }
+  if (uploadedMedia.length) insertRow.media = uploadedMedia;
 
   if (kind === 'activity') {
     if (!activityMeta?.startsAt || !activityMeta?.place) {
@@ -2134,10 +2168,11 @@ async function createUpdate(kind, title, body, activityMeta = null) {
   const { data: row, error } = await supabaseClient
     .from('daily_updates')
     .insert(insertRow)
-    .select('id, kind, title, body, created_at, activity_starts_at, activity_place')
+    .select('id, kind, title, body, media, created_at, activity_starts_at, activity_place')
     .single();
 
   if (error) {
+    if (uploadedMedia.length) await supabaseClient.storage.from('ming-post-media').remove(uploadedMedia.map(x => x.path)).catch(() => {});
     console.warn('Ming: Daily Update create failed.', error.message);
     toast('Could not share the update.', 'alert');
     return false;
@@ -2149,6 +2184,7 @@ async function createUpdate(kind, title, body, activityMeta = null) {
     kind: row.kind,
     title: row.title,
     body: row.body,
+    media: Array.isArray(row.media) ? row.media : [],
     createdAt: new Date(row.created_at).getTime(),
     likes: 0,
     liked: false,
@@ -5233,6 +5269,11 @@ function openComposer(type) {
       <div class="field"><label for="nu-body">Details</label>
         <textarea id="nu-body" maxlength="280" placeholder="A couple of lines is plenty."></textarea>
         <div class="count"><span id="nu-count">0</span>/280</div></div>
+      <div class="field"><label>Photos & videos</label>
+        <input id="nu-media" type="file" accept="image/*,video/*" multiple hidden />
+        <button type="button" class="btn btn--soft btn--block" id="nu-media-pick">${icon('spark')} Add photos or videos</button>
+        <div id="nu-media-preview" style="display:grid;gap:8px;margin-top:9px"></div>
+        <div class="count">Up to 4 files · photos 15 MB each · videos 50 MB each</div></div>
       ${type === 'activity' ? `<div class="field"><label for="nu-when">When</label>
         <input id="nu-when" type="datetime-local" /></div>
       <div class="field"><label for="nu-place">Place</label>
@@ -5246,6 +5287,30 @@ function openComposer(type) {
 
   const title = $('#nu-title'), body = $('#nu-body'), post = $('#nu-post');
   const whenInput = $('#nu-when'), placeInput = $('#nu-place');
+  const mediaInput = $('#nu-media'), mediaPick = $('#nu-media-pick'), mediaPreview = $('#nu-media-preview');
+  let selectedMedia = [];
+  const renderMediaPreview = () => {
+    if (!mediaPreview) return;
+    mediaPreview.innerHTML = selectedMedia.map((file, index) => {
+      const url = URL.createObjectURL(file);
+      const visual = file.type.startsWith('video/') ? '<video src="' + esc(url) + '" muted playsinline preload="metadata" style="width:100%;height:110px;object-fit:cover;border-radius:12px;background:#000"></video>' : '<img src="' + esc(url) + '" alt="' + esc(file.name) + '" style="width:100%;height:110px;object-fit:cover;border-radius:12px" />';
+      return '<div style="position:relative">' + visual + '<button type="button" data-remove-media="' + index + '" aria-label="Remove ' + esc(file.name) + '" style="position:absolute;top:6px;right:6px;width:28px;height:28px;border:0;border-radius:50%;background:rgba(0,0,0,.68);color:#fff;cursor:pointer">×</button></div>';
+    }).join('');
+  };
+  mediaPick?.addEventListener('click', () => mediaInput?.click());
+  mediaInput?.addEventListener('change', () => {
+    const incoming = Array.from(mediaInput.files || []);
+    const next = [...selectedMedia, ...incoming];
+    if (next.length > 4) { toast('You can attach up to 4 photos or videos.', 'alert'); selectedMedia = next.slice(0, 4); } else selectedMedia = next;
+    mediaInput.value = '';
+    renderMediaPreview();
+  });
+  mediaPreview?.addEventListener('click', e => {
+    const btn = e.target.closest('[data-remove-media]');
+    if (!btn) return;
+    selectedMedia.splice(Number(btn.dataset.removeMedia), 1);
+    renderMediaPreview();
+  });
 
   if (whenInput) {
     const defaultWhen = new Date(Date.now() + 60 * 60 * 1000);
@@ -5295,7 +5360,8 @@ function openComposer(type) {
       kind,
       title.value.trim(),
       body.value.trim() || 'No extra details',
-      activityMeta
+      activityMeta,
+      selectedMedia
     );
     if (!ok) return;
 
