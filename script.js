@@ -6177,6 +6177,7 @@ async function saveAvatarCrop() {
 
 let dailyUpdateImageLongPressTimer = null;
 let dailyUpdateImageLongPressTarget = null;
+let dailyUpdateImageLongPressTriggered = false;
 
 document.addEventListener('contextmenu', e => {
   const image = e.target.closest('[data-media-image]');
@@ -6195,6 +6196,7 @@ document.addEventListener('touchstart', e => {
   dailyUpdateImageLongPressTimer = setTimeout(() => {
     if (dailyUpdateImageLongPressTarget === image) {
       openDailyUpdateImageActions(image);
+      dailyUpdateImageLongPressTriggered = true;
       dailyUpdateImageLongPressTarget = null;
     }
   }, 550);
@@ -6242,6 +6244,11 @@ document.addEventListener('click', async e => {
 
   const navBtn = e.target.closest('#nav button');
   if (navBtn) { setTab(navBtn.dataset.nav); return; }
+
+  if (dailyUpdateImageLongPressTriggered) {
+    dailyUpdateImageLongPressTriggered = false;
+    return;
+  }
 
   const image = e.target.closest('[data-media-image]');
   if (image) {
