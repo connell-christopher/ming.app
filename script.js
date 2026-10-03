@@ -1959,7 +1959,7 @@ function updateCard(u) {
         ${icon('chat')}<span>${u.commentsCount ?? u.comments.length}</span>
       </button>
       <button class="act" data-action="share-update:${u.id}" aria-label="Share this update">
-        ${icon('share')}<span>Share</span>
+        <span aria-hidden="true">↗</span><span>Share</span>
       </button>
       ${mine ? `<button class="act" data-action="delete-update:${u.id}" aria-label="Delete update">${icon('trash')}</button>` : ''}
       <span class="expiry"><span class="life ${h < 4 ? 'low' : ''}"><i style="width:${pct}%"></i></span>${esc(lifeLabel(u))}</span>
