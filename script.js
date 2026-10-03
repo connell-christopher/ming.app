@@ -6839,6 +6839,22 @@ async function boot() {
   setTab('home');
   updateNotifDot();
 
+  const sharedUpdateId = new URLSearchParams(window.location.search).get('update');
+  if (sharedUpdateId) {
+    setTimeout(() => {
+      const sharedPost = document.getElementById('upd-' + sharedUpdateId);
+      if (sharedPost) {
+        sharedPost.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        sharedPost.style.outline = '2px solid var(--coffee)';
+        sharedPost.style.outlineOffset = '4px';
+        setTimeout(() => {
+          sharedPost.style.outline = '';
+          sharedPost.style.outlineOffset = '';
+        }, 2200);
+      }
+    }, 180);
+  }
+
   /*
      The location request may already be running or complete by this point.
      Do not start a duplicate request here.
