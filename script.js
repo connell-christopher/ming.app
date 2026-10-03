@@ -1950,7 +1950,7 @@ function updateCard(u) {
     </div>
     <h3>${esc(u.title)}</h3>
     <p>${esc(u.body)}</p>
-    ${Array.isArray(u.media) && u.media.length ? `<div class="upd-media" style="display:grid;gap:9px;margin:12px 0 2px">${u.media.map(m => m.mime.startsWith('video/') ? `<video src="${esc(m.url)}" controls playsinline preload="none" style="display:block;width:100%;max-height:420px;border-radius:14px;background:#000"></video>` : `<img src="${esc(m.url)}" alt="${esc(m.name || 'Post image')}" loading="lazy" style="display:block;width:100%;max-height:420px;object-fit:cover;border-radius:14px;background:var(--surface-2)" />`).join('')}</div>` : ''}
+    ${Array.isArray(u.media) && u.media.length ? `<div class="upd-media" style="display:grid;gap:9px;margin:12px 0 2px">${u.media.map(m => m.mime.startsWith('video/') ? `<video src="${esc(m.url)}" controls playsinline preload="none" style="display:block;width:100%;max-height:420px;border-radius:14px;background:#000"></video>` : `<a href="${esc(m.url)}" target="_blank" rel="noopener noreferrer" aria-label="View image"><img src="${esc(m.url)}" alt="${esc(m.name || 'Post image')}" loading="lazy" style="display:block;width:100%;max-height:420px;object-fit:cover;border-radius:14px;background:var(--surface-2);cursor:zoom-in" /></a>`).join('')}</div>` : ''}
     <div class="upd-foot">
       <button class="act ${u.liked ? 'is-on' : ''}" data-action="like:${u.id}" aria-pressed="${u.liked}" aria-label="React to this update">
         ${icon('heart')}<span>${u.likes}</span>
