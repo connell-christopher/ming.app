@@ -1981,6 +1981,35 @@ async function getDailyUpdateShareData(id) {
   return { u, p, title, text, url: url.toString() };
 }
 
+async function getDailyUpdateMediaFiles(data) {
+  const media = Array.isArray(data?.u?.media) ? data.u.media : [];
+  const files = [];
+
+  for (let index = 0; index < media.length; index++) {
+    const item = media[index];
+    if (!item?.url) continue;
+
+    try {
+      const response = await fetch(item.url);
+      if (!response.ok) throw new Error('Media request failed');
+
+      const blob = await response.blob();
+      const type = item.mime || blob.type || 'application/octet-stream';
+      const fallbackName = item.mime?.startsWith('video/')
+        ? `ming-update-${data.u.id}-${index + 1}.mp4`
+        : `ming-update-${data.u.id}-${index + 1}.jpg`;
+      const name = (item.name || fallbackName)
+        .replace(/[^a-zA-Z0-9._-]/g, '_');
+
+      files.push(new File([blob], name || fallbackName, { type }));
+    } catch (error) {
+      console.warn('Ming: Daily Update media fetch for sharing failed.', error);
+    }
+  }
+
+  return files;
+}
+
 async function shareDailyUpdate(id) {
   const data = await getDailyUpdateShareData(id);
   if (!data) return;
@@ -1992,14 +2021,14 @@ async function shareDailyUpdate(id) {
 
   openSheet({
     title: 'Share update',
-    sub: 'Send it to a connection, another app, or save the media to your device.',
+    sub: 'Send the actual photo or video to a connection, another app, or save it to your device.',
     body: `
       <div class="chat-action-grid" style="margin-bottom:12px">
         <button data-action="share-external:${esc(id)}"><span style="font-size:24px">↗</span><br>Other apps</button>
         <button data-action="download-update:${esc(id)}"><span style="font-size:24px">↓</span><br>Download</button>
       </div>
       <div class="section" style="padding:0">
-        <div class="section-head"><div><h2>Send to a connection</h2><p>Only people you're connected with</p></div></div>
+        <div class="section-head"><div><h2>Send to a connection</h2><p>Actual media files will be sent</p></div></div>
         ${connected.length ? connected.map(p => `
           <button class="opt" data-action="send-update:${esc(id)}:${esc(p.id)}">
             ${avatar(p, 42)}
@@ -2015,6 +2044,43 @@ async function shareDailyUpdateExternal(id) {
   if (!data) return;
 
   try {
+    const files = await getDailyUpdateMediaFiles(data);
+
+    if (files.length && navigator.share) {
+      const shareData = {
+        title: data.title,
+        text: data.text
+      };
+
+      if (!navigator.canShare || navigator.canShare({ files })) {
+        shareData.files = files;
+        await navigator.share(shareData);
+        closeSheet();
+        return;
+      }
+    }
+
+    if (files.length) {
+      closeSheet();
+      let completed = 0;
+
+      for (const file of files) {
+        const objectUrl = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = file.name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+        completed += 1;
+        await sleep(180);
+      }
+
+      toast(completed === files.length ? 'Media ready to share' : 'Some media could not be shared.', completed ? 'check' : 'alert');
+      return;
+    }
+
     if (navigator.share) {
       await navigator.share({
         title: data.title,
@@ -2024,12 +2090,34 @@ async function shareDailyUpdateExternal(id) {
       closeSheet();
       return;
     }
+
     await navigator.clipboard.writeText(data.url);
     closeSheet();
     toast('Update link copied', 'check');
   } catch (error) {
     if (error?.name === 'AbortError') return;
+
     try {
+      const files = await getDailyUpdateMediaFiles(data);
+      if (files.length) {
+        closeSheet();
+
+        for (const file of files) {
+          const objectUrl = URL.createObjectURL(file);
+          const link = document.createElement('a');
+          link.href = objectUrl;
+          link.download = file.name;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+          await sleep(180);
+        }
+
+        toast('Media ready to share', 'check');
+        return;
+      }
+
       await navigator.clipboard.writeText(data.url);
       closeSheet();
       toast('Update link copied', 'check');
@@ -2046,14 +2134,27 @@ async function sendDailyUpdateToConnection(updateId, personId) {
     return;
   }
 
-  const message = `Shared a Daily Update: ${data.title}
-${data.body || ''}
-${data.url}`.trim();
+  const files = await getDailyUpdateMediaFiles(data);
+  if (!files.length) {
+    toast('Could not load the photo or video for sharing.', 'alert');
+    return;
+  }
 
   closeSheet();
   await openChat(personId);
-  await sendMessage(message);
-  toast('Update sent', 'check');
+
+  let completed = 0;
+  for (const file of files) {
+    if (await sendStoredChatAttachment(file, { replyToId: null })) {
+      completed += 1;
+    }
+  }
+
+  if (completed) {
+    toast(completed === files.length ? 'Media sent' : `${completed} media file(s) sent`, 'check');
+  } else {
+    toast('Could not send the media.', 'alert');
+  }
 }
 
 async function downloadDailyUpdate(id) {
@@ -2103,7 +2204,6 @@ async function downloadDailyUpdate(id) {
 
   toast(completed ? (completed === media.length ? 'Media downloaded' : `${completed} media file(s) downloaded`) : 'Could not download the media.', completed ? 'check' : 'alert');
 }
-
 
 async function toggleLike(id) {
   const u = dailyUpdates.find(x => x.id === id);
@@ -3033,12 +3133,12 @@ let chatRecording = null;
 let chatRecordChunks = [];
 let chatRecordStartedAt = 0;
 const chatVoiceUrls = new Map();
-const MING_CHAT_MAX_FILE_BYTES=15*1024*1024;
-const MING_CHAT_ALLOWED_MIME=new Set(['image/jpeg','image/png','image/webp','image/gif','application/pdf','text/plain','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation']);
+const MING_CHAT_MAX_FILE_BYTES=50*1024*1024;
+const MING_CHAT_ALLOWED_MIME=new Set(['image/jpeg','image/png','image/webp','image/gif','image/heic','image/heif','video/mp4','video/webm','video/quicktime','video/x-m4v','application/pdf','text/plain','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-powerpoint','application/vnd.openxmlformats-officedocument.presentationml.presentation']);
 let pendingChatAttachment=null;
 function clearChatAttachment(){pendingChatAttachment=null;const i=$('#chat-attachment-input');if(i)i.value='';const h=$('#chat-attachment-preview');if(h){h.hidden=true;h.innerHTML='';}}
 function showChatAttachmentPreview(file){const h=$('#chat-attachment-preview');if(!h)return;h.hidden=false;h.innerHTML='<div class="chat-attachment-preview__inner"><span class="chat-attachment-preview__icon">'+icon(file.type.startsWith('image/')?'spark':'note')+'</span><span class="chat-attachment-preview__copy"><strong>'+esc(file.name)+'</strong><small>'+esc(formatChatFileSize(file.size))+' · Ready to send</small></span><button type="button" class="chat-attachment-preview__remove" id="chat-attachment-remove" aria-label="Remove attachment">'+icon('x')+'</button></div>';$('#chat-attachment-remove')?.addEventListener('click',clearChatAttachment);}
-async function chooseChatAttachment(file){if(!file)return;if(!MING_CHAT_ALLOWED_MIME.has(file.type)){toast('That file type is not supported in Ming chat.','alert');return;}if(file.size>MING_CHAT_MAX_FILE_BYTES){toast('Attachments must be 15 MB or smaller.','alert');return;}pendingChatAttachment=file;showChatAttachmentPreview(file);}
+async function chooseChatAttachment(file){if(!file)return;if(!MING_CHAT_ALLOWED_MIME.has(file.type)){toast('That file type is not supported in Ming chat.','alert');return;}if(file.size>MING_CHAT_MAX_FILE_BYTES){toast('Attachments must be 50 MB or smaller.','alert');return;}pendingChatAttachment=file;showChatAttachmentPreview(file);}
 async function sendStoredChatAttachment(file,options={}){const p=byId(state.activeChat);if(!p||!isUuidPerson(state.activeChat))return false;const {data:{session}}=await supabaseClient.auth.getSession();if(!session?.user){toast('Please sign in again','alert');return false;}const type=file.type.startsWith('image/')?'image':'file';const safeName=file.name.replace(/[^a-zA-Z0-9._-]+/g,'_').slice(0,90)||'attachment';const path=session.user.id+'/'+crypto.randomUUID()+'-'+safeName;const {error:uploadError}=await supabaseClient.storage.from('ming-message-files').upload(path,file,{contentType:file.type||'application/octet-stream',cacheControl:'3600',upsert:false});if(uploadError){toast('Could not upload attachment. Run supabase_message_attachments.sql first.','alert');return false;}const replyToId=options.replyToId||chatReplyTarget?.id||null;let row=null,error=null;const direct=await supabaseClient.from('messages').insert({sender_id:session.user.id,recipient_id:state.activeChat,body:'',message_type:type,attachment_path:path,attachment_name:file.name,attachment_mime:file.type||'application/octet-stream',attachment_size:file.size,reply_to_id:replyToId}).select('id,sender_id,recipient_id,body,created_at,read_at,message_type,voice_path,voice_duration,reply_to_id,attachment_path,attachment_name,attachment_mime,attachment_size').single();row=direct.data;error=direct.error;if(error){const rpc=await supabaseClient.rpc('ming_send_message_v3',{p_recipient_id:state.activeChat,p_body:'',p_message_type:type,p_voice_path:null,p_voice_duration:null,p_reply_to_id:replyToId,p_attachment_path:path,p_attachment_name:file.name,p_attachment_mime:file.type||'application/octet-stream',p_attachment_size:file.size});row=Array.isArray(rpc.data)?rpc.data[0]:rpc.data;error=rpc.error;}if(error||!row){await supabaseClient.storage.from('ming-message-files').remove([path]).catch(()=>{});toast(error?.message||'Could not send attachment.','alert');return false;}const c=convoFor(state.activeChat);c.messages.push({id:row.id,me:true,text:'',at:new Date(row.created_at).getTime(),read:!!row.read_at,type,voicePath:'',voiceDuration:0,replyToId:row.reply_to_id||null,attachmentPath:path,attachmentName:file.name,attachmentMime:file.type||'',attachmentSize:file.size,reactions:[]});clearChatAttachment();clearChatReply();renderThread();const t=$('#chat-thread');if(t)t.scrollTop=t.scrollHeight;return true;}
 
 
