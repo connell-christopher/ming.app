@@ -2178,13 +2178,25 @@ async function createUpdate(kind, title, body, activityMeta = null, mediaFiles =
     return false;
   }
 
+  const displayMedia = await Promise.all(uploadedMedia.map(async media => {
+    try {
+      const { data: signed, error: signedError } = await supabaseClient.storage
+        .from('ming-post-media')
+        .createSignedUrl(media.path, 3600);
+      if (signedError || !signed?.signedUrl) return { ...media, url: '' };
+      return { ...media, url: signed.signedUrl };
+    } catch (_) {
+      return { ...media, url: '' };
+    }
+  }));
+
   dailyUpdates.unshift({
     id: row.id,
     authorId: currentUser.id,
     kind: row.kind,
     title: row.title,
     body: row.body,
-    media: Array.isArray(row.media) ? row.media : [],
+    media: displayMedia,
     createdAt: new Date(row.created_at).getTime(),
     likes: 0,
     liked: false,
