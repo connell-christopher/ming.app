@@ -1095,7 +1095,7 @@ async function loadMingNotifications() {
     });
 
     const { data: updates, error: updateError } = await supabaseClient
-      .rpc('get_daily_updates', { p_limit: 100 });
+      .rpc('get_daily_updates', { p_limit: 50 });
 
     if (!updateError) {
       (updates || []).forEach(row => {
@@ -1731,7 +1731,7 @@ async function loadMingDailyUpdates() {
     if (sessionError || !session?.user) return false;
 
     const { data: rows, error } = await supabaseClient
-      .rpc('get_daily_updates', { p_limit: 50 });
+      .rpc('get_daily_updates', { p_limit: 30 });
 
     if (error) {
       console.warn('Ming: Daily Updates backend could not be loaded.', error.message);
@@ -1950,7 +1950,7 @@ function updateCard(u) {
     </div>
     <h3>${esc(u.title)}</h3>
     <p>${esc(u.body)}</p>
-    ${Array.isArray(u.media) && u.media.length ? `<div class="upd-media" style="display:grid;gap:9px;margin:12px 0 2px">${u.media.map(m => m.mime.startsWith('video/') ? `<video src="${esc(m.url)}" controls playsinline preload="metadata" style="display:block;width:100%;max-height:420px;border-radius:14px;background:#000"></video>` : `<img src="${esc(m.url)}" alt="${esc(m.name || 'Post image')}" loading="lazy" style="display:block;width:100%;max-height:420px;object-fit:cover;border-radius:14px;background:var(--surface-2)" />`).join('')}</div>` : ''}
+    ${Array.isArray(u.media) && u.media.length ? `<div class="upd-media" style="display:grid;gap:9px;margin:12px 0 2px">${u.media.map(m => m.mime.startsWith('video/') ? `<video src="${esc(m.url)}" controls playsinline preload="none" style="display:block;width:100%;max-height:420px;border-radius:14px;background:#000"></video>` : `<img src="${esc(m.url)}" alt="${esc(m.name || 'Post image')}" loading="lazy" style="display:block;width:100%;max-height:420px;object-fit:cover;border-radius:14px;background:var(--surface-2)" />`).join('')}</div>` : ''}
     <div class="upd-foot">
       <button class="act ${u.liked ? 'is-on' : ''}" data-action="like:${u.id}" aria-pressed="${u.liked}" aria-label="React to this update">
         ${icon('heart')}<span>${u.likes}</span>
@@ -1958,10 +1958,40 @@ function updateCard(u) {
       <button class="act" data-action="comments:${u.id}" aria-label="Open replies">
         ${icon('chat')}<span>${u.commentsCount ?? u.comments.length}</span>
       </button>
+      <button class="act" data-action="share-update:${u.id}" aria-label="Share this update">
+        ${icon('share')}<span>Share</span>
+      </button>
       ${mine ? `<button class="act" data-action="delete-update:${u.id}" aria-label="Delete update">${icon('trash')}</button>` : ''}
       <span class="expiry"><span class="life ${h < 4 ? 'low' : ''}"><i style="width:${pct}%"></i></span>${esc(lifeLabel(u))}</span>
     </div>
   </article>`;
+}
+
+async function shareDailyUpdate(id) {
+  const u = dailyUpdates.find(x => x.id === id);
+  if (!u) return;
+
+  const p = u.authorId === currentUser.id ? currentUser : byId(u.authorId);
+  const title = u.title || 'Ming Daily Update';
+  const text = [p?.name ? p.name + ': ' + title : title, u.body || ''].filter(Boolean).join(' — ');
+  const url = window.location.href.split('#')[0];
+
+  try {
+    if (navigator.share) {
+      await navigator.share({ title, text, url });
+      return;
+    }
+    await navigator.clipboard.writeText(url);
+    toast('Update link copied', 'check');
+  } catch (error) {
+    if (error?.name === 'AbortError') return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Update link copied', 'check');
+    } catch (_) {
+      toast('Could not share this update.', 'alert');
+    }
+  }
 }
 
 async function toggleLike(id) {
@@ -5899,6 +5929,7 @@ document.addEventListener('click', async e => {
     case 'person': openPerson(arg); break;
     case 'like': toggleLike(arg); break;
     case 'comments': openComments(arg); break;
+    case 'share-update': await shareDailyUpdate(arg); break;
     case 'delete-update': deleteUpdate(arg); break;
 
     case 'confirm-delete':
