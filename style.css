@@ -809,7 +809,19 @@ img { display: block; max-width: 100%; }
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+}
+.upd-foot .act {
+  flex: 0 0 auto;
+}
+.upd-foot .expiry {
+  margin-left: auto;
+  flex: 1 1 150px;
+  min-width: 150px;
+  justify-content: flex-end;
+  white-space: normal;
+  text-align: right;
 }
 .act {
   display: inline-flex;
