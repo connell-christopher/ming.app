@@ -3855,6 +3855,8 @@ async function handleMingCallSignal(payload) {
   }
 }
 
+let mingCallInboxRetryTimer = null;
+
 async function startMingCallInbox() {
   if (mingCallInboxChannel) return;
   const { data: { session } } = await supabaseClient.auth.getSession();
@@ -3864,16 +3866,50 @@ async function startMingCallInbox() {
   const channel = supabaseClient.channel(callTopicFor(session.user.id), {
     config: { private: true, broadcast: { self: false, ack: true } }
   });
+
   channel.on('broadcast', { event: 'call' }, ({ payload }) => {
     handleMingCallSignal(payload).catch(error => console.warn('Ming: call signal handling failed.', error));
   });
+
   mingCallInboxChannel = channel;
-  channel.subscribe(status => {
-    if (status !== 'SUBSCRIBED' && status !== 'CLOSED' && status !== 'CHANNEL_ERROR') {
-      console.warn('Ming: call realtime status:', status);
+
+  channel.subscribe((status, error) => {
+    if (status === 'SUBSCRIBED') {
+      console.log('Ming: call inbox connected.');
+      void restorePendingMingCall();
+      return;
     }
+
+    if (['TIMED_OUT', 'CHANNEL_ERROR', 'CLOSED'].includes(status)) {
+      console.warn('Ming: call inbox disconnected.', status, error || '');
+      if (mingCallInboxChannel === channel) mingCallInboxChannel = null;
+      void supabaseClient.removeChannel(channel);
+
+      if (!mingCallInboxRetryTimer) {
+        mingCallInboxRetryTimer = setTimeout(() => {
+          mingCallInboxRetryTimer = null;
+          void startMingCallInbox();
+        }, 2000);
+      }
+      return;
+    }
+
+    console.warn('Ming: call realtime status:', status, error || '');
   });
 }
+
+async function recoverMingCallInbox() {
+  await startMingCallInbox();
+  await restorePendingMingCall();
+}
+
+window.addEventListener('focus', () => {
+  void recoverMingCallInbox();
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) void recoverMingCallInbox();
+});
 
 function toggleMingCallMute() {
   const track = mingCall?.localStream?.getAudioTracks?.()[0];
@@ -7153,6 +7189,7 @@ async function boot() {
   await subscribeMingMessages();
   await loadMingDailyUpdates();
   startMingCallInbox();
+  void ensureMingPushReady({ prompt: false });
   await restorePendingMingCall();
   renderHome();
   setTab('home');
