@@ -95,32 +95,11 @@ using (
 
 -- PRIVATE CALL REALTIME
 --
--- The caller must temporarily be able to JOIN the recipient's private
--- inbox after the pending invite has been written. Realtime evaluates
--- realtime.messages authorization in its own transaction, so keep the
--- cross-table invite check inside a small SECURITY DEFINER helper.
--- This avoids the invite table's normal RLS policies becoming part of
--- the Realtime authorization decision.
-
-create or replace function public.ming_can_read_call_inbox(target_user uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $
-  select exists (
-    select 1
-    from public.ming_call_invites i
-    where i.caller_id = (select auth.uid())
-      and i.recipient_id = target_user
-      and i.status = 'pending'
-      and i.expires_at > now()
-  );
-$;
-
-revoke all on function public.ming_can_read_call_inbox(uuid) from public;
-grant execute on function public.ming_can_read_call_inbox(uuid) to authenticated;
+-- The caller and callee must both be able to join a call inbox for an
+-- accepted connection. The recipient's own inbox is always readable;
+-- the other participant may join it because the connection is accepted.
+-- Keeping this authorization on the connection itself avoids depending
+-- on the invite row being visible during Realtime's authorization check.
 
 drop policy if exists "Ming call inbox receive" on realtime.messages;
 drop policy if exists "Ming call inbox send" on realtime.messages;
@@ -134,8 +113,23 @@ using (
   and (
     (select realtime.topic()) =
       'ming:call:' || (select auth.uid())::text
-    or public.ming_can_read_call_inbox(
-      split_part((select realtime.topic()), ':', 3)::uuid
+    or exists (
+      select 1
+      from public.connections c
+      where c.status = 'accepted'
+        and (
+          (
+            c.requester_id = (select auth.uid())
+            and c.recipient_id =
+                split_part((select realtime.topic()), ':', 3)::uuid
+          )
+          or
+          (
+            c.recipient_id = (select auth.uid())
+            and c.requester_id =
+                split_part((select realtime.topic()), ':', 3)::uuid
+          )
+        )
     )
   )
 );
