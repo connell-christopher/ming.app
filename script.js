@@ -4360,6 +4360,7 @@ function confirmChatDelete(messageId, mode) {
   if (!m) return;
 
   if (mode === 'everyone') {
+    closeSheet();
     const ageMs = Date.now() - Number(m.at || 0);
     if (!m.me || ageMs < 0 || ageMs > 30 * 60 * 1000) {
       toast('Delete for everyone is only available for 30 minutes.', 'alert');
@@ -4377,6 +4378,7 @@ function confirmChatDelete(messageId, mode) {
     return;
   }
 
+  closeSheet();
   openModal({
     title: 'Delete for me?',
     lede: 'This removes the message only from your view. The other person will still have it.',
@@ -6359,6 +6361,10 @@ document.addEventListener('click', async e => {
     case 'confirm-delete':
       closeModal();
       await deleteMingDailyUpdate(arg);
+      break;
+
+    case 'confirm-chat-delete':
+      await deleteChatMessage(arg, arg2);
       break;
 
     case 'connect': connectWith(arg); break;
