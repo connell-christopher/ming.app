@@ -3265,9 +3265,11 @@ function renderCallMode(kind) {
   $('#call-camera')?.toggleAttribute('hidden', !isVideo);
 }
 
-function showCallOverlay({ incoming = false, active = false, kind = 'voice', personId = null } = {}) {
+function showCallOverlay({ incoming = false, active = false, kind = 'voice', personId = null, callId = null } = {}) {
   const overlay = $('#call-overlay');
   if (!overlay) return;
+  overlay.dataset.callId = callId || '';
+  overlay.dataset.callRole = incoming ? 'receiver' : 'caller';
   const p = personId ? byId(personId) : null;
   $('#call-name').textContent = p?.short || 'Ming user';
   const av = $('#call-avatar');
@@ -3280,7 +3282,11 @@ function showCallOverlay({ incoming = false, active = false, kind = 'voice', per
 
 function hideCallOverlay() {
   const overlay = $('#call-overlay');
-  if (overlay) overlay.hidden = true;
+  if (overlay) {
+    overlay.hidden = true;
+    overlay.dataset.callId = '';
+    overlay.dataset.callRole = '';
+  }
   document.body.classList.remove('call-open');
   setCallControls();
 }
@@ -3523,6 +3529,9 @@ async function restorePendingMingCall() {
     if (error || !rows?.length) return;
 
     const row = rows[0];
+    // Realtime may already have delivered this exact call.
+    if (mingCall?.callId === row.call_id || mingIncomingCall?.callId === row.call_id) return;
+
     mingIncomingCall = {
       callId: row.call_id,
       from: row.caller_id,
@@ -3530,7 +3539,7 @@ async function restorePendingMingCall() {
       kind: row.kind,
       offer: row.offer
     };
-    showCallOverlay({ incoming: true, kind: row.kind || 'voice', personId: row.caller_id });
+    showCallOverlay({ incoming: true, kind: row.kind || 'voice', personId: row.caller_id, callId: row.call_id });
     setCallTitle(row.kind === 'video' ? 'Incoming video call' : 'Incoming voice call');
     setCallStatus('Incoming call');
   } catch (error) {
@@ -3681,7 +3690,7 @@ async function startMingCall(kind) {
   try {
     setCallTitle(kind === 'video' ? 'Video call' : 'Voice call');
     setCallStatus('Requesting permission…');
-    showCallOverlay({ active: true, kind, personId: remoteId });
+    showCallOverlay({ active: true, kind, personId: remoteId, callId });
 
     const stream = await getCallMedia(kind);
     const callId = crypto.randomUUID();
@@ -3733,7 +3742,7 @@ async function acceptMingCall() {
     await updateMingCallInvite(incoming.callId, 'accepted');
 
     setCallTitle(incoming.kind === 'video' ? 'Video call' : 'Voice call');
-    showCallOverlay({ active: true, kind: incoming.kind, personId: incoming.from });
+    showCallOverlay({ active: true, kind: incoming.kind, personId: incoming.from, callId: incoming.callId });
     setCallStatus('Connecting…');
     attachCallMedia(stream, incoming.kind);
 
@@ -3787,6 +3796,13 @@ async function handleMingCallSignal(payload) {
   if (!payload?.type || payload.to !== currentUser.id) return;
 
   if (payload.type === 'offer') {
+    // Realtime delivery and database recovery can surface the same offer.
+    // Treat the callId as the idempotency key so the receiver never creates
+    // a second incoming-call state for the same call.
+    if (mingCall?.callId === payload.callId || mingIncomingCall?.callId === payload.callId) {
+      return;
+    }
+
     if (mingCall || mingIncomingCall) {
       await sendCallSignal(payload.from, {
         type: 'busy',
@@ -3796,10 +3812,23 @@ async function handleMingCallSignal(payload) {
       });
       return;
     }
-    mingIncomingCall = payload;
-    await showMingIncomingCallNotification(payload);
-    showCallOverlay({ incoming: true, kind: payload.kind || 'voice', personId: payload.from });
-    setCallTitle(payload.kind === 'video' ? 'Incoming video call' : 'Incoming voice call');
+
+    mingIncomingCall = {
+      callId: payload.callId,
+      from: payload.from,
+      to: currentUser.id,
+      kind: payload.kind || 'voice',
+      offer: payload.offer
+    };
+
+    await showMingIncomingCallNotification(mingIncomingCall);
+    showCallOverlay({
+      incoming: true,
+      kind: mingIncomingCall.kind,
+      personId: mingIncomingCall.from,
+      callId: mingIncomingCall.callId
+    });
+    setCallTitle(mingIncomingCall.kind === 'video' ? 'Incoming video call' : 'Incoming voice call');
     setCallStatus('Incoming call');
     return;
   }
