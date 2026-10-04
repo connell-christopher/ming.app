@@ -1030,6 +1030,17 @@ function isUuidPerson(id) {
   return /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(id);
 }
 
+async function ensureMingCallAuthenticatedUser() {
+  const { data: { session }, error } = await supabaseClient.auth.getSession();
+  if (error || !session?.user?.id || !isUuidPerson(session.user.id)) {
+    console.warn('Ming: authenticated call user is not ready.', error?.message || '');
+    return false;
+  }
+  currentUser.id = session.user.id;
+  return true;
+}
+
+
 function hasOutgoingConnectionRequest(id) {
   return connectionOutgoingRequests.some(r => r.personId === id);
 }
@@ -3829,6 +3840,11 @@ async function getCallMedia(kind) {
 }
 
 async function startMingCall(kind) {
+  if (!(await ensureMingCallAuthenticatedUser())) {
+    toast('Your session is still loading. Please try the call again.', 'alert');
+    return;
+  }
+
   const remoteId = state.activeChat;
   if (!isUuidPerson(remoteId)) {
     toast('Calls are available for connected Ming conversations.', 'alert');
@@ -3886,6 +3902,11 @@ async function startMingCall(kind) {
 async function acceptMingCall() {
   const incoming = mingIncomingCall;
   if (!incoming) return;
+
+  if (!(await ensureMingCallAuthenticatedUser())) {
+    toast('Your session is still loading. Please try again.', 'alert');
+    return;
+  }
 
   try {
     const stream = await getCallMedia(incoming.kind);
@@ -3962,7 +3983,12 @@ async function declineMingCall() {
 }
 
 async function handleMingCallSignal(payload) {
-  if (!payload?.type || payload.to !== currentUser.id) return;
+  if (!payload?.type) return;
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const authenticatedUserId = session?.user?.id;
+  if (!isUuidPerson(authenticatedUserId) || payload.to !== authenticatedUserId) return;
+  currentUser.id = authenticatedUserId;
 
   console.log('Ming: received call signal', {
     type: payload.type,
