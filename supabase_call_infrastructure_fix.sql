@@ -104,8 +104,23 @@ for select
 to authenticated
 using (
   extension = 'broadcast'
-  and (select realtime.topic()) =
+  and (
+    (select realtime.topic()) =
       'ming:call:' || (select auth.uid())::text
+    or (
+      split_part((select realtime.topic()), ':', 1) = 'ming'
+      and split_part((select realtime.topic()), ':', 2) = 'call'
+      and exists (
+        select 1
+        from public.ming_call_invites i
+        where i.caller_id = (select auth.uid())
+          and i.recipient_id =
+              split_part((select realtime.topic()), ':', 3)::uuid
+          and i.status = 'pending'
+          and i.expires_at > now()
+      )
+    )
+  )
 );
 
 create policy "Ming call inbox send"
