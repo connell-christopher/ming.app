@@ -3405,7 +3405,7 @@ async function ensureMingCallOutboundChannel(targetId) {
 
     const channel = supabaseClient.channel(callTopicFor(targetId), {
       config: {
-        private: true,
+        private: false,
         broadcast: { self: false, ack: true }
       }
     });
@@ -4130,7 +4130,7 @@ async function startMingCallInbox() {
   });
 
   const channel = supabaseClient.channel(topic, {
-    config: { private: true, broadcast: { self: false, ack: true } }
+    config: { private: false, broadcast: { self: false, ack: true } }
   });
 
   channel.on('broadcast', { event: 'call' }, ({ payload }) => {
