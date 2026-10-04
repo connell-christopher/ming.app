@@ -3213,10 +3213,8 @@ let mingPushReady = false;
 const MING_VAPID_PUBLIC_KEY = 'BPuZKvSfz_hshjbbaEz08rJo5cyzfP4JW2qSYkIiRuJ_QVkFjYBD62RqbcExYtNX1S9Z_Jk4hoPb697FYSghvYc';
 
 const MING_RTC_CONFIG = {
-  // Keep ICE gathering lightweight while giving browsers a reliable
-  // public STUN path. The previous OpenRelay fallback was returning
-  // ICE 701 errors, so it was preventing the connection from finding
-  // a usable server-reflexive candidate.
+  // Keep the existing STUN fallback intact. TURN credentials are fetched
+  // securely per call from the Supabase Edge Function below.
   iceCandidatePoolSize: 2,
   iceServers: [
     { urls: 'stun:stun.cloudflare.com:3478' },
@@ -3224,6 +3222,39 @@ const MING_RTC_CONFIG = {
     { urls: 'stun:stun1.l.google.com:19302' }
   ]
 };
+
+async function getMingRtcConfig() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session?.access_token) return MING_RTC_CONFIG;
+
+    const response = await fetch(SUPABASE_URL + '/functions/v1/turn-credentials', {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      }
+    });
+
+    if (!response.ok) {
+      console.warn('Ming: TURN credentials unavailable; using STUN fallback.', response.status);
+      return MING_RTC_CONFIG;
+    }
+
+    const data = await response.json();
+    if (!Array.isArray(data?.iceServers) || !data.iceServers.length) {
+      return MING_RTC_CONFIG;
+    }
+
+    return {
+      iceCandidatePoolSize: 2,
+      iceServers: data.iceServers
+    };
+  } catch (error) {
+    console.warn('Ming: TURN credential request failed; using STUN fallback.', error);
+    return MING_RTC_CONFIG;
+  }
+}
 
 
 function waitForMingIceGatheringComplete(pc, timeoutMs = 8000) {
@@ -3727,8 +3758,9 @@ async function endMingCall({ notify = true, reason = 'ended' } = {}) {
   await closeCallPeerChannel();
 }
 
-function setupCallPeer({ remoteId, callId, kind, role }) {
-  const pc = new RTCPeerConnection(MING_RTC_CONFIG);
+async function setupCallPeer({ remoteId, callId, kind, role }) {
+  const rtcConfig = await getMingRtcConfig();
+  const pc = new RTCPeerConnection(rtcConfig);
 
   // Keep ICE diagnostics visible in the console instead of collapsing every
   // WebRTC failure into the same generic "could not connect" message.
@@ -3883,7 +3915,7 @@ async function startMingCall(kind) {
     attachCallMedia(stream, kind);
     setCallStatus('Calling…');
 
-    const pc = setupCallPeer({ remoteId, callId, kind, role: 'caller' });
+    const pc = await setupCallPeer({ remoteId, callId, kind, role: 'caller' });
     mingCall.pc = pc;
     stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
@@ -3953,7 +3985,7 @@ async function acceptMingCall() {
     const outboundChannel = await ensureMingCallOutboundChannel(incoming.from);
     if (!outboundChannel) throw new Error('Could not connect call signaling.');
 
-    const pc = setupCallPeer({
+    const pc = await setupCallPeer({
       remoteId: incoming.from,
       callId: incoming.callId,
       kind: incoming.kind,
