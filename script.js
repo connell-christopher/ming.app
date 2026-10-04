@@ -3688,12 +3688,12 @@ async function startMingCall(kind) {
   }
 
   try {
+    const callId = crypto.randomUUID();
     setCallTitle(kind === 'video' ? 'Video call' : 'Voice call');
     setCallStatus('Requesting permission…');
     showCallOverlay({ active: true, kind, personId: remoteId, callId });
 
     const stream = await getCallMedia(kind);
-    const callId = crypto.randomUUID();
     mingCall = { callId, remoteId, kind, role: 'caller', localStream: stream, pc: null, connected: false };
 
     attachCallMedia(stream, kind);
