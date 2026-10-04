@@ -3352,6 +3352,12 @@ async function ensureCallPeerChannel(targetId, callId = null) {
 
 async function sendCallInboxSignal(targetId, payload) {
   if (!isUuidPerson(targetId) || !payload?.callId) return false;
+
+  console.log('Ming: sending call signal', {
+    type: payload.type,
+    callId: payload.callId,
+    to: targetId
+  });
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (!session?.user) return false;
 
@@ -3658,6 +3664,15 @@ function setupCallPeer({ remoteId, callId, kind, role }) {
   pc.onicecandidate = event => {
     if (!event.candidate) return;
     const candidate = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
+    const candidateType = candidate.candidate?.match(/\\btyp\\s+(\\w+)/)?.[1] || 'unknown';
+    console.log('Ming: ICE candidate gathered', {
+      callId,
+      role,
+      candidateType,
+      protocol: candidate.protocol,
+      address: candidate.address || null,
+      port: candidate.port || null
+    });
 
     /*
        The offer is sent only after its initial ICE gathering pass, so the
@@ -3702,6 +3717,15 @@ function setupCallPeer({ remoteId, callId, kind, role }) {
     } else if (pc.connectionState === 'connecting') {
       setCallStatus('Connecting…');
     } else if (pc.connectionState === 'failed') {
+      console.warn('Ming: WebRTC connection failed', {
+        callId,
+        role,
+        iceConnectionState: pc.iceConnectionState,
+        iceGatheringState: pc.iceGatheringState,
+        connectionState: pc.connectionState,
+        localDescriptionType: pc.localDescription?.type || null,
+        remoteDescriptionType: pc.remoteDescription?.type || null
+      });
       /*
          ICE can briefly report "failed" while the signaling path is still
          delivering the answer/candidates. Do not tear the call down
@@ -3864,6 +3888,12 @@ async function declineMingCall() {
 async function handleMingCallSignal(payload) {
   if (!payload?.type || payload.to !== currentUser.id) return;
 
+  console.log('Ming: received call signal', {
+    type: payload.type,
+    callId: payload.callId,
+    from: payload.from
+  });
+
   if (payload.type === 'offer') {
     // Realtime delivery and database recovery can surface the same offer.
     // Treat the callId as the idempotency key so the receiver never creates
@@ -3906,6 +3936,9 @@ async function handleMingCallSignal(payload) {
 
   if (payload.type === 'answer' && mingCall.role === 'caller') {
     try {
+      console.log('Ming: applying call answer', {
+        callId: mingCall.callId
+      });
       await mingCall.pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
       mingCall.remoteDescriptionReady = true;
       for (const candidate of mingCallPendingIce.splice(0)) {
@@ -6449,6 +6482,24 @@ function toast(msg, ic = 'check') {
     setTimeout(() => t.remove(), 240);
   }, 2600);
 }
+
+/* ------------------------------------------------------------
+   CALL CLICK DIAGNOSTICS
+   Call-only tracing. No call behavior is changed.
+------------------------------------------------------------ */
+document.addEventListener('click', e => {
+  const target = e.target?.closest?.('#call-overlay [data-action]');
+  if (!target) return;
+
+  console.log('Ming: call control click reached document', {
+    action: target.dataset.action,
+    tag: target.tagName,
+    disabled: !!target.disabled,
+    hidden: !!target.hidden,
+    pointerEvents: getComputedStyle(target).pointerEvents,
+    overlayPointerEvents: getComputedStyle(document.getElementById('call-overlay') || document.body).pointerEvents
+  });
+}, true);
 
 /* ------------------------------------------------------------
    ACTIONS (delegated)
