@@ -3380,7 +3380,12 @@ async function ensureMingCallOutboundChannel(targetId) {
   }
 
   mingCallOutboundChannelPromise = (async () => {
-    await supabaseClient.realtime.setAuth();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session?.access_token) {
+      console.warn('Ming: call realtime auth session is unavailable.');
+      return null;
+    }
+    await supabaseClient.realtime.setAuth(session.access_token);
 
     const channel = supabaseClient.channel(callTopicFor(targetId), {
       config: {
@@ -4086,7 +4091,7 @@ async function startMingCallInbox() {
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (!session?.user) return;
 
-  await supabaseClient.realtime.setAuth();
+  await supabaseClient.realtime.setAuth(session.access_token);
   const channel = supabaseClient.channel(callTopicFor(session.user.id), {
     config: { private: true, broadcast: { self: false, ack: true } }
   });
