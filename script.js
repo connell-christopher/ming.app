@@ -3174,6 +3174,7 @@ let mingCallPeerId = null;
 let mingCall = null;
 let mingIncomingCall = null;
 let mingCallTimer = null;
+let mingCallFailureTimer = null;
 let mingCallStartedAt = 0;
 let mingCallRemoteStream = null;
 let mingCallPendingIce = [];
@@ -3358,35 +3359,42 @@ async function sendCallInboxSignal(targetId, payload) {
 
   /*
      Use Supabase's HTTP Broadcast path for outbound signaling.
-     This avoids opening a brand-new WebSocket subscription for every
-     ICE candidate. The recipient remains subscribed to their private
-     inbox over WebSocket, while offers/answers/ICE/hangups are delivered
-     to that inbox over authenticated REST.
+     Critical call messages can be lost during a short Realtime transition,
+     so retry the authenticated broadcast a few times before giving up.
   */
-  const channel = supabaseClient.channel(callTopicFor(targetId), {
-    config: { private: true }
-  });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const channel = supabaseClient.channel(callTopicFor(targetId), {
+      config: { private: true }
+    });
 
-  try {
-    if (typeof channel.httpSend !== 'function') {
-      console.warn('Ming: Realtime HTTP broadcast is unavailable.');
-      return false;
+    try {
+      if (typeof channel.httpSend !== 'function') {
+        console.warn('Ming: Realtime HTTP broadcast is unavailable.');
+        return false;
+      }
+
+      const result = await channel.httpSend('call', payload);
+
+      if (result !== 'error' && !result?.error) {
+        return true;
+      }
+
+      console.warn('Ming: call inbox HTTP signal was rejected.', {
+        attempt,
+        result
+      });
+    } catch (error) {
+      console.warn('Ming: call inbox HTTP signal failed.', { attempt, error });
+    } finally {
+      await supabaseClient.removeChannel(channel);
     }
 
-    const result = await channel.httpSend('call', payload);
-
-    if (result === 'error' || result?.error) {
-      console.warn('Ming: call inbox HTTP signal was rejected.', result);
-      return false;
+    if (attempt < 3) {
+      await new Promise(resolve => setTimeout(resolve, 350 * attempt));
     }
-
-    return true;
-  } catch (error) {
-    console.warn('Ming: call inbox HTTP signal failed.', error);
-    return false;
-  } finally {
-    await supabaseClient.removeChannel(channel);
   }
+
+  return false;
 }
 
 async function sendCallSignal(targetId, payload) {
@@ -3573,6 +3581,11 @@ async function restorePendingMingCall() {
 }
 
 async function endMingCall({ notify = true, reason = 'ended' } = {}) {
+  if (mingCallFailureTimer) {
+    clearTimeout(mingCallFailureTimer);
+    mingCallFailureTimer = null;
+  }
+
   const call = mingCall;
   const incoming = mingIncomingCall;
 
@@ -3675,6 +3688,10 @@ function setupCallPeer({ remoteId, callId, kind, role }) {
 
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === 'connected') {
+      if (mingCallFailureTimer) {
+        clearTimeout(mingCallFailureTimer);
+        mingCallFailureTimer = null;
+      }
       if (mingCall) mingCall.connected = true;
       setCallStatus('Connected');
       startCallTimer();
@@ -3682,7 +3699,20 @@ function setupCallPeer({ remoteId, callId, kind, role }) {
     } else if (pc.connectionState === 'connecting') {
       setCallStatus('Connecting…');
     } else if (pc.connectionState === 'failed') {
-      endMingCall({ notify: true, reason: 'failed' });
+      /*
+         ICE can briefly report "failed" while the signaling path is still
+         delivering the answer/candidates. Do not tear the call down
+         immediately; give the negotiation a short recovery window.
+      */
+      setCallStatus('Reconnecting…');
+      if (!mingCallFailureTimer) {
+        mingCallFailureTimer = setTimeout(() => {
+          mingCallFailureTimer = null;
+          if (mingCall?.pc === pc && !mingCall.connected) {
+            void endMingCall({ notify: true, reason: 'failed' });
+          }
+        }, 12000);
+      }
     } else if (pc.connectionState === 'disconnected') {
       setCallStatus('Reconnecting…');
     }
@@ -3797,13 +3827,15 @@ async function acceptMingCall() {
     // the chance that early candidate messages are lost during signaling.
     await waitForMingIceGatheringComplete(pc);
 
-    await sendCallSignal(incoming.from, {
+    if (!(await sendCallSignal(incoming.from, {
       type: 'answer',
       callId: incoming.callId,
       from: currentUser.id,
       to: incoming.from,
       answer: pc.localDescription
-    });
+    }))) {
+      throw new Error('Could not send call answer.');
+    }
   } catch (error) {
     console.warn('Ming: accepting call failed.', error);
     await endMingCall({ notify: true, reason: 'failed' });
