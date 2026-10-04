@@ -3204,6 +3204,31 @@ const MING_RTC_CONFIG = {
   ]
 };
 
+
+function waitForMingIceGatheringComplete(pc, timeoutMs = 8000) {
+  if (!pc || pc.iceGatheringState === 'complete') return Promise.resolve();
+
+  return new Promise(resolve => {
+    let settled = false;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      pc.removeEventListener('icegatheringstatechange', check);
+      resolve();
+    };
+
+    const check = () => {
+      if (pc.iceGatheringState === 'complete') finish();
+    };
+
+    const timer = setTimeout(finish, timeoutMs);
+    pc.addEventListener('icegatheringstatechange', check);
+    check();
+  });
+}
+
 function callTopicFor(userId) {
   return 'ming:call:' + userId;
 }
@@ -3706,6 +3731,11 @@ async function startMingCall(kind) {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
+    // Wait for the initial ICE gathering pass so the SDP offer carries
+    // the available host/STUN/TURN candidates. This keeps the call from
+    // depending on a race between the offer and early ICE signaling.
+    await waitForMingIceGatheringComplete(pc);
+
     const offerPayload = {
       type: 'offer',
       callId,
@@ -3762,6 +3792,10 @@ async function acceptMingCall() {
 
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
+
+    // Include the initial ICE candidates in the answer as well, reducing
+    // the chance that early candidate messages are lost during signaling.
+    await waitForMingIceGatheringComplete(pc);
 
     await sendCallSignal(incoming.from, {
       type: 'answer',
