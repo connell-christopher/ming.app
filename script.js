@@ -4203,8 +4203,8 @@ async function loadChatReactions(c) {
 function renderChatAttachment(m) {
   const path=m.attachmentPath||''; const name=m.attachmentName||'Attachment'; const mime=(m.attachmentMime||'').toLowerCase(); const ext=(name||'').toLowerCase().split('.').pop();
   if(!path)return '';
-  const isImage=m.type==='image'||mime.startsWith('image/')||['jpg','jpeg','png','webp','gif','heic','heif'].includes(ext);
   const isVideo=mime.startsWith('video/')||['mp4','webm','mov','m4v'].includes(ext);
+  const isImage=!isVideo&&(m.type==='image'||mime.startsWith('image/')||['jpg','jpeg','png','webp','gif','heic','heif'].includes(ext));
   if(isImage)return '<button type="button" class="chat-attachment chat-attachment--image" data-chat-attachment="'+esc(path)+'" aria-label="Open image"><span class="chat-attachment-loading">Loading image…</span><img alt="'+esc(name)+'" data-chat-attachment-image hidden /></button>';
   if(isVideo)return '<button type="button" class="chat-attachment chat-attachment--video" data-chat-attachment="'+esc(path)+'" aria-label="Play video"><span class="chat-attachment-loading">Loading video…</span><video data-chat-attachment-video controls playsinline preload="metadata" hidden></video></button>';
   const size=m.attachmentSize?formatChatFileSize(m.attachmentSize):'';
@@ -4240,7 +4240,7 @@ function renderThread() {
          data-message-id="${esc(m.id)}">
       <div class="chat-bubble" data-message-id="${esc(m.id)}">
         ${reply ? `<span class="chat-bubble__reply"><strong>${reply.me ? 'You' : esc(byId(state.activeChat)?.short || 'Them')}</strong>${reply.type === 'voice' ? '🎙️ Voice note' : esc((reply.text || '').slice(0, 110))}</span>` : ''}
-        ${m.type === 'voice' ? renderVoiceMessage(m) : ((m.type === 'image' || m.type === 'file') ? renderChatAttachment(m) : `<span class="chat-bubble__text">${esc(m.text)}</span>`)}
+        ${m.type === 'voice' ? renderVoiceMessage(m) : (m.attachmentPath ? renderChatAttachment(m) : `<span class="chat-bubble__text">${esc(m.text)}</span>`)}
         <span class="chat-bubble__time">${clockTime(m.at)}${m.me ? ` · ${m.read ? 'Read' : 'Sent'}` : ''}</span>
         ${Object.entries(reactions).length ? `<span class="chat-reactions">${Object.entries(reactions).map(([emoji,count]) => `<span class="chat-reaction">${emoji} ${count > 1 ? count : ''}</span>`).join('')}</span>` : ''}
       </div>
