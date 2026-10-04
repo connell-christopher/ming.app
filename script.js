@@ -1031,12 +1031,28 @@ function isUuidPerson(id) {
 }
 
 async function ensureMingCallAuthenticatedUser() {
-  const { data: { session }, error } = await supabaseClient.auth.getSession();
-  if (error || !session?.user?.id || !isUuidPerson(session.user.id)) {
-    console.warn('Ming: authenticated call user is not ready.', error?.message || '');
+  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+  if (sessionError || !session?.access_token) {
+    console.warn('Ming: authenticated call session is not ready.', sessionError?.message || '');
     return false;
   }
-  currentUser.id = session.user.id;
+
+  // Verify the same JWT that REST/Realtime will use. This prevents the
+  // call layer from proceeding with a stale or locally cached session.
+  const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+  if (userError || !user?.id || !isUuidPerson(user.id)) {
+    console.warn('Ming: authenticated call user could not be verified.', userError?.message || '');
+    return false;
+  }
+
+  currentUser.id = user.id;
+  await supabaseClient.realtime.setAuth(session.access_token);
+
+  console.log('Ming: call auth verified.', {
+    userId: user.id,
+    role: session.user?.role || null
+  });
+
   return true;
 }
 
@@ -3604,7 +3620,12 @@ async function createMingCallInvite(payload) {
     expires_at: new Date(Date.now() + 90 * 1000).toISOString()
   });
   if (error) {
-    console.warn('Ming: call invite persistence failed.', error.message);
+    console.warn('Ming: call invite persistence failed.', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
     return false;
   }
   return true;
@@ -4088,11 +4109,20 @@ let mingCallInboxRetryTimer = null;
 
 async function startMingCallInbox() {
   if (mingCallInboxChannel) return;
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (!session?.user) return;
 
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user?.id || !session?.access_token) return;
+
+  currentUser.id = session.user.id;
   await supabaseClient.realtime.setAuth(session.access_token);
-  const channel = supabaseClient.channel(callTopicFor(session.user.id), {
+
+  const topic = callTopicFor(session.user.id);
+  console.log('Ming: starting call inbox.', {
+    userId: session.user.id,
+    topic
+  });
+
+  const channel = supabaseClient.channel(topic, {
     config: { private: true, broadcast: { self: false, ack: true } }
   });
 
@@ -4111,14 +4141,18 @@ async function startMingCallInbox() {
 
     if (['TIMED_OUT', 'CHANNEL_ERROR', 'CLOSED'].includes(status)) {
       console.warn('Ming: call inbox disconnected.', status, error || '');
+
+      // Do not remove the channel from inside its own status callback.
+      // Supabase can synchronously emit another close/error event here,
+      // which previously caused startMingCallInbox() to recurse until the
+      // browser threw "too much recursion".
       if (mingCallInboxChannel === channel) mingCallInboxChannel = null;
-      void supabaseClient.removeChannel(channel);
 
       if (!mingCallInboxRetryTimer) {
         mingCallInboxRetryTimer = setTimeout(() => {
           mingCallInboxRetryTimer = null;
           void startMingCallInbox();
-        }, 2000);
+        }, 3000);
       }
       return;
     }
