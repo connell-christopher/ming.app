@@ -1,3 +1,18 @@
+-- DATA API GRANTS
+-- Supabase projects created with the newer Data API defaults may not
+-- automatically expose new public tables. These grants are still protected
+-- by the RLS policies below; they only make the tables reachable by the
+-- authenticated PostgREST role.
+
+grant select, insert, update, delete
+on table public.ming_call_invites
+to authenticated;
+
+grant select, insert, update, delete
+on table public.ming_push_subscriptions
+to authenticated;
+
+
 -- CALL INVITES
 
 drop policy if exists "Ming call invites select own calls" on public.ming_call_invites;
