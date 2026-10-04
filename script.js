@@ -3658,11 +3658,14 @@ function setupCallPeer({ remoteId, callId, kind, role }) {
   pc.onicecandidate = event => {
     if (!event.candidate) return;
     const candidate = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
-    if (role === 'caller' && mingCall?.role === 'caller' && !mingCall.remoteDescriptionReady) {
-      mingCallOutgoingIce.push(candidate);
-      return;
-    }
-    sendCallSignal(remoteId, {
+
+    /*
+       The offer is sent only after its initial ICE gathering pass, so the
+       receiver is already subscribed to the caller's inbox by the time
+       trickled candidates can arrive. Send candidates immediately instead
+       of holding the caller's candidates until the answer arrives.
+    */
+    void sendCallSignal(remoteId, {
       type: 'ice',
       callId,
       from: currentUser.id,
@@ -3907,15 +3910,6 @@ async function handleMingCallSignal(payload) {
       mingCall.remoteDescriptionReady = true;
       for (const candidate of mingCallPendingIce.splice(0)) {
         try { await mingCall.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (_) {}
-      }
-      for (const candidate of mingCallOutgoingIce.splice(0)) {
-        await sendCallSignal(mingCall.remoteId, {
-          type: 'ice',
-          callId: mingCall.callId,
-          from: currentUser.id,
-          to: mingCall.remoteId,
-          candidate
-        });
       }
       setCallStatus('Connecting…');
     } catch (error) {
