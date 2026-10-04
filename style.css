@@ -1718,6 +1718,12 @@ body.call-open { overflow: hidden; }
   align-items: center;
   gap: 18px;
 }
+
+/* The native [hidden] attribute must always win over the flex layout.
+   Without this, caller and receiver control groups can appear together. */
+.ming-call-actions[hidden] {
+  display: none !important;
+}
 .ming-call-action {
   width: 76px;
   height: 76px;
