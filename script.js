@@ -3168,6 +3168,9 @@ function chatTopicFor(a, b) {
    MING CALLING — WebRTC + Supabase Realtime signaling
 ------------------------------------------------------------ */
 let mingCallInboxChannel = null;
+let mingCallOutboundChannel = null;
+let mingCallOutboundChannelPromise = null;
+let mingCallOutboundTarget = null;
 let mingCallPeerChannel = null;
 let mingCallPeerSubscribed = false;
 let mingCallPeerId = null;
@@ -3337,6 +3340,7 @@ function stopLocalCallStream() {
 }
 
 async function closeCallPeerChannel() {
+  await closeMingCallOutboundChannel();
   if (mingCallPeerChannel) await supabaseClient.removeChannel(mingCallPeerChannel);
   mingCallPeerChannel = null;
   mingCallPeerId = null;
@@ -3350,6 +3354,82 @@ async function ensureCallPeerChannel(targetId, callId = null) {
   return isUuidPerson(targetId) && isUuidPerson(currentUser.id) && !!(callId || mingCall?.callId);
 }
 
+async function ensureMingCallOutboundChannel(targetId) {
+  if (!isUuidPerson(targetId)) return null;
+
+  if (
+    mingCallOutboundChannel &&
+    mingCallOutboundTarget === targetId
+  ) {
+    return mingCallOutboundChannel;
+  }
+
+  if (mingCallOutboundChannelPromise) {
+    return mingCallOutboundChannelPromise;
+  }
+
+  mingCallOutboundChannelPromise = (async () => {
+    await supabaseClient.realtime.setAuth();
+
+    const channel = supabaseClient.channel(callTopicFor(targetId), {
+      config: {
+        private: true,
+        broadcast: { self: false, ack: true }
+      }
+    });
+
+    const subscribed = await new Promise(resolve => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        resolve(false);
+      }, 8000);
+
+      channel.subscribe(status => {
+        if (status === 'SUBSCRIBED') {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(true);
+          return;
+        }
+
+        if (['TIMED_OUT', 'CHANNEL_ERROR', 'CLOSED'].includes(status)) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(false);
+        }
+      });
+    });
+
+    if (!subscribed) {
+      await supabaseClient.removeChannel(channel);
+      return null;
+    }
+
+    mingCallOutboundChannel = channel;
+    mingCallOutboundTarget = targetId;
+    return channel;
+  })();
+
+  try {
+    return await mingCallOutboundChannelPromise;
+  } finally {
+    mingCallOutboundChannelPromise = null;
+  }
+}
+
+async function closeMingCallOutboundChannel() {
+  if (mingCallOutboundChannel) {
+    await supabaseClient.removeChannel(mingCallOutboundChannel);
+  }
+  mingCallOutboundChannel = null;
+  mingCallOutboundTarget = null;
+  mingCallOutboundChannelPromise = null;
+}
+
 async function sendCallInboxSignal(targetId, payload) {
   if (!isUuidPerson(targetId) || !payload?.callId) return false;
 
@@ -3358,49 +3438,39 @@ async function sendCallInboxSignal(targetId, payload) {
     callId: payload.callId,
     to: targetId
   });
+
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (!session?.user) return false;
 
-  await supabaseClient.realtime.setAuth();
+  try {
+    const channel = await ensureMingCallOutboundChannel(targetId);
+    if (!channel) {
+      console.warn('Ming: call outbound channel could not connect.');
+      return false;
+    }
 
-  /*
-     Use Supabase's HTTP Broadcast path for outbound signaling.
-     Critical call messages can be lost during a short Realtime transition,
-     so retry the authenticated broadcast a few times before giving up.
-  */
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const channel = supabaseClient.channel(callTopicFor(targetId), {
-      config: { private: true }
+    const result = await channel.send({
+      type: 'broadcast',
+      event: 'call',
+      payload
     });
 
-    try {
-      if (typeof channel.httpSend !== 'function') {
-        console.warn('Ming: Realtime HTTP broadcast is unavailable.');
-        return false;
-      }
+    if (result === 'ok') return true;
 
-      const result = await channel.httpSend('call', payload);
-
-      if (result !== 'error' && !result?.error) {
-        return true;
-      }
-
-      console.warn('Ming: call inbox HTTP signal was rejected.', {
-        attempt,
-        result
-      });
-    } catch (error) {
-      console.warn('Ming: call inbox HTTP signal failed.', { attempt, error });
-    } finally {
-      await supabaseClient.removeChannel(channel);
-    }
-
-    if (attempt < 3) {
-      await new Promise(resolve => setTimeout(resolve, 350 * attempt));
-    }
+    console.warn('Ming: call realtime send was rejected.', {
+      result,
+      type: payload.type,
+      callId: payload.callId
+    });
+    return false;
+  } catch (error) {
+    console.warn('Ming: call realtime send failed.', {
+      type: payload.type,
+      callId: payload.callId,
+      error
+    });
+    return false;
   }
-
-  return false;
 }
 
 async function sendCallSignal(targetId, payload) {
@@ -3781,6 +3851,9 @@ async function startMingCall(kind) {
     attachCallMedia(stream, kind);
     setCallStatus('Calling…');
 
+    const outboundChannel = await ensureMingCallOutboundChannel(remoteId);
+    if (!outboundChannel) throw new Error('Could not connect call signaling.');
+
     const pc = setupCallPeer({ remoteId, callId, kind, role: 'caller' });
     mingCall.pc = pc;
     stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -3832,6 +3905,9 @@ async function acceptMingCall() {
     showCallOverlay({ active: true, kind: incoming.kind, personId: incoming.from, callId: incoming.callId });
     setCallStatus('Connecting…');
     attachCallMedia(stream, incoming.kind);
+
+    const outboundChannel = await ensureMingCallOutboundChannel(incoming.from);
+    if (!outboundChannel) throw new Error('Could not connect call signaling.');
 
     const pc = setupCallPeer({
       remoteId: incoming.from,
