@@ -2986,9 +2986,27 @@ async function loadMingMessages() {
       return false;
     }
 
+    // "Delete for me" is persisted separately so a hidden message stays
+    // hidden after refresh without deleting it for the other participant.
+    let hiddenMessageIds = new Set();
+    const { data: hiddenRows, error: hiddenError } = await supabaseClient
+      .from('message_hidden_for_users')
+      .select('message_id')
+      .eq('user_id', session.user.id);
+
+    if (hiddenError) {
+      // The delete migration may not have been run yet. Keep normal
+      // messaging working rather than breaking the whole Messages screen.
+      console.warn('Ming: message hide list is not ready yet.', hiddenError.message);
+    } else {
+      hiddenMessageIds = new Set((hiddenRows || []).map(row => row.message_id));
+    }
+
     const byConversation = new Map();
 
     (rows || []).forEach(row => {
+      if (hiddenMessageIds.has(row.id)) return;
+
       const otherId = row.sender_id === session.user.id ? row.recipient_id : row.sender_id;
       const c = byConversation.get(otherId) || {
         id: 'c_' + otherId,
@@ -4090,6 +4108,31 @@ async function subscribeMingMessages() {
         if (state.loaded.messages) renderMessages();
       }
     )
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'messages'
+      },
+      payload => {
+        const id = payload.old?.id;
+        if (!id) return;
+
+        let changed = false;
+        conversations.forEach(convo => {
+          const next = convo.messages.filter(m => m.id !== id);
+          if (next.length !== convo.messages.length) {
+            convo.messages = next;
+            changed = true;
+          }
+        });
+
+        if (!changed) return;
+        if (state.activeChat) renderThread();
+        if (state.loaded.messages) renderMessages();
+      }
+    )
     .subscribe();
 }
 
@@ -4273,9 +4316,173 @@ function openMessageActions(messageId) {
         <button data-action="chat-copy:${esc(messageId)}">📋<br>Copy</button>
         <button data-action="chat-forward:${esc(messageId)}">↗️<br>Forward</button>
         <button data-action="chat-react:${esc(messageId)}">😊<br>React</button>
+        <button data-action="chat-delete:${esc(messageId)}">🗑️<br>Delete</button>
       </div>
       <div class="chat-emoji-grid">${emojis.map(e => `<button data-action="chat-add-reaction:${esc(messageId)}:${encodeURIComponent(e)}">${e}</button>`).join('')}</div>`
   });
+}
+
+function openDeleteMessageChoices(messageId) {
+  const c = convoFor(state.activeChat);
+  const m = c.messages.find(x => x.id === messageId);
+  if (!m) return;
+
+  const ageMs = Date.now() - Number(m.at || 0);
+  const canDeleteForEveryone =
+    m.me &&
+    ageMs >= 0 &&
+    ageMs <= 30 * 60 * 1000;
+
+  openSheet({
+    title: 'Delete message',
+    sub: canDeleteForEveryone
+      ? 'Choose who should stop seeing this message.'
+      : 'This message can only be removed from your view.',
+    body: `
+      ${canDeleteForEveryone ? `
+        <button class="opt" data-action="chat-delete-choice:${esc(messageId)}:everyone">
+          <span class="ic">🗑️</span>
+          <span class="tx"><span class="t">Delete for everyone</span><span class="s">Remove it from both chats</span></span>
+          <span class="go">${icon('chev')}</span>
+        </button>` : ''}
+      <button class="opt" data-action="chat-delete-choice:${esc(messageId)}:me">
+        <span class="ic">⌫</span>
+        <span class="tx"><span class="t">Delete for me</span><span class="s">Remove it only from your view</span></span>
+        <span class="go">${icon('chev')}</span>
+      </button>
+    `
+  });
+}
+
+function confirmChatDelete(messageId, mode) {
+  const c = convoFor(state.activeChat);
+  const m = c.messages.find(x => x.id === messageId);
+  if (!m) return;
+
+  if (mode === 'everyone') {
+    const ageMs = Date.now() - Number(m.at || 0);
+    if (!m.me || ageMs < 0 || ageMs > 30 * 60 * 1000) {
+      toast('Delete for everyone is only available for 30 minutes.', 'alert');
+      return;
+    }
+
+    openModal({
+      title: 'Delete for everyone?',
+      lede: 'This will permanently remove the message from both chats. This cannot be undone.',
+      actions: [
+        { t: 'Cancel', cls: 'btn--soft', a: 'close-modal' },
+        { t: 'Delete for everyone', cls: 'btn--primary', a: 'confirm-chat-delete:' + messageId + ':everyone' }
+      ]
+    });
+    return;
+  }
+
+  openModal({
+    title: 'Delete for me?',
+    lede: 'This removes the message only from your view. The other person will still have it.',
+    actions: [
+      { t: 'Cancel', cls: 'btn--soft', a: 'close-modal' },
+      { t: 'Delete for me', cls: 'btn--primary', a: 'confirm-chat-delete:' + messageId + ':me' }
+    ]
+  });
+}
+
+async function deleteChatMessage(messageId, mode) {
+  const c = convoFor(state.activeChat);
+  const m = c.messages.find(x => x.id === messageId);
+  if (!m) return false;
+
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session?.user) {
+    toast('Please sign in again.', 'alert');
+    return false;
+  }
+
+  if (mode === 'me') {
+    const { error } = await supabaseClient
+      .from('message_hidden_for_users')
+      .insert({
+        message_id: messageId,
+        user_id: session.user.id
+      });
+
+    if (error) {
+      console.warn('Ming: delete for me failed.', error.message);
+      toast('Could not delete this message for you. Run the message delete migration first.', 'alert');
+      return false;
+    }
+
+    conversations.forEach(convo => {
+      convo.messages = convo.messages.filter(x => x.id !== messageId);
+    });
+
+    closeModal();
+    closeSheet();
+    if (state.activeChat) renderThread();
+    if (state.loaded.messages) renderMessages();
+    toast('Message deleted for you', 'trash');
+    return true;
+  }
+
+  if (mode !== 'everyone') return false;
+
+  const ageMs = Date.now() - Number(m.at || 0);
+  if (!m.me || ageMs < 0 || ageMs > 30 * 60 * 1000) {
+    closeModal();
+    toast('Delete for everyone is only available for 30 minutes.', 'alert');
+    return false;
+  }
+
+  const { data: deletedRows, error } = await supabaseClient
+    .from('messages')
+    .delete()
+    .eq('id', messageId)
+    .eq('sender_id', session.user.id)
+    .select('id');
+
+  if (error) {
+    console.warn('Ming: delete for everyone failed.', error.message);
+    toast('Could not delete this message. Run the message delete migration first.', 'alert');
+    return false;
+  }
+
+  if (!deletedRows?.length) {
+    closeModal();
+    toast('This message can no longer be deleted for everyone.', 'alert');
+    return false;
+  }
+
+  // The database row is gone first. Clean up any private media owned by
+  // the sender afterward so a failed storage cleanup never blocks deletion.
+  const cleanupPaths = [];
+  if (m.attachmentPath) cleanupPaths.push({ bucket: 'ming-message-files', path: m.attachmentPath });
+  if (m.voicePath) cleanupPaths.push({ bucket: 'ming-voice', path: m.voicePath });
+
+  const cleanupFailures = [];
+  for (const item of cleanupPaths) {
+    const { error: storageError } = await supabaseClient
+      .storage
+      .from(item.bucket)
+      .remove([item.path]);
+
+    if (storageError) cleanupFailures.push(item.bucket);
+  }
+
+  conversations.forEach(convo => {
+    convo.messages = convo.messages.filter(x => x.id !== messageId);
+  });
+
+  closeModal();
+  closeSheet();
+  if (state.activeChat) renderThread();
+  if (state.loaded.messages) renderMessages();
+
+  if (cleanupFailures.length) {
+    toast('Message deleted, but its media could not be fully cleaned up.', 'alert');
+  } else {
+    toast('Message deleted for everyone', 'trash');
+  }
+  return true;
 }
 
 async function copyChatMessage(messageId) {
@@ -6871,6 +7078,9 @@ document.addEventListener('click', async e => {
   if(verb==='chat-forward'){ forwardChatMessage(arg); }
   if(verb==='chat-react'){ /* emoji row already visible */ }
   if(verb==='chat-add-reaction'){ addChatReaction(arg, decodeURIComponent(arg2||'')); }
+  if(verb==='chat-delete'){ openDeleteMessageChoices(arg); }
+  if(verb==='chat-delete-choice'){ confirmChatDelete(arg, arg2); }
+  if(verb==='confirm-chat-delete') await deleteChatMessage(arg, arg2);
   if(verb==='forward-to') await forwardSelectedChatMessage(arg);
 });
 
