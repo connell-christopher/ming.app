@@ -94,6 +94,33 @@ using (
 
 
 -- PRIVATE CALL REALTIME
+--
+-- The caller must temporarily be able to JOIN the recipient's private
+-- inbox after the pending invite has been written. Realtime evaluates
+-- realtime.messages authorization in its own transaction, so keep the
+-- cross-table invite check inside a small SECURITY DEFINER helper.
+-- This avoids the invite table's normal RLS policies becoming part of
+-- the Realtime authorization decision.
+
+create or replace function public.ming_can_read_call_inbox(target_user uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $
+  select exists (
+    select 1
+    from public.ming_call_invites i
+    where i.caller_id = (select auth.uid())
+      and i.recipient_id = target_user
+      and i.status = 'pending'
+      and i.expires_at > now()
+  );
+$;
+
+revoke all on function public.ming_can_read_call_inbox(uuid) from public;
+grant execute on function public.ming_can_read_call_inbox(uuid) to authenticated;
 
 drop policy if exists "Ming call inbox receive" on realtime.messages;
 drop policy if exists "Ming call inbox send" on realtime.messages;
@@ -107,18 +134,8 @@ using (
   and (
     (select realtime.topic()) =
       'ming:call:' || (select auth.uid())::text
-    or (
-      split_part((select realtime.topic()), ':', 1) = 'ming'
-      and split_part((select realtime.topic()), ':', 2) = 'call'
-      and exists (
-        select 1
-        from public.ming_call_invites i
-        where i.caller_id = (select auth.uid())
-          and i.recipient_id =
-              split_part((select realtime.topic()), ':', 3)::uuid
-          and i.status = 'pending'
-          and i.expires_at > now()
-      )
+    or public.ming_can_read_call_inbox(
+      split_part((select realtime.topic()), ':', 3)::uuid
     )
   )
 );
