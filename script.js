@@ -1497,8 +1497,7 @@ let mingLastPublishedAt = 0;
 function haversineKm(a, b) {
   const rad = d => d * Math.PI / 180;
   const dLat = rad(b.latitude - a.latitude);
-  const dLng = rad(b.longitude - a.longitude);
-  const s = Math.sin(dLat / 2) ** 2 +
+  const dLng = rad(b.longitude - a.longitude);  const s = Math.sin(dLat / 2) ** 2 +
     Math.cos(rad(a.latitude)) * Math.cos(rad(b.latitude)) * Math.sin(dLng / 2) ** 2;
   return 2 * EARTH_R * Math.asin(Math.sqrt(s));
 }
@@ -2997,8 +2996,7 @@ function openPersonRefresh(id) {
 /* ------------------------------------------------------------
    MESSAGING
 ------------------------------------------------------------ */
-async function loadMingMessages() {
-  try {
+async function loadMingMessages() {  try {
     const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
     if (sessionError || !session?.user) return false;
 
@@ -3215,23 +3213,15 @@ let mingPushReady = false;
 const MING_VAPID_PUBLIC_KEY = 'BPuZKvSfz_hshjbbaEz08rJo5cyzfP4JW2qSYkIiRuJ_QVkFjYBD62RqbcExYtNX1S9Z_Jk4hoPb697FYSghvYc';
 
 const MING_RTC_CONFIG = {
-  iceCandidatePoolSize: 10,
+  // Keep ICE gathering lightweight while giving browsers a reliable
+  // public STUN path. The previous OpenRelay fallback was returning
+  // ICE 701 errors, so it was preventing the connection from finding
+  // a usable server-reflexive candidate.
+  iceCandidatePoolSize: 2,
   iceServers: [
+    { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-
-    // TURN is required when the two devices cannot establish a
-    // direct WebRTC path because of NAT/firewall restrictions.
-    // OpenRelay is used here as the immediate connectivity fallback.
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turns:openrelay.metered.ca:443?transport=tcp'
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    }
+    { urls: 'stun:stun1.l.google.com:19302' }
   ]
 };
 
@@ -4497,8 +4487,7 @@ async function openChat(personId) {
   setTimeout(() => { const t = $('#chat-thread'); if (t) t.scrollTop = t.scrollHeight; }, 60);
 }
 
-function setChatReply(messageId) {
-  const c = convoFor(state.activeChat);
+function setChatReply(messageId) {  const c = convoFor(state.activeChat);
   const m = c.messages.find(x => x.id === messageId);
   if (!m) return;
   chatReplyTarget = m;
@@ -5997,7 +5986,6 @@ function closeSheet() {
   sheet.classList.remove('is-open');
   if (!modal.classList.contains('is-open')) scrim.classList.remove('is-open');
 }
-
 const CREATE_OPTIONS = [
   { k: 'update', ic: 'spark', t: 'Daily Update', s: 'Share something happening now' },
   { k: 'activity', ic: 'cal', t: 'Activity', s: 'Invite people to do something' },
@@ -7498,7 +7486,6 @@ async function boot() {
       }
     }, 180);
   }
-
   /*
      The location request may already be running or complete by this point.
      Do not start a duplicate request here.
@@ -8998,7 +8985,6 @@ function openInviteSheet(spaceId, fresh = false) {
   const code = sp.shownCodes[spaceId];
   const owner = Server.can(spaceId, 'space.invite.rotate');
   const codeVisible = sp.codeVisibility[spaceId] !== false;
-
   openSheet({
     title: fresh ? 'Your Space is live' : 'Invitation',
     sub: `${s.name} · ${NATURES[s.nature].label} · ${Server.memberCount(spaceId)} ${Server.memberCount(spaceId) === 1 ? 'member' : 'members'}`,
@@ -10497,7 +10483,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const MAX_EMAIL_LENGTH = 254;
   const MIN_PASSWORD_LENGTH = 12;
   const MAX_PASSWORD_LENGTH = 128;
-
   /*
      Reject Unicode control characters, null bytes,
      zero-width characters and other invisible characters
