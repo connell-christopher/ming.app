@@ -3893,9 +3893,6 @@ async function startMingCall(kind) {
     attachCallMedia(stream, kind);
     setCallStatus('Calling…');
 
-    const outboundChannel = await ensureMingCallOutboundChannel(remoteId);
-    if (!outboundChannel) throw new Error('Could not connect call signaling.');
-
     const pc = setupCallPeer({ remoteId, callId, kind, role: 'caller' });
     mingCall.pc = pc;
     stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -3916,7 +3913,17 @@ async function startMingCall(kind) {
       kind,
       offer: pc.localDescription
     };
-    await createMingCallInvite(offerPayload);
+
+    // Persist the invite before joining the recipient's private inbox.
+    // Realtime authorization uses this pending invite to allow the caller
+    // to join that topic without exposing other users' call traffic.
+    if (!(await createMingCallInvite(offerPayload))) {
+      throw new Error('Could not save call invitation.');
+    }
+
+    const outboundChannel = await ensureMingCallOutboundChannel(remoteId);
+    if (!outboundChannel) throw new Error('Could not connect call signaling.');
+
     void sendMingCallPush(offerPayload);
     if (!(await sendCallSignal(remoteId, offerPayload))) throw new Error('Could not send call invitation.');
   } catch (error) {
