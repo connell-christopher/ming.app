@@ -4630,16 +4630,15 @@ function renderThread() {
 }
 
 function tweaklrReactionSvg(id) {
-  const shapes = {
-    tw_heart: '<path d="M12 20.1S4.2 15.4 4.2 9.6c0-2.7 2-4.5 4.3-4.5 1.5 0 2.8.8 3.5 2 0.7-1.2 2-2 3.5-2 2.3 0 4.3 1.8 4.3 4.5 0 5.8-7.8 10.5-7.8 10.5Z"/>',
-    tw_laugh: '<path d="M7 14.2c1.4 2.3 3 3.4 5 3.4s3.6-1.1 5-3.4"/><circle cx="8.4" cy="10" r="1"/><circle cx="15.6" cy="10" r="1"/><path d="M5.2 12a6.8 6.8 0 1 0 13.6 0 6.8 6.8 0 1 0-13.6 0Z"/>',
-    tw_wow: '<circle cx="12" cy="12" r="7.2"/><circle cx="9" cy="9.4" r="1"/><circle cx="15" cy="9.4" r="1"/><ellipse cx="12" cy="14.6" rx="1.7" ry="2.2"/>',
-    tw_sad: '<circle cx="12" cy="12" r="7.2"/><circle cx="9" cy="10" r="1"/><circle cx="15" cy="10" r="1"/><path d="M8.5 16.4c1.2-1.5 2.4-2.2 3.5-2.2s2.3.7 3.5 2.2"/>',
-    tw_angry: '<path d="M6 8.2 9.4 9.3M18 8.2l-3.4 1.1"/><circle cx="12" cy="12" r="7.2"/><path d="M8.8 16.2c2.1-1.5 4.3-1.5 6.4 0"/><path d="M8.5 10.4h.01M15.5 10.4h.01"/>',
-    tw_like: '<path d="M8.5 11.2v7H6.4a1.7 1.7 0 0 1-1.7-1.7v-3.6a1.7 1.7 0 0 1 1.7-1.7h2.1ZM8.5 18.2h7.1a2.2 2.2 0 0 0 2.1-1.6l1.1-4.2a1.9 1.9 0 0 0-1.8-2.4h-3.2l.5-2.5c.2-1.1-.5-2.2-1.6-2.5l-.5-.1-2.2 4.5"/>'
+  const emojis = {
+    tw_heart: '❤️',
+    tw_laugh: '😂',
+    tw_wow: '😮',
+    tw_sad: '😢',
+    tw_angry: '😡',
+    tw_like: '👍'
   };
-  const shape = shapes[id] || shapes.tw_like;
-  return '<svg class="tweaklr-emoji" viewBox="0 0 24 24" aria-hidden="true">' + shape + '</svg>';
+  return '<span class="tweaklr-emoji" aria-hidden="true">' + (emojis[id] || emojis.tw_like) + '</span>';
 }
 
 function tweaklrReactionMarkup(id, count) {
