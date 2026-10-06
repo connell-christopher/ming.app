@@ -1960,6 +1960,45 @@ function liveUpdates() {
   return dailyUpdates.filter(u => hoursLeft(u) > 0).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+function renderDailyUpdateMedia(u) {
+  const media = Array.isArray(u.media) ? u.media.filter(m => m?.url) : [];
+  if (!media.length) return '';
+
+  if (media.length === 1) {
+    const m = media[0];
+    return `<div class="upd-media upd-media--single">
+      ${m.mime.startsWith('video/')
+        ? `<video src="${esc(m.url)}" controls playsinline preload="none" aria-label="Post video"></video>`
+        : `<a href="${esc(m.url)}" target="_blank" rel="noopener noreferrer" aria-label="View image"><img src="${esc(m.url)}" alt="${esc(m.name || 'Post image')}" loading="lazy" /></a>`}
+    </div>`;
+  }
+
+  return `<div class="upd-media upd-media--collage upd-media--count-${media.length}" aria-label="${media.length} attached photos or videos">
+    ${media.map((m, index) => `
+      <button type="button" class="upd-media__tile" data-action="open-update-media:${esc(u.id)}:${index}" aria-label="Open ${m.mime.startsWith('video/') ? 'video' : 'photo'} ${index + 1}">
+        ${m.mime.startsWith('video/')
+          ? `<video src="${esc(m.url)}" muted playsinline preload="metadata" aria-hidden="true"></video>`
+          : `<img src="${esc(m.url)}" alt="${esc(m.name || 'Post image')}" loading="lazy" />`}
+      </button>`).join('')}
+  </div>`;
+}
+
+function openDailyUpdateMedia(id, index) {
+  const u = dailyUpdates.find(x => x.id === id);
+  const media = Array.isArray(u?.media) ? u.media.filter(m => m?.url) : [];
+  const item = media[Number(index)];
+  if (!item) return;
+
+  const position = media.length > 1 ? ` · ${Number(index) + 1} of ${media.length}` : '';
+  openSheet({
+    title: 'Post media',
+    sub: (item.mime.startsWith('video/') ? 'Video' : 'Photo') + position,
+    body: item.mime.startsWith('video/')
+      ? `<div class="upd-media-viewer"><video src="${esc(item.url)}" controls autoplay playsinline preload="metadata"></video></div>`
+      : `<div class="upd-media-viewer"><img src="${esc(item.url)}" alt="${esc(item.name || 'Post image')}" /></div>`
+  });
+}
+
 function updateCard(u) {
   const p = u.authorId === currentUser.id ? currentUser : byId(u.authorId);
   const h = hoursLeft(u);
@@ -1976,7 +2015,7 @@ function updateCard(u) {
     </div>
     <h3>${esc(u.title)}</h3>
     <p>${esc(u.body)}</p>
-    ${Array.isArray(u.media) && u.media.length ? `<div class="upd-media" style="display:grid;gap:9px;margin:12px 0 2px">${u.media.map(m => m.mime.startsWith('video/') ? `<video src="${esc(m.url)}" controls playsinline preload="none" style="display:block;width:100%;max-height:420px;border-radius:14px;background:#000"></video>` : `<a href="${esc(m.url)}" target="_blank" rel="noopener noreferrer" aria-label="View image"><img src="${esc(m.url)}" alt="${esc(m.name || 'Post image')}" loading="lazy" style="display:block;width:100%;max-height:420px;object-fit:cover;border-radius:14px;background:var(--surface-2);cursor:zoom-in" /></a>`).join('')}</div>` : ''}
+    ${renderDailyUpdateMedia(u)}
     <div class="upd-foot">
       <button class="act ${u.liked ? 'is-on' : ''}" data-action="like:${u.id}" aria-pressed="${u.liked}" aria-label="React to this update">
         ${icon('heart')}<span>${u.likes}</span>
