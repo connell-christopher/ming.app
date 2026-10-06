@@ -3909,3 +3909,98 @@ html.theme-transitioning *::after {
 .chat-attachment-file-copy small{font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chat-attachment .go svg{width:14px;height:14px}
 
+
+
+/* Daily Update media collage — max four attachments */
+.upd-media {
+  margin: 12px 0 2px;
+}
+
+.upd-media--single {
+  display: block;
+}
+
+.upd-media--single img,
+.upd-media--single video {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.upd-media--single img {
+  cursor: zoom-in;
+}
+
+.upd-media--collage {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(120px, 1fr);
+  gap: 3px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--surface-2);
+  aspect-ratio: 1.18 / 1;
+}
+
+.upd-media__tile {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0;
+  background: #000;
+  cursor: pointer;
+}
+
+.upd-media__tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0);
+  transition: background 160ms ease;
+  pointer-events: none;
+}
+
+.upd-media__tile:active::after {
+  background: rgba(0,0,0,.12);
+}
+
+.upd-media__tile img,
+.upd-media__tile video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+  pointer-events: none;
+  background: #000;
+}
+
+.upd-media--count-3 .upd-media__tile:first-child {
+  grid-row: span 2;
+}
+
+.upd-media-viewer {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #000;
+}
+
+.upd-media-viewer img,
+.upd-media-viewer video {
+  display: block;
+  width: 100%;
+  max-height: min(70vh, 620px);
+  object-fit: contain;
+  background: #000;
+}
