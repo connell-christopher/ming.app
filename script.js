@@ -1986,17 +1986,63 @@ function renderDailyUpdateMedia(u) {
 function openDailyUpdateMedia(id, index) {
   const u = dailyUpdates.find(x => x.id === id);
   const media = Array.isArray(u?.media) ? u.media.filter(m => m?.url) : [];
-  const item = media[Number(index)];
-  if (!item) return;
+  if (!media.length) return;
 
-  const position = media.length > 1 ? ` · ${Number(index) + 1} of ${media.length}` : '';
+  let currentIndex = Math.max(0, Math.min(Number(index) || 0, media.length - 1));
+
+  const renderViewer = () => {
+    const item = media[currentIndex];
+    if (!item) return;
+
+    const position = media.length > 1 ? ` · ${currentIndex + 1} of ${media.length}` : '';
+    $('#sheet-head').innerHTML = `<h2>Post media</h2><p>${esc((item.mime.startsWith('video/') ? 'Video' : 'Photo') + position)}</p>`;
+    $('#sheet-body').innerHTML = item.mime.startsWith('video/')
+      ? `<div class="upd-media-viewer" data-swipe-media><video src="${esc(item.url)}" controls autoplay playsinline preload="metadata"></video></div>`
+      : `<div class="upd-media-viewer" data-swipe-media><img src="${esc(item.url)}" alt="${esc(item.name || 'Post image')}" /></div>`;
+
+    const viewer = $('#sheet-body .upd-media-viewer');
+    if (!viewer || media.length < 2) return;
+
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    viewer.addEventListener('touchstart', e => {
+      if (!e.touches?.length) return;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+
+    viewer.addEventListener('touchend', e => {
+      if (!tracking || !e.changedTouches?.length) return;
+      tracking = false;
+
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const dx = endX - startX;
+      const dy = endY - startY;
+
+      if (Math.abs(dx) < 55 || Math.abs(dx) <= Math.abs(dy)) return;
+
+      const nextIndex = dx < 0
+        ? Math.min(currentIndex + 1, media.length - 1)
+        : Math.max(currentIndex - 1, 0);
+
+      if (nextIndex !== currentIndex) {
+        currentIndex = nextIndex;
+        renderViewer();
+      }
+    }, { passive: true });
+  };
+
   openSheet({
     title: 'Post media',
-    sub: (item.mime.startsWith('video/') ? 'Video' : 'Photo') + position,
-    body: item.mime.startsWith('video/')
-      ? `<div class="upd-media-viewer"><video src="${esc(item.url)}" controls autoplay playsinline preload="metadata"></video></div>`
-      : `<div class="upd-media-viewer"><img src="${esc(item.url)}" alt="${esc(item.name || 'Post image')}" /></div>`
+    sub: '',
+    body: ''
   });
+
+  renderViewer();
 }
 
 function updateCard(u) {
