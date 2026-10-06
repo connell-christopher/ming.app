@@ -3602,16 +3602,16 @@ html.theme-transitioning *::after {
   box-shadow:0 5px 13px rgba(30,16,10,.14);
 }
 .tweaklr-emoji {
-  width:44px;
-  height:44px;
-  min-width:44px;
-  min-height:44px;
+  width:38px;
+  height:38px;
+  min-width:38px;
+  min-height:38px;
   display:grid;
   place-items:center;
   overflow:visible;
   font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;
-  font-size:36px;
-  line-height:1;
+  font-size:32px;
+  line-height:.9;
   font-style:normal;
   filter:drop-shadow(0 3px 2px rgba(30,16,10,.12));
   transform-origin:center;
@@ -3640,8 +3640,8 @@ html.theme-transitioning *::after {
 .tweaklr-emoji-btn:nth-child(4) .tweaklr-emoji,
 .tweaklr-emoji-btn:nth-child(5) .tweaklr-emoji,
 .tweaklr-emoji-btn:nth-child(6) .tweaklr-emoji {
-  width:44px;
-  height:44px;
+  width:38px;
+  height:38px;
   margin:auto;
 }
 
