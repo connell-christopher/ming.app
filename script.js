@@ -6752,6 +6752,7 @@ document.addEventListener('click', async e => {
     case 'like': toggleLike(arg); break;
     case 'comments': openComments(arg); break;
     case 'share-update': await shareDailyUpdate(arg); break;
+    case 'open-update-media': openDailyUpdateMedia(arg, arg2); break;
     case 'share-external': await shareDailyUpdateExternal(arg); break;
     case 'send-update': await sendDailyUpdateToConnection(arg, arg2); break;
     case 'download-update': await downloadDailyUpdate(arg); break;
