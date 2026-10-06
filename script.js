@@ -4612,7 +4612,7 @@ function renderThread() {
         ${reply ? `<span class="chat-bubble__reply"><strong>${reply.me ? 'You' : esc(byId(state.activeChat)?.short || 'Them')}</strong>${reply.type === 'voice' ? '🎙️ Voice note' : esc((reply.text || '').slice(0, 110))}</span>` : ''}
         ${m.type === 'voice' ? renderVoiceMessage(m) : (m.attachmentPath ? renderChatAttachment(m) : `<span class="chat-bubble__text">${esc(m.text)}</span>`)}
         <span class="chat-bubble__time">${clockTime(m.at)}${m.me ? ` · ${m.read ? 'Read' : 'Sent'}` : ''}</span>
-        ${Object.entries(reactions).length ? `<span class="chat-reactions">${Object.entries(reactions).map(([emoji,count]) => `<span class="chat-reaction">${emoji} ${count > 1 ? count : ''}</span>`).join('')}</span>` : ''}
+        ${Object.entries(reactions).length ? `<span class="chat-reactions">${Object.entries(reactions).map(([emoji,count]) => tweaklrReactionMarkup(emoji,count)).join('')}</span>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -4629,23 +4629,40 @@ function renderThread() {
 
 }
 
+function tweaklrReactionSvg(id) {
+  const shapes = {
+    tw_heart: '<path d="M12 20.1S4.2 15.4 4.2 9.6c0-2.7 2-4.5 4.3-4.5 1.5 0 2.8.8 3.5 2 0.7-1.2 2-2 3.5-2 2.3 0 4.3 1.8 4.3 4.5 0 5.8-7.8 10.5-7.8 10.5Z"/>',
+    tw_laugh: '<path d="M7 14.2c1.4 2.3 3 3.4 5 3.4s3.6-1.1 5-3.4"/><circle cx="8.4" cy="10" r="1"/><circle cx="15.6" cy="10" r="1"/><path d="M5.2 12a6.8 6.8 0 1 0 13.6 0 6.8 6.8 0 1 0-13.6 0Z"/>',
+    tw_wow: '<circle cx="12" cy="12" r="7.2"/><circle cx="9" cy="9.4" r="1"/><circle cx="15" cy="9.4" r="1"/><ellipse cx="12" cy="14.6" rx="1.7" ry="2.2"/>',
+    tw_sad: '<circle cx="12" cy="12" r="7.2"/><circle cx="9" cy="10" r="1"/><circle cx="15" cy="10" r="1"/><path d="M8.5 16.4c1.2-1.5 2.4-2.2 3.5-2.2s2.3.7 3.5 2.2"/>',
+    tw_angry: '<path d="M6 8.2 9.4 9.3M18 8.2l-3.4 1.1"/><circle cx="12" cy="12" r="7.2"/><path d="M8.8 16.2c2.1-1.5 4.3-1.5 6.4 0"/><path d="M8.5 10.4h.01M15.5 10.4h.01"/>',
+    tw_like: '<path d="M8.5 11.2v7H6.4a1.7 1.7 0 0 1-1.7-1.7v-3.6a1.7 1.7 0 0 1 1.7-1.7h2.1ZM8.5 18.2h7.1a2.2 2.2 0 0 0 2.1-1.6l1.1-4.2a1.9 1.9 0 0 0-1.8-2.4h-3.2l.5-2.5c.2-1.1-.5-2.2-1.6-2.5l-.5-.1-2.2 4.5"/>'
+  };
+  const shape = shapes[id] || shapes.tw_like;
+  return '<svg class="tweaklr-emoji" viewBox="0 0 24 24" aria-hidden="true">' + shape + '</svg>';
+}
+
+function tweaklrReactionMarkup(id, count) {
+  return '<span class="chat-reaction" data-tweaklr-reaction="' + esc(id) + '">' + tweaklrReactionSvg(id) + (count > 1 ? '<b>' + count + '</b>' : '') + '</span>';
+}
+
 function openMessageActions(messageId) {
   const c = convoFor(state.activeChat);
   const m = c.messages.find(x => x.id === messageId);
   if (!m) return;
-  const emojis = ['❤️','😂','😮','😢','😡','👍'];
+  const emojis = ['tw_heart','tw_laugh','tw_wow','tw_sad','tw_angry','tw_like'];
   openSheet({
     title: 'Message',
     sub: 'Choose an action',
     body: `
       <div class="chat-action-grid">
-        <button data-action="chat-reply:${esc(messageId)}">↩️<br>Reply</button>
-        <button data-action="chat-copy:${esc(messageId)}">📋<br>Copy</button>
-        <button data-action="chat-forward:${esc(messageId)}">↗️<br>Forward</button>
-        <button data-action="chat-react:${esc(messageId)}">😊<br>React</button>
-        <button data-action="chat-delete:${esc(messageId)}">🗑️<br>Delete</button>
+        <button data-action="chat-reply:${esc(messageId)}"><span class="tw-action-icon tw-action-reply" aria-hidden="true"></span><br>Reply</button>
+        <button data-action="chat-copy:${esc(messageId)}"><span class="tw-action-icon tw-action-copy" aria-hidden="true"></span><br>Copy</button>
+        <button data-action="chat-forward:${esc(messageId)}"><span class="tw-action-icon tw-action-forward" aria-hidden="true"></span><br>Forward</button>
+        <button data-action="chat-react:${esc(messageId)}"><span class="tw-action-icon tw-action-react" aria-hidden="true"></span><br>React</button>
+        <button data-action="chat-delete:${esc(messageId)}"><span class="tw-action-icon tw-action-delete" aria-hidden="true"></span><br>Delete</button>
       </div>
-      <div class="chat-emoji-grid">${emojis.map(e => `<button data-action="chat-add-reaction:${esc(messageId)}:${encodeURIComponent(e)}">${e}</button>`).join('')}</div>`
+      <div class="chat-emoji-grid" aria-label="Tweaklr reactions">${emojis.map(e => `<button class="tweaklr-emoji-btn" data-action="chat-add-reaction:${esc(messageId)}:${encodeURIComponent(e)}" aria-label="${e.replace('tw_','Tweaklr ')}">${tweaklrReactionSvg(e)}</button>`).join('')}</div>`
   });
 }
 
