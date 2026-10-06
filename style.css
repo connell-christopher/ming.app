@@ -3602,8 +3602,10 @@ html.theme-transitioning *::after {
   box-shadow:0 5px 13px rgba(30,16,10,.14);
 }
 .tweaklr-emoji {
-  width:40px;
-  height:40px;
+  width:44px;
+  height:44px;
+  min-width:44px;
+  min-height:44px;
   display:block;
   overflow:visible;
   fill:none;
@@ -3617,12 +3619,33 @@ html.theme-transitioning *::after {
   transform-origin:center;
   animation:tweaklrEmojiFloat 2.8s ease-in-out infinite;
 }
-.tweaklr-emoji-btn:nth-child(1) { color:#D94A62; }
-.tweaklr-emoji-btn:nth-child(2) { color:#E0A044; }
-.tweaklr-emoji-btn:nth-child(3) { color:#E3B34D; }
-.tweaklr-emoji-btn:nth-child(4) { color:#7695B0; }
-.tweaklr-emoji-btn:nth-child(5) { color:#D45A4E; }
-.tweaklr-emoji-btn:nth-child(6) { color:#B9783F; }
+.tweaklr-emoji-btn:nth-child(1) { color:#F04B67; }
+.tweaklr-emoji-btn:nth-child(2) { color:#FF9F3F; }
+.tweaklr-emoji-btn:nth-child(3) { color:#FFD34E; }
+.tweaklr-emoji-btn:nth-child(4) { color:#62B7E8; }
+.tweaklr-emoji-btn:nth-child(5) { color:#F04F45; }
+.tweaklr-emoji-btn:nth-child(6) { color:#E39A45; }
+.tweaklr-emoji-btn:nth-child(1),
+.tweaklr-emoji-btn:nth-child(2),
+.tweaklr-emoji-btn:nth-child(3),
+.tweaklr-emoji-btn:nth-child(4),
+.tweaklr-emoji-btn:nth-child(5),
+.tweaklr-emoji-btn:nth-child(6) {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  transform-origin:center;
+}
+.tweaklr-emoji-btn:nth-child(1) .tweaklr-emoji,
+.tweaklr-emoji-btn:nth-child(2) .tweaklr-emoji,
+.tweaklr-emoji-btn:nth-child(3) .tweaklr-emoji,
+.tweaklr-emoji-btn:nth-child(4) .tweaklr-emoji,
+.tweaklr-emoji-btn:nth-child(5) .tweaklr-emoji,
+.tweaklr-emoji-btn:nth-child(6) .tweaklr-emoji {
+  width:44px;
+  height:44px;
+  margin:auto;
+}
 
 .chat-reaction {
   display:inline-flex;
