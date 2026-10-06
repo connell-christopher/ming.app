@@ -3619,12 +3619,12 @@ html.theme-transitioning *::after {
   transform-origin:center;
   animation:tweaklrEmojiFloat 2.8s ease-in-out infinite;
 }
-.tweaklr-emoji-btn:nth-child(1) { color:#F04B67; }
-.tweaklr-emoji-btn:nth-child(2) { color:#FF9F3F; }
-.tweaklr-emoji-btn:nth-child(3) { color:#FFD34E; }
-.tweaklr-emoji-btn:nth-child(4) { color:#62B7E8; }
-.tweaklr-emoji-btn:nth-child(5) { color:#F04F45; }
-.tweaklr-emoji-btn:nth-child(6) { color:#E39A45; }
+.tweaklr-emoji-btn:nth-child(1) { color:#F6D98B; }
+.tweaklr-emoji-btn:nth-child(2) { color:#E8C37A; }
+.tweaklr-emoji-btn:nth-child(3) { color:#DDE2EA; }
+.tweaklr-emoji-btn:nth-child(4) { color:#BFC5D0; }
+.tweaklr-emoji-btn:nth-child(5) { color:#C9863E; }
+.tweaklr-emoji-btn:nth-child(6) { color:#F2E8D5; }
 .tweaklr-emoji-btn:nth-child(1),
 .tweaklr-emoji-btn:nth-child(2),
 .tweaklr-emoji-btn:nth-child(3),
