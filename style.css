@@ -3606,16 +3606,14 @@ html.theme-transitioning *::after {
   height:44px;
   min-width:44px;
   min-height:44px;
-  display:block;
+  display:grid;
+  place-items:center;
   overflow:visible;
-  fill:none;
-  stroke:currentColor;
-  stroke-width:2.15;
-  stroke-linecap:round;
-  stroke-linejoin:round;
-  filter:
-    drop-shadow(0 3px 2px rgba(30,16,10,.12))
-    drop-shadow(0 0 8px rgba(255,255,255,.20));
+  font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;
+  font-size:36px;
+  line-height:1;
+  font-style:normal;
+  filter:drop-shadow(0 3px 2px rgba(30,16,10,.12));
   transform-origin:center;
   animation:tweaklrEmojiFloat 2.8s ease-in-out infinite;
 }
