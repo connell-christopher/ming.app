@@ -440,6 +440,8 @@
 #screen-space .sp-bar .ic{width:34px;height:34px;min-width:34px;min-height:34px}
 #screen-space .sp-bar .ic svg{width:17px;height:17px}
 #screen-space .stack-avs .av{width:24px;height:24px;font-size:9px}
+#screen-spaces .stack-avs .av{width:24px!important;height:24px!important;font-size:9px!important}
+#screen-spaces .stack-avs .av img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:cover!important}
 #screen-space .mrow>.av,
 #screen-space .sp-body .av--56,
 #screen-space .sp-body .av--48,
