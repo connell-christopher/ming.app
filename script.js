@@ -2938,7 +2938,7 @@ function openPerson(id) {
 
   $('#person-body').innerHTML = `
     <div class="phead" style="padding-top:8px">
-      ${ringAvatar(p, 68, isMingUserOnline(p.id))}
+      ${ringAvatar(p, 88, isMingUserOnline(p.id))}
       <div class="who">
         <h1>${esc(p.name)}</h1>
         <div class="u">${esc(p.tag)}</div>
@@ -3435,7 +3435,7 @@ function showCallOverlay({ incoming = false, active = false, kind = 'voice', per
   const p = personId ? byId(personId) : null;
   $('#call-name').textContent = p?.short || 'Ming user';
   const av = $('#call-avatar');
-  if (av && p) av.innerHTML = avatar(p, 60, { status: false });
+  if (av && p) av.innerHTML = avatar(p, 72, { status: false });
   setCallControls({ incoming, active });
   renderCallMode(kind);
   overlay.hidden = false;
@@ -5505,7 +5505,7 @@ function renderProfile() {
   $('#profile-body').innerHTML = `
     <div class="phead">
       <button type="button" data-action="avatar-menu" aria-label="Profile photo" style="border:0;background:none;padding:0;cursor:pointer">
-        ${ringAvatar(currentUser, 68, true)}
+        ${ringAvatar(currentUser, 88, true)}
       </button>
       <div class="who">
         <h1>${esc(currentUser.name)}</h1>
@@ -6485,7 +6485,7 @@ function openAvatarMenu() {
     lede: currentUser.avatarUrl
       ? 'View your current photo or choose a new one.'
       : 'Add a clear photo so people can recognize and connect with you.',
-    fields: `<div style="text-align:center;padding:8px 0">${ringAvatar(currentUser, 72, false)}</div>`,
+    fields: `<div style="text-align:center;padding:8px 0">${ringAvatar(currentUser, 96, false)}</div>`,
     actions: [
       ...(currentUser.avatarUrl ? [{ t: 'View photo', cls: 'btn--soft', a: 'view-avatar' }] : []),
       { t: currentUser.avatarUrl ? 'Edit photo' : 'Add photo', cls: 'btn--primary', a: 'pick-avatar' }
