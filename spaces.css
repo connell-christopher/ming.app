@@ -440,8 +440,12 @@
 #screen-space .sp-bar .ic{width:34px;height:34px;min-width:34px;min-height:34px}
 #screen-space .sp-bar .ic svg{width:17px;height:17px}
 #screen-space .stack-avs .av{width:24px;height:24px;font-size:9px}
-#screen-space .mrow>.av{width:36px;height:36px;font-size:13px}
-#screen-space .sp-body .av--56,#screen-space .sp-body .av--44,#screen-space .sp-body .av--40{width:36px;height:36px;font-size:13px}
+#screen-space .mrow>.av,
+#screen-space .sp-body .av--56,
+#screen-space .sp-body .av--48,
+#screen-space .sp-body .av--44,
+#screen-space .sp-body .av--40,
+#screen-space .friend-strip .av{width:32px!important;height:32px!important;font-size:12px!important}
 
 /* ============================================================
    MING SPACES — command center upgrade
