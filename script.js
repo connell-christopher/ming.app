@@ -60,18 +60,18 @@
    MOON-SKY.JS
 =============================*/
 /* ============================================================
-   ming — Moonflower
+   Tweaklr — Moonflower
    moon-sky.js  ·  a single canvas, one render loop, mounted into
    whichever Moonflower screen is currently active.
 
-   Ming is the world outside; this is the world inside. The engine
+   Tweaklr is the world outside; this is the world inside. The engine
    never touches app.js's state or Moonflower's data (goals, notes,
    reminders, chat) — it only draws the environment behind it.
 
    Two atmospheres share this canvas and one render loop:
      mode 'dark'  — moon, cool stars, a rare occasional eclipse
      mode 'light' — sun, warm atmosphere, faint drifting dust
-   The mode follows Ming's existing global theme toggle by watching
+   The mode follows Tweaklr's existing global theme toggle by watching
    <html data-theme> — the same self-wiring already used below to
    move the canvas between screens. theme.js is never touched.
    ============================================================ */
@@ -105,7 +105,7 @@
     space: '#02030A', shadow: '#0B0D16', grey: '#8F929B',
     light: '#DDE2EA', silver: '#BFC5D0', blue: '#11182A', violet: '#28233D'
   };
-  /* light atmosphere — evolves from Ming's own warm palette, not a
+  /* light atmosphere — evolves from Tweaklr's own warm palette, not a
      plain white flip: quiet cream/gold, sunlight through a still room */
   const DAY = {
     sky: '#F7EEE0', skyEdge: '#EEDFC5', dust: '#E7CFA6',
@@ -694,7 +694,7 @@
      APP.JS   
   ============================*/
   /* ============================================================
-   ming — People. Moments. Possibilities.
+   Tweaklr — People. Moments. Possibilities.
    app.js  ·  vanilla JS, no dependencies
    Sections: Utilities · Demo Data · App State · Rendering atoms
              Navigation · Location · Home · Discover · Nearby
@@ -971,8 +971,8 @@ async function loadMingConnections() {
       const tags = Array.isArray(profile.tags) ? profile.tags : [];
       mingConnectionProfiles.set(profile.id, {
         id: profile.id,
-        name: profile.display_name || 'Ming user',
-        short: profile.display_name || 'Ming user',
+        name: profile.display_name || 'Tweaklr user',
+        short: profile.display_name || 'Tweaklr user',
         tag: profile.headline || tags.join(' · '),
         interests,
         bio: profile.bio || '',
@@ -1474,7 +1474,7 @@ $$('.scroll[data-scroll]').forEach(sc => {
 ------------------------------------------------------------ */
 /* 
    Location is intentionally acquired in two stages:
-   1) Fast/network-assisted fix first, so mobile users get into Ming quickly.
+   1) Fast/network-assisted fix first, so mobile users get into Tweaklr quickly.
    2) High-accuracy watch continues in the background and quietly improves the fix.
    This avoids making the first screen wait for a cold GPS lock.
 */
@@ -1569,7 +1569,7 @@ function requestLocation(then) {
   /*
      First ask for the quickest usable position. On phones this can come
      from a recent/cached network-assisted location instead of waiting for
-     a fresh GPS lock. As soon as it arrives, Ming can calculate distance,
+     a fresh GPS lock. As soon as it arrives, Tweaklr can calculate distance,
      publish the discovery location and render Nearby.
   */
   navigator.geolocation.getCurrentPosition(
@@ -1766,13 +1766,13 @@ async function loadMingDailyUpdates() {
     }
 
     dailyUpdates = await Promise.all((rows || []).map(async row => {
-      const name = row.author_display_name || 'Ming user';
+      const name = row.author_display_name || 'Tweaklr user';
       const profile = {
         id: row.author_id,
         name,
         short: name.split(' ')[0] || name,
         hue: 24,
-        tag: row.author_headline || 'Ming member',
+        tag: row.author_headline || 'Tweaklr member',
         interests: [],
         bio: row.author_bio || '',
         avatarUrl: row.author_avatar_url || '',
@@ -1831,13 +1831,13 @@ async function loadMingDailyUpdateComments(updateId) {
   }
 
   const comments = (rows || []).map(row => {
-    const name = row.author_display_name || 'Ming user';
+    const name = row.author_display_name || 'Tweaklr user';
     const profile = {
       id: row.author_id,
       name,
       short: name.split(' ')[0] || name,
       hue: 24,
-      tag: 'Ming member',
+      tag: 'Tweaklr member',
       interests: [],
       bio: '',
       avatarUrl: row.author_avatar_url || '',
@@ -1906,7 +1906,7 @@ function renderHomePeople() {
 
   if (!hasLocation()) {
     host.innerHTML = sectionHead('People nearby') +
-      emptyState(locationLine().title, 'Ming finds people using your device location. Turn on location access to see who is around you.',
+      emptyState(locationLine().title, 'Tweaklr finds people using your device location. Turn on location access to see who is around you.',
         state.locStatus === 'denied' ? null : { t: 'Turn on location', a: 'enable-location' });
     return;
   }
@@ -1924,7 +1924,7 @@ function renderHomePeople() {
           <div class="tag">${esc(p.tag.split(' · ')[0])}</div>
           <div class="dist">${esc(distLabel(p.km))}</div>
         </button>`).join('')}</div>`
-      : emptyState('No people nearby yet', 'No other discoverable Ming members with a fresh location are within 15 km right now.'));
+      : emptyState('No people nearby yet', 'No other discoverable Tweaklr members with a fresh location are within 15 km right now.'));
 }
 
 function renderHomeFeed() {
@@ -2083,7 +2083,7 @@ async function getDailyUpdateShareData(id) {
   if (!u) return null;
 
   const p = u.authorId === currentUser.id ? currentUser : byId(u.authorId);
-  const title = u.title || 'Ming Daily Update';
+  const title = u.title || 'Tweaklr Daily Update';
   const text = [p?.name ? p.name + ': ' + title : title, u.body || ''].filter(Boolean).join(' — ');
   const url = new URL(window.location.href);
   url.hash = '';
@@ -2600,7 +2600,7 @@ async function loadMingDiscoverableProfiles(radiusKm = null) {
     mingDiscoverPeople = (data || [])
       .filter(profile => profile.distance_km != null && Number.isFinite(Number(profile.distance_km)))
       .map(profile => {
-      const name = profile.display_name || 'Ming user';
+      const name = profile.display_name || 'Tweaklr user';
       const tags = Array.isArray(profile.tags) ? profile.tags : [];
       const interests = Array.isArray(profile.interests) ? profile.interests : [];
       const seed = profile.id + ':' + name;
@@ -2608,10 +2608,10 @@ async function loadMingDiscoverableProfiles(radiusKm = null) {
       for (let i = 0; i < seed.length; i++) hue = (hue * 31 + seed.charCodeAt(i)) % 360;
       return {
         id: profile.id, name, short: name.split(' ')[0] || name, hue,
-        tag: profile.headline || tags.slice(0, 3).join(' · ') || 'Ming member',
+        tag: profile.headline || tags.slice(0, 3).join(' · ') || 'Tweaklr member',
         interests, bio: profile.bio || '', avatarUrl: profile.avatar_url || '',
         username: profile.username ? '@' + profile.username.replace(/^@/, '') : '',
-        activity: profile.activity || 'Available on Ming', status: 'on', visitor: false,
+        activity: profile.activity || 'Available on Tweaklr', status: 'on', visitor: false,
         km: profile.distance_km == null ? null : Number(profile.distance_km),
         bearingDeg: profile.bearing_deg == null ? null : Number(profile.bearing_deg), off: null
       };
@@ -2648,11 +2648,11 @@ async function loadMingDiscoverContent() {
       const updates = rows || [];
       const activityIds = updates.filter(r => r.kind === 'activity').map(r => r.id);
       updates.forEach(row => {
-        const name = row.author_display_name || 'Ming user';
+        const name = row.author_display_name || 'Tweaklr user';
         const seed = String(row.author_id || '') + ':' + name; let hue = 0;
         for (let i = 0; i < seed.length; i++) hue = (hue * 31 + seed.charCodeAt(i)) % 360;
         mingConnectionProfiles.set(row.author_id, { id: row.author_id, name, short: name.split(' ')[0] || name, hue,
-          tag: row.author_headline || 'Ming member', interests: [], bio: row.author_bio || '', avatarUrl: row.author_avatar_url || '',
+          tag: row.author_headline || 'Tweaklr member', interests: [], bio: row.author_bio || '', avatarUrl: row.author_avatar_url || '',
           username: row.author_username ? '@' + row.author_username.replace(/^@/, '') : '', activity: row.author_activity || '',
           status: 'on', visitor: row.kind === 'visitor', km: mingDiscoverPeople.find(p => p.id === row.author_id)?.km ?? null });
         const base = { id: row.id, authorId: row.author_id, title: row.title, body: row.body, createdAt: new Date(row.created_at).getTime(),
@@ -2694,7 +2694,7 @@ function renderDiscover() {
   const f = state.discoverFilter; const show = k => f === 'all' || f === k; let html = '';
   if (show('people')) {
     html += '<div class="section">' + sectionHead('People', null, { t: 'Nearby', a: 'go-nearby' }) + '<div class="rail">' +
-      (mingDiscoverPeople.map(p => '<button class="pcard" data-action="person:' + p.id + '">' + ringAvatar(p, 56, isMingUserOnline(p.id)) + '<div class="name">' + esc(p.short) + '</div><div class="tag">' + esc(p.tag) + '</div><div class="dist">' + esc(p.km == null ? 'Discoverable' : distLabel(p.km)) + '</div></button>').join('') || '<div style="padding:8px 0;color:var(--muted);font-size:13px">No other Ming members are discoverable yet.</div>') + '</div></div>';
+      (mingDiscoverPeople.map(p => '<button class="pcard" data-action="person:' + p.id + '">' + ringAvatar(p, 56, isMingUserOnline(p.id)) + '<div class="name">' + esc(p.short) + '</div><div class="tag">' + esc(p.tag) + '</div><div class="dist">' + esc(p.km == null ? 'Discoverable' : distLabel(p.km)) + '</div></button>').join('') || '<div style="padding:8px 0;color:var(--muted);font-size:13px">No other Tweaklr members are discoverable yet.</div>') + '</div></div>';
   }
   if (show('moments')) {
     html += '<div class="section">' + sectionHead('Moments', 'Recent local moments') + '<div class="rail">' + (discoverMoments.map(m => {
@@ -2706,16 +2706,16 @@ function renderDiscover() {
     html += '<div class="section">' + sectionHead('Opportunities', 'People looking, people offering') + '<div class="rail">' + (discoverOpportunities.map(o => {
       const p = byId(o.authorId); if (!p) return '';
       return '<button class="ocard" data-action="person:' + o.authorId + '"><div class="k">' + esc(o.title) + '</div><h3>' + esc(o.body || 'Opportunity') + '</h3><p>' + esc(timeAgo(o.createdAt)) + '</p><div class="f">' + avatar(p, 28, { status: false }) + '<span>' + esc(p.short) + ' · ' + esc(p.km == null ? 'Local' : distLabel(p.km)) + '</span></div></button>';
-    }).join('') || emptyState('No opportunities yet', 'Real offers and requests shared on Ming will appear here.')) + '</div></div>';
+    }).join('') || emptyState('No opportunities yet', 'Real offers and requests shared on Tweaklr will appear here.')) + '</div></div>';
   }
   if (show('activities')) {
     html += '<div class="section">' + sectionHead('Activities', 'Things happening nearby') + (discoverActivities.map(a => {
       const p = byId(a.authorId); if (!p) return '';
-      return '<button class="acard" data-action="activity:' + a.id + '"><div class="when"><div class="h">' + esc(timeAgo(a.createdAt)) + '</div><div class="d">' + esc(a.going) + ' going</div></div><div class="info"><div class="t">' + esc(a.title) + '</div><div class="s">' + esc(a.body || 'Activity shared on Ming') + ' · ' + esc(p.km == null ? 'Local' : distLabel(p.km)) + '</div></div><span class="go">' + icon('chev') + '</span></button>';
-    }).join('') || emptyState('No activities yet', 'Real activities shared on Ming will appear here.')) + '</div>';
+      return '<button class="acard" data-action="activity:' + a.id + '"><div class="when"><div class="h">' + esc(timeAgo(a.createdAt)) + '</div><div class="d">' + esc(a.going) + ' going</div></div><div class="info"><div class="t">' + esc(a.title) + '</div><div class="s">' + esc(a.body || 'Activity shared on Tweaklr') + ' · ' + esc(p.km == null ? 'Local' : distLabel(p.km)) + '</div></div><span class="go">' + icon('chev') + '</span></button>';
+    }).join('') || emptyState('No activities yet', 'Real activities shared on Tweaklr will appear here.')) + '</div>';
   }
   if (show('places')) {
-    html += '<div class="section">' + sectionHead('Places', 'Public places added to Ming') + '<div class="rail">' + (discoverPlaces.map(pl => '<button class="plcard" data-action="place:' + pl.id + '"><div class="art" style="background:' + avatarStyle(pl.hue) + '"></div><div class="body"><div class="n">' + esc(pl.name) + '</div><div class="s">' + esc(pl.kind) + '</div><div class="d">' + esc(pl.km == null ? 'Distance unavailable' : distLabel(pl.km)) + '</div></div></button>').join('') || emptyState('No places yet', 'Places will appear here once they are added to Ming.')) + '</div></div>';
+    html += '<div class="section">' + sectionHead('Places', 'Public places added to Tweaklr') + '<div class="rail">' + (discoverPlaces.map(pl => '<button class="plcard" data-action="place:' + pl.id + '"><div class="art" style="background:' + avatarStyle(pl.hue) + '"></div><div class="body"><div class="n">' + esc(pl.name) + '</div><div class="s">' + esc(pl.kind) + '</div><div class="d">' + esc(pl.km == null ? 'Distance unavailable' : distLabel(pl.km)) + '</div></div></button>').join('') || emptyState('No places yet', 'Places will appear here once they are added to Tweaklr.')) + '</div></div>';
   }
   if (show('visitors')) {
     html += '<div class="section">' + sectionHead('Visitors', 'People sharing that they are visiting') + '<div class="rail">' + (discoverVisitors.map(v => {
@@ -2748,7 +2748,7 @@ async function loadMingNearbyActivities(radiusKm = state.radius) {
     }
 
     mingNearbyActivities = (data || []).map(row => {
-      const name = row.author_display_name || 'Ming user';
+      const name = row.author_display_name || 'Tweaklr user';
       const seed = String(row.author_id || '') + ':' + name;
       let hue = 0;
       for (let i = 0; i < seed.length; i++) hue = (hue * 31 + seed.charCodeAt(i)) % 360;
@@ -2758,7 +2758,7 @@ async function loadMingNearbyActivities(radiusKm = state.radius) {
         name,
         short: name.split(' ')[0] || name,
         hue,
-        tag: row.author_headline || 'Ming member',
+        tag: row.author_headline || 'Tweaklr member',
         interests: [],
         bio: row.author_bio || '',
         avatarUrl: row.author_avatar_url || '',
@@ -2817,7 +2817,7 @@ function renderNearby() {
       <div class="perm">
         <div class="glyph">${icon('pin')}</div>
         <h3>${esc(locationLine().title === 'Location enabled' ? 'Turn on location' : locationLine().title)}</h3>
-        <p>Ming works out where you are from your device. There is no way to type an area in — you either allow location access or you don't. Your coordinates stay on your device, and nobody else sees more than a rough distance.</p>
+        <p>Tweaklr works out where you are from your device. There is no way to type an area in — you either allow location access or you don't. Your coordinates stay on your device, and nobody else sees more than a rough distance.</p>
         <button class="btn btn--primary btn--block" data-action="enable-location">
           ${state.locStatus === 'requesting' ? 'Finding your area…' : 'Enable location'}
         </button>
@@ -2883,7 +2883,7 @@ function renderNearby() {
     </div>
 
     <div class="privacy-note">${icon('shield')}
-      <p><b>Your exact location is hidden.</b> Ming only ever shows an approximate distance, and never your address or coordinates — to anyone.</p>
+      <p><b>Your exact location is hidden.</b> Tweaklr only ever shows an approximate distance, and never your address or coordinates — to anyone.</p>
     </div>
 
     <div class="section">${sectionHead('People around you', inRange.length ? `${inRange.length} within ${state.radius} km` : null)}
@@ -3158,7 +3158,7 @@ let mingMessageChannel = null;
 let mingChatChannel = null;
 
 /* Global app presence.
-   A user is online only while at least one Ming tab is visible.
+   A user is online only while at least one Tweaklr tab is visible.
    Realtime removes the presence automatically when the socket closes. */
 let mingPresenceChannel = null;
 const mingOnlineUsers = new Set();
@@ -3433,7 +3433,7 @@ function showCallOverlay({ incoming = false, active = false, kind = 'voice', per
   overlay.dataset.callId = callId || '';
   overlay.dataset.callRole = incoming ? 'receiver' : 'caller';
   const p = personId ? byId(personId) : null;
-  $('#call-name').textContent = p?.short || 'Ming user';
+  $('#call-name').textContent = p?.short || 'Tweaklr user';
   const av = $('#call-avatar');
   if (av && p) av.innerHTML = avatar(p, 72, { status: false });
   setCallControls({ incoming, active });
@@ -3699,7 +3699,7 @@ async function showMingIncomingCallNotification(payload) {
     await registration.showNotification(
       payload.kind === 'video' ? 'Incoming video call' : 'Incoming voice call',
       {
-        body: (byId(payload.from)?.short || 'Someone') + ' is calling you on Ming',
+        body: (byId(payload.from)?.short || 'Someone') + ' is calling you on Tweaklr',
         icon: './favicon.ico',
         badge: './favicon.ico',
         tag: 'ming-call-' + payload.callId,
@@ -3980,7 +3980,7 @@ async function startMingCall(kind) {
 
   const remoteId = state.activeChat;
   if (!isUuidPerson(remoteId)) {
-    toast('Calls are available for connected Ming conversations.', 'alert');
+    toast('Calls are available for connected Tweaklr conversations.', 'alert');
     return;
   }
   if (mingCall || mingIncomingCall) {
@@ -5076,7 +5076,7 @@ async function recordVoiceNote() {
     return;
   }
   if (!isUuidPerson(state.activeChat)) {
-    toast('Voice notes need a connected Ming conversation.', 'alert');
+    toast('Voice notes need a connected Tweaklr conversation.', 'alert');
     return;
   }
 
@@ -5200,8 +5200,8 @@ function renderMoonflower() {
     </button>`;
   const pending = moonReminders.find(r => !r.done);
   $('#moon-quiet').innerHTML = pending
-    ? `Quiet reminder — ${esc(pending.text.toLowerCase())}, ${esc(pending.when.toLowerCase())}. Nothing here is shared with anyone on Ming.`
-    : 'Nothing pending. Nothing here is shared with anyone on Ming.';
+    ? `Quiet reminder — ${esc(pending.text.toLowerCase())}, ${esc(pending.when.toLowerCase())}. Nothing here is shared with anyone on Tweaklr.`
+    : 'Nothing pending. Nothing here is shared with anyone on Tweaklr.';
 }
 
 function openMoonRoom(key) {
@@ -5442,13 +5442,13 @@ async function loadMingProfileLikedUpdates() {
     profileLikedUpdates = (rows || [])
       .filter(row => row.liked === true)
       .map(row => {
-        const name = row.author_display_name || 'Ming user';
+        const name = row.author_display_name || 'Tweaklr user';
         const profile = {
           id: row.author_id,
           name,
           short: name.split(' ')[0] || name,
           hue: 24,
-          tag: row.author_headline || 'Ming member',
+          tag: row.author_headline || 'Tweaklr member',
           interests: [],
           bio: row.author_bio || '',
           avatarUrl: row.author_avatar_url || '',
@@ -5573,7 +5573,7 @@ function renderProfile() {
         <button class="menu-item profile-account-messages" data-action="go-messages">${icon('chat')}<span class="t">Messages</span><span class="profile-account-message-dot" id="profile-account-message-dot" aria-label="Unread messages"></span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="go-notifications">${icon('bell')}<span class="t">Notifications</span><span class="go">${icon('chev')}</span></button>
         <button type="button" class="menu-item" data-action="go-spaces">${icon('sp-store')}<span class="t">Your Spaces</span><span class="go">${icon('chev')}</span></button>
-        <button class="menu-item" data-action="go-wallet">${icon('sp-wallet')}<span class="t">Ming Wallet</span><span class="go">${icon('chev')}</span></button>
+        <button class="menu-item" data-action="go-wallet">${icon('sp-wallet')}<span class="t">Tweaklr Wallet</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="privacy">${icon('shield')}<span class="t">Location and privacy</span><span class="go">${icon('chev')}</span></button>
         <button class="menu-item" data-action="settings">${icon('settings')}<span class="t">Settings</span><span class="go">${icon('chev')}</span></button>
       </div>
@@ -5713,7 +5713,7 @@ let searchPlaces = [];
 let searchDiscoverableSpaces = [];
 
 function mapSearchProfile(row) {
-  const name = row.display_name || 'Ming user';
+  const name = row.display_name || 'Tweaklr user';
   const tags = Array.isArray(row.tags) ? row.tags : [];
   const interests = Array.isArray(row.interests) ? row.interests : [];
   let hue = 0;
@@ -5721,7 +5721,7 @@ function mapSearchProfile(row) {
   for (let i = 0; i < seed.length; i++) hue = (hue * 31 + seed.charCodeAt(i)) % 360;
   return {
     id: row.id, name, short: name.split(' ')[0] || name, hue,
-    tag: row.headline || tags.slice(0, 3).join(' · ') || 'Ming member',
+    tag: row.headline || tags.slice(0, 3).join(' · ') || 'Tweaklr member',
     tags, interests, bio: row.bio || '', avatarUrl: row.avatar_url || '',
     username: row.username ? '@' + row.username.replace(/^@/, '') : '',
     activity: row.activity || '', status: 'on', visitor: false,
@@ -5762,13 +5762,13 @@ async function loadMingSearchData() {
         dailyUpdates = [];
       } else {
         dailyUpdates = (updatesResult.data || []).map(row => {
-          const name = row.author_display_name || 'Ming user';
+          const name = row.author_display_name || 'Tweaklr user';
           const existing = mingConnectionProfiles.get(row.author_id);
           mingConnectionProfiles.set(row.author_id, {
             ...(existing || {}),
             id: row.author_id, name, short: name.split(' ')[0] || name,
             hue: existing?.hue || 24,
-            tag: row.author_headline || existing?.tag || 'Ming member',
+            tag: row.author_headline || existing?.tag || 'Tweaklr member',
             interests: existing?.interests || [],
             bio: row.author_bio || existing?.bio || '',
             avatarUrl: row.author_avatar_url || existing?.avatarUrl || '',
@@ -6068,7 +6068,7 @@ function showMingNotificationPopup(notification) {
       icon(NOTIF_ICON[notification.type] || 'bell') +
     '</span>' +
     '<span class="ming-notification-popup__copy">' +
-      '<strong>ming</strong>' +
+      '<strong>Tweaklr</strong>' +
       '<span>' + notification.text + '</span>' +
     '</span>' +
     '<span class="ming-notification-popup__close" aria-hidden="true">×</span>';
@@ -6288,7 +6288,7 @@ function openActivitySheet(id) {
       avatar(p, 44) +
       '<div style="flex:1"><div style="font-size:14.5px;font-weight:560">' + esc(p.short) + ' shared this activity</div>' +
       '<div style="font-size:12.5px;color:var(--muted)">' + esc(p.km == null ? 'Local activity' : distLabel(p.km)) + '</div></div></div>' +
-      '<p style="font-size:14px;line-height:1.55;color:#4A3B32">' + esc(a.body || 'Activity shared on Ming.') + '</p>' +
+      '<p style="font-size:14px;line-height:1.55;color:#4A3B32">' + esc(a.body || 'Activity shared on Tweaklr.') + '</p>' +
       '<div style="font-size:13px;color:var(--muted);margin-top:10px">' + esc(a.place || 'Nearby') + ' · ' + esc(a.startsAt ? new Date(a.startsAt).toLocaleString([], { weekday: 'long', hour: 'numeric', minute: '2-digit' }) : 'Time not set') + '</div>' +
       '<div class="privacy-note" style="margin:16px 0 0">' + icon('shield') + '<p>Exact meeting details should be shared privately after people connect or join.</p></div>',
     foot: '<div style="display:flex;gap:10px"><button class="btn btn--primary" style="flex:1" data-action="join:' + a.id + '">' +
@@ -6303,7 +6303,7 @@ function openPlaceSheet(id) {
     title: pl.name,
     sub: pl.kind + ' · ' + (pl.km == null ? 'Distance unavailable' : distLabel(pl.km)),
     body: '<div style="height:120px;border-radius:var(--r-lg);margin:4px 0 14px;background:' + avatarStyle(pl.hue) + '"></div>' +
-      '<p style="font-size:14.5px;line-height:1.55">' + esc(pl.note || 'Public place on Ming.') + '</p>',
+      '<p style="font-size:14.5px;line-height:1.55">' + esc(pl.note || 'Public place on Tweaklr.') + '</p>',
     foot: '<button class="btn btn--soft btn--block" data-action="save-place:' + pl.id + '">' + (pl.saved ? 'Saved' : 'Save this place') + '</button>'
   });
 }
@@ -6379,7 +6379,7 @@ function openSettingsSheet() {
         <span class="go">${icon('chev')}</span></button>
 
       <button class="opt" data-action="about"><span class="ic">${icon('coffee')}</span>
-        <span class="tx"><span class="t" style="display:block">About ming</span><span class="s" style="display:block">People. Moments. Possibilities.</span></span>
+        <span class="tx"><span class="t" style="display:block">About Tweaklr</span><span class="s" style="display:block">People. Moments. Possibilities.</span></span>
         <span class="go">${icon('chev')}</span></button>`
   });
 }
@@ -6433,7 +6433,7 @@ function openPrivacySheet() {
     sub: 'What people around you can and cannot see.',
     body: `
       <div class="privacy-note" style="margin:4px 0 16px">${icon('shield')}
-        <p><b>Your exact location is hidden from other people.</b> Ming reads your position from your device to work out who is near you, and shares only a rounded distance.</p></div>
+        <p><b>Your exact location is hidden from other people.</b> Tweaklr reads your position from your device to work out who is near you, and shares only a rounded distance.</p></div>
       <div style="font-size:14px;line-height:1.8">
         <div>Shown to others · your area, ${esc(hasLocation() ? areaLabel() : 'nothing while location is off')}</div>
         <div>Shown to others · rounded distance</div>
@@ -6449,7 +6449,7 @@ function openPrivacySheet() {
 function openMoonAbout() {
   openSheet({
     title: 'Moonflower is private',
-    sub: 'It never appears on your Ming profile.',
+    sub: 'It never appears on your Tweaklr profile.',
     body: `<p style="font-size:14.5px;line-height:1.6;padding:4px 0 8px">
       Ming is the world around you. Moonflower is the world inside you.</p>
       <p style="font-size:14px;line-height:1.6;color:var(--muted)">
@@ -6460,9 +6460,9 @@ function openMoonAbout() {
 
 function openAboutSheet() {
   openSheet({
-    title: 'ming',
+    title: 'Tweaklr',
     sub: 'People. Moments. Possibilities.',
-    body: `<p style="font-size:14.5px;line-height:1.6;padding:4px 0">Ming makes the world feel like a neighbourhood — the people, the moments and the possibilities within a short walk of you.</p>
+    body: `<p style="font-size:14.5px;line-height:1.6;padding:4px 0">Tweaklr makes the world feel like a neighbourhood — the people, the moments and the possibilities within a short walk of you.</p>
       <p style="font-size:13px;color:var(--muted);margin-top:10px">Frontend demo. All data lives in this browser session.</p>`,
     foot: `<button class="btn btn--soft btn--block" data-action="close-sheet">Close</button>`
   });
@@ -7955,7 +7955,7 @@ const Server = (() => {
       const fee = Math.round(order.total * 0.015 * 100) / 100;      // platform fee
       s.available += order.total - fee;
       ledger(order.sellerId, order.asset, 'sale_payout', order.total - fee, order.id, 'Sale settled');
-      ledger(order.sellerId, order.asset, 'fee', -fee, order.id, 'Ming fee 1.5%');
+      ledger(order.sellerId, order.asset, 'fee', -fee, order.id, 'Tweaklr fee 1.5%');
     } else {
       a.available += order.total;
       ledger(order.buyerId, order.asset, 'escrow_refund', order.total, order.id, 'Refunded');
@@ -8512,7 +8512,7 @@ const NATURES = {
     label: 'Romantic', eyebrow: 'Just the two of you', icon: 'sp-heart2', hue: 350,
     blurb: 'A private world for two — memories, plans and lists that never become public.',
     signature: 'The two-person world',
-    promise: 'Give a relationship its own quiet place, separate from the rest of Ming.',
+    promise: 'Give a relationship its own quiet place, separate from the rest of Tweaklr.',
     features: ['Private memories', 'Shared plans', 'Lists for two', 'Always invitation-only'],
     swatch: 'linear-gradient(135deg,#211517,#633438 60%,#C98B6B)',
     palettes: [
@@ -8555,7 +8555,7 @@ const ORDER_STATES = {
 const FLOW_ORDER = ['pending', 'funded', 'seller_confirmed', 'shipped', 'delivered', 'completed'];
 const FLOW_COPY = {
   pending: ['Order created', 'Listing reserved at the listed price'],
-  funded: ['Payment held', 'Held by Ming, not sent to the seller'],
+  funded: ['Payment held', 'Held by Tweaklr, not sent to the seller'],
   seller_confirmed: ['Seller confirmed', 'Seller accepted the order'],
   shipped: ['Handed over', 'Shipped or handed to the buyer'],
   delivered: ['Delivery confirmed', 'Starts a 72-hour acceptance window'],
@@ -8619,7 +8619,7 @@ function personOf(userId) {
 }
 
 /* ============================================================
-   SCREEN MOUNTING  (stack screens, same system as the rest of Ming)
+   SCREEN MOUNTING  (stack screens, same system as the rest of Tweaklr)
 ============================================================ */
 function mountScreen(html) {
   const wrap = document.createElement('div');
@@ -8647,7 +8647,7 @@ mountScreen(`
     <div class="topbar-row">
       <button class="icon-btn back-btn" data-back aria-label="Back"><svg><use href="#i-back"/></svg></button>
       <div style="flex:1 1 auto"><div class="topbar-title">Spaces</div>
-      <div class="topbar-sub">Your own worlds inside Ming</div></div>
+      <div class="topbar-sub">Your own worlds inside Tweaklr</div></div>
       <button class="icon-btn" data-sp="join" aria-label="Join with a code"><svg><use href="#i-sp-key"/></svg></button>
     </div>
   </header>
@@ -8690,11 +8690,11 @@ mountScreen(`
 </section>`);
 
 mountScreen(`
-<section class="screen screen--stack wallet-shell" id="screen-wallet" aria-label="Ming Wallet">
+<section class="screen screen--stack wallet-shell" id="screen-wallet" aria-label="Tweaklr Wallet">
   <header class="topbar">
     <div class="topbar-row">
       <button class="icon-btn back-btn" data-back aria-label="Back"><svg><use href="#i-back"/></svg></button>
-      <div style="flex:1 1 auto"><div class="topbar-title">Ming Wallet</div>
+      <div style="flex:1 1 auto"><div class="topbar-title">Tweaklr Wallet</div>
       <div class="topbar-sub">Development mode</div></div>
     </div>
   </header>
@@ -8764,7 +8764,7 @@ function renderSpaces() {
 
   body.innerHTML = `
     <div class="spaces-hero spaces-hero--command">
-      <div class="spaces-hero__eyebrow">${icon('sp-grid')} MING SPACES <span class="spaces-live-pill"><i></i> YOUR WORLDS</span></div>
+      <div class="spaces-hero__eyebrow">${icon('sp-grid')} TWEAKLR SPACES <span class="spaces-live-pill"><i></i> YOUR WORLDS</span></div>
       <div class="spaces-command-copy">
         <div>
           <h1>${list.length ? 'A different room for every reason.' : 'Your worlds, with their own rules.'}</h1>
@@ -8837,7 +8837,7 @@ function renderSpaces() {
       <div><strong>Built around boundaries.</strong><span>Membership, invitations and Space rules are enforced by the backend.</span></div>
     </div>
 
-    <div class="section spaces-wallet-section">${sectionHead('Ming Wallet', 'Development mode')}
+    <div class="section spaces-wallet-section">${sectionHead('Tweaklr Wallet', 'Development mode')}
       <div class="menu-list">
         <button class="menu-item" data-sp="wallet">${icon('sp-wallet')}<span class="t">Balances and activity</span><span class="go">${icon('chev')}</span></button>
       </div>
@@ -9006,7 +9006,7 @@ const WZ_RENDER = {
     <div class="field"><label>Maximum uses</label>
       <div class="pick">${[[1, 'One person'], [10, '10'], [50, '50'], [0, 'Unlimited']].map(([n, t]) => `
         <button type="button" aria-pressed="${(w.inviteMaxUses || 0) === n}" data-sp="wz-maxuses:${n}">${t}</button>`).join('')}</div></div>
-    <div class="ephemeral-note">${icon('shield')}<span>Ming stores a hash of the code, never the code itself. You will see the plaintext once, when it is issued.</span></div>`,
+    <div class="ephemeral-note">${icon('shield')}<span>Tweaklr stores a hash of the code, never the code itself. You will see the plaintext once, when it is issued.</span></div>`,
 
   features: w => {
     const opts = FEATURE_OPTIONS[w.nature];
@@ -9018,7 +9018,7 @@ const WZ_RENDER = {
         <span class="tx"><span class="t" style="display:block">${f.t}</span><span class="s" style="display:block">${f.s}</span></span>
         <span class="sw"></span>
       </button>`).join('')}
-    ${w.nature === 'marketplace' ? `<div class="ephemeral-note" style="margin-top:16px">${icon('shield')}<span>Payments in this Space are held in escrow until the buyer confirms delivery. Ming Wallet is in development mode — no real funds move.</span></div>` : ''}`;
+    ${w.nature === 'marketplace' ? `<div class="ephemeral-note" style="margin-top:16px">${icon('shield')}<span>Payments in this Space are held in escrow until the buyer confirms delivery. Tweaklr Wallet is in development mode — no real funds move.</span></div>` : ''}`;
   },
 
   review: w => `
@@ -9155,7 +9155,7 @@ function openInviteSheet(spaceId, fresh = false) {
         <button class="btn btn--soft btn--sm" style="flex:1" data-sp="share-code:${spaceId}" ${code ? '' : 'disabled'}>${icon('send')}Share</button>
         ${owner ? `<button class="btn btn--soft btn--sm" style="flex:1" data-sp="rotate-code:${spaceId}">${icon('sp-refresh')}New code</button>` : ''}
       </div>
-      <div class="ephemeral-note" style="margin-top:16px">${icon('shield')}<span>Ming keeps only a hash of this code. Regenerating revokes the current one immediately — anyone still holding it is locked out.</span></div>`,
+      <div class="ephemeral-note" style="margin-top:16px">${icon('shield')}<span>Tweaklr keeps only a hash of this code. Regenerating revokes the current one immediately — anyone still holding it is locked out.</span></div>`,
     foot: `<button class="btn btn--primary btn--block" data-action="close-sheet">Done</button>`
   });
 }
@@ -9187,7 +9187,7 @@ function openSpace(id, tab) {
   screen.style.setProperty('--sp-accent', theme.colors[0]);
   screen.style.setProperty('--sp-accent-2', theme.colors[1]);
   screen.style.setProperty('--sp-accent-3', theme.colors[2]);
-  screen.style.setProperty('--sp-theme-name', JSON.stringify(theme.name || 'Ming'));
+  screen.style.setProperty('--sp-theme-name', JSON.stringify(theme.name || 'Tweaklr'));
   renderSpace();
   pushStack('space');
 }
@@ -9242,7 +9242,7 @@ const HEADERS = {
 };
 
 function spaceTheme(s) {
-  const fallback = NATURES[s.nature]?.palettes?.[0] || { name: 'Ming', colors: ['#14171D','#2A313A','#C5A572'] };
+  const fallback = NATURES[s.nature]?.palettes?.[0] || { name: 'Tweaklr', colors: ['#14171D','#2A313A','#C5A572'] };
   const raw = s?.theme || s?.features?.theme;
   return raw && Array.isArray(raw.colors) && raw.colors.length === 3 ? raw : fallback;
 }
@@ -9551,7 +9551,7 @@ VIEWS.romantic.us = s => {
     ${ms.map(m => `<div class="milestone"><span class="d">${esc(m.d)}</span><span>${esc(m.title)}</span></div>`).join('')}
   </div></div>` : ''}
   <div class="privacy-seal">${icon('lock')}
-    <span>This Space is invitation only and never appears in Discover. Nothing here is counted, ranked or shown anywhere else in Ming.</span></div>`;
+    <span>This Space is invitation only and never appears in Discover. Nothing here is counted, ranked or shown anywhere else in Tweaklr.</span></div>`;
 };
 VIEWS.romantic.memories = s => `
   <div class="sp-sec"><h3>Memories <span><button data-sp="new:memory">Keep one</button></span></h3>
@@ -9600,7 +9600,7 @@ VIEWS.marketplace.market = s => {
     <p style="font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.5">Sellers are approved by a moderator. Listing without the seller role is rejected by the server, not hidden in the app.</p>
     <button class="btn btn--soft btn--sm" style="margin-top:12px" data-sp="ask-seller">Request seller role</button></div></div>`}
   <div style="padding:0 16px 8px"><div class="sp-card" style="display:flex;gap:11px">
-    ${icon('shield')}<p style="font-size:12.5px;color:var(--muted);line-height:1.5">Every purchase here is held in escrow until you confirm delivery. Ming Wallet is in development mode — no real money moves.</p>
+    ${icon('shield')}<p style="font-size:12.5px;color:var(--muted);line-height:1.5">Every purchase here is held in escrow until you confirm delivery. Tweaklr Wallet is in development mode — no real money moves.</p>
   </div></div>`;
 };
 
@@ -9650,13 +9650,13 @@ VIEWS.marketplace.sellers = s => {
           <div class="s">${sold} completed · ${disputes} disputes · joined ${esc(timeAgo(m.joinedAt))}</div></div>
         </div>
         <div style="display:flex;gap:7px;margin-top:11px;flex-wrap:wrap">
-          <span class="trust">${icon('check')}Ming member</span>
+          <span class="trust">${icon('check')}Tweaklr member</span>
           ${sold >= 2 ? `<span class="trust">${icon('sp-box')}${sold} settled sales</span>` : `<span class="trust warn">${icon('clock')}New seller</span>`}
           <span class="trust warn">${icon('shield')}Identity not verified</span>
         </div>
       </div>`;
     }).join('')}
-    <p style="font-size:12px;color:var(--muted);padding:4px 2px;line-height:1.5">Trust signals are facts Ming can actually check. Identity verification needs a provider that is not connected yet, so no seller here is shown as verified.</p>
+    <p style="font-size:12px;color:var(--muted);padding:4px 2px;line-height:1.5">Trust signals are facts Tweaklr can actually check. Identity verification needs a provider that is not connected yet, so no seller here is shown as verified.</p>
   </div>`;
 };
 
@@ -9673,7 +9673,7 @@ VIEWS.marketplace.cases = s => {
     }).join('') : spEmpty('No disputes. Funds move only when a buyer confirms.')}
     <div class="sp-card" style="margin-top:4px">
       <div style="font-size:14px;font-weight:550">How a dispute is decided</div>
-      <p style="font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.55">Opening a dispute does not refund anyone. It freezes the money where it already is — held by Ming — and opens a 96-hour window for both sides to submit evidence. A moderator reviews the order timeline, the delivery record, the messages and both submissions, then releases, refunds or splits. Nothing is automatic in either direction.</p>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.55">Opening a dispute does not refund anyone. It freezes the money where it already is — held by Tweaklr — and opens a 96-hour window for both sides to submit evidence. A moderator reviews the order timeline, the delivery record, the messages and both submissions, then releases, refunds or splits. Nothing is automatic in either direction.</p>
     </div>
   </div>`;
 };
@@ -9687,7 +9687,7 @@ function openBidSheet(productId) {
     title: 'Place a bid', sub: p ? p.title : 'Auction',
     body: '<div class="sp-card"><div style="font-size:12px;color:var(--muted)">Current highest</div><div style="font-size:24px;font-weight:750;margin-top:5px">' + esc(money(high)) + '</div></div>' +
       '<div class="field"><label for="bid-amount">Your bid in USDT</label><input id="bid-amount" type="number" min="' + (high + 0.01) + '" step="0.01" placeholder="' + (high + 1) + '" /></div>' +
-      '<div class="ephemeral-note">' + icon('shield') + '<span>Bids are timestamped and saved to this Space. Payment still uses Ming’s development-mode transaction flow.</span></div>',
+      '<div class="ephemeral-note">' + icon('shield') + '<span>Bids are timestamped and saved to this Space. Payment still uses Tweaklr’s development-mode transaction flow.</span></div>',
     foot: '<button class="btn btn--primary btn--block" data-sp="bid-submit:' + productId + '">Place bid</button>'
   });
 }
@@ -9728,7 +9728,7 @@ function openCheckout(productId) {
     body: `
       <div class="sp-card" style="background:var(--surface-2);border:0">
         <div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0"><span>Item</span><b>${esc(money(p.price))}</b></div>
-        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);padding:4px 0"><span>Ming fee, paid by seller</span><span>${esc(money(fee))}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);padding:4px 0"><span>Tweaklr fee, paid by seller</span><span>${esc(money(fee))}</span></div>
         <div style="display:flex;justify-content:space-between;font-size:15px;padding:8px 0 2px;border-top:1px solid var(--border);margin-top:6px"><b>You pay</b><b>${esc(money(p.price))}</b></div>
       </div>
       <div class="field"><label>Pay from</label>
@@ -9737,7 +9737,7 @@ function openCheckout(productId) {
           <button type="button" aria-pressed="false" disabled>BTC</button>
         </div>
       </div>
-      <div class="ephemeral-note">${icon('shield')}<span>Your payment is held by Ming, not sent to the seller. It is released when you confirm delivery, or refunded if the dispute goes your way.</span></div>
+      <div class="ephemeral-note">${icon('shield')}<span>Your payment is held by Tweaklr, not sent to the seller. It is released when you confirm delivery, or refunded if the dispute goes your way.</span></div>
       <div class="dev-banner" style="margin:14px 0 0;color:#8A5310;background:rgba(214,150,40,.1);border-color:rgba(214,150,40,.28)">
         ${icon('flag')}<span>Development mode. Balances are internal test figures, there is no custody provider connected and nothing settles on a blockchain.</span></div>`,
     foot: `<button class="btn btn--primary btn--block" data-sp="pay:${p.id}">Place order and hold ${esc(money(p.price))}</button>`
@@ -9802,7 +9802,7 @@ function renderOrder() {
           <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
             <span class="state-pill ${st.cls}">${esc(st.t)}</span>
             <p style="font-size:12.5px;color:var(--muted);margin-top:9px;line-height:1.5">${o.status === 'disputed'
-              ? 'The money has not moved. It stays held by Ming until a moderator decides.'
+              ? 'The money has not moved. It stays held by Tweaklr until a moderator decides.'
               : o.status === 'refunded' ? 'Returned to the buyer’s wallet.' : 'The hold was released back to the buyer.'}</p>
           </div>` : ''}
       </div>
@@ -10156,7 +10156,7 @@ document.addEventListener('click', async e => {
     }
     case 'share-code': {
       const s = spaceById(a), code = sp.shownCodes[a];
-      const text = `Join "${s.name}" on Ming. Code: ${code}`;
+      const text = `Join "${s.name}" on Tweaklr. Code: ${code}`;
       if (navigator.share) { try { await navigator.share({ text }); } catch (_) {} }
       else { try { await navigator.clipboard.writeText(text); toast('Invitation copied', 'check'); } catch (_) { toast('Sharing is unavailable here', 'x'); } }
       break;
@@ -10248,7 +10248,7 @@ document.addEventListener('click', async e => {
       setTimeout(refreshSpace, 300);
       break;
     }
-    case 'member': toast(`${nameOf(a)} — open their Ming profile from Discover`, 'users'); break;
+    case 'member': toast(`${nameOf(a)} — open their Tweaklr profile from Discover`, 'users'); break;
     case 'apply': toast('Interest registered with the space owner', 'check'); break;
     case 'ask-seller': toast('Request sent to the moderators', 'check'); break;
     case 'file-open': await Server.openSpaceFile(a); break;
@@ -10361,7 +10361,7 @@ document.addEventListener('click', async e => {
     case 'wallet-blocked':
       openModal({
         title: a + ' is not available',
-        lede: 'Moving real funds needs a custodial provider and the compliance work around it. Ming will not fake a deposit address, a transaction hash or a confirmation. This stays disabled until that integration is real.',
+        lede: 'Moving real funds needs a custodial provider and the compliance work around it. Tweaklr will not fake a deposit address, a transaction hash or a confirmation. This stays disabled until that integration is real.',
         actions: [{ t: 'Understood', cls: 'btn--primary', a: 'close-modal' }]
       });
       break;
@@ -10416,7 +10416,7 @@ document.addEventListener('input', e => {
 });
 
 /* ------------------------------------------------------------
-   HOME RAIL — a small entry point on Ming's Home screen
+   HOME RAIL — a small entry point on Tweaklr's Home screen
 ------------------------------------------------------------ */
 (function mountHomeRail() {
   if (document.getElementById('home-spaces')) return;
@@ -10505,7 +10505,7 @@ function seedNewSpace(space) {
    theme.js  ·  sun ⇄ moon, one control, reused everywhere it appears
 
    Priority for the resolved theme:
-     explicit Ming choice (localStorage) → system preference → light
+     explicit Tweaklr choice (localStorage) → system preference → light
    The inline snippet in <head> already applied the initial value to
    <html data-theme="..."> before paint; this file only wires the
    button(s) and orchestrates the transition from here on.
@@ -10857,7 +10857,7 @@ document.addEventListener('DOMContentLoaded', () => {
              Do not expose raw backend errors unnecessarily.
              Do not log passwords, tokens, or authentication data.
           */
-          console.error('Ming signup failed:', error.message);
+          console.error('Tweaklr signup failed:', error.message);
 
           setMessage(
             message,
@@ -10886,7 +10886,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       } catch (error) {
         console.error(
-          'Ming signup request failed.'
+          'Tweaklr signup request failed.'
         );
 
         setMessage(
@@ -10971,7 +10971,7 @@ if (error) {
      Generic authentication error helps avoid unnecessarily
      revealing whether a particular account exists.
   */
-  console.error('Ming login failed:', error.message);
+  console.error('Tweaklr login failed:', error.message);
 
   setMessage(
     message,
@@ -10996,7 +10996,7 @@ window.location.href = 'app.html';
 
 } catch (error) {
   console.error(
-    'Ming login request failed.'
+    'Tweaklr login request failed.'
   );
 
   setMessage(
