@@ -1,4 +1,4 @@
-/* Ming Messages media fallback.
+/* Tweaklr Messages media fallback.
    This file only repairs chat image/video rendering when an older cached
    attachment renderer is still present. It does not change messaging data. */
 (function () {
