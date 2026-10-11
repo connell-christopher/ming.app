@@ -1,5 +1,5 @@
 /* ============================================================ 
-   MING THEME — EARLY SAFE HANDLER
+   TWEAKLR THEME — EARLY SAFE HANDLER
    Independent from app boot; keeps the existing MoonSky engine
    synchronized without changing the rest of the theme system.
    ============================================================ */
@@ -796,7 +796,7 @@ const currentUser = {
 };
 
 /* ------------------------------------------------------------
-   MING CURRENT USER PROFILE READY STATE
+   TWEAKLR CURRENT USER PROFILE READY STATE
 ------------------------------------------------------------ */
 
 let mingProfileReadyResolve;
@@ -805,7 +805,7 @@ const mingProfileReady = new Promise(resolve => {
 });
 
 /* ------------------------------------------------------------
-   MING CURRENT USER PROFILE
+   TWEAKLR CURRENT USER PROFILE
 ------------------------------------------------------------ */
 
 (async function loadMingCurrentUserProfile() {
@@ -828,7 +828,7 @@ const mingProfileReady = new Promise(resolve => {
       .maybeSingle();
 
     if (error || !profile) {
-      console.warn('Ming: could not load current profile.', error?.message || 'Profile not found.');
+      console.warn('Tweaklr: could not load current profile.', error?.message || 'Profile not found.');
       mingProfileReadyResolve();
       return;
     }
@@ -880,11 +880,11 @@ const mingProfileReady = new Promise(resolve => {
       if (state.tab === 'moonflower') renderMoonflower();
     }
 
-    console.log('Ming: current profile loaded and active views refreshed.');
+    console.log('Tweaklr: current profile loaded and active views refreshed.');
     mingProfileReadyResolve();
 
   } catch (error) {
-    console.warn('Ming: current profile load failed.', error);
+    console.warn('Tweaklr: current profile load failed.', error);
     mingProfileReadyResolve();
   }
 
@@ -953,7 +953,7 @@ async function loadMingConnections() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.warn('Ming: connections backend is not ready yet.', error.message);
+      console.warn('Tweaklr: connections backend is not ready yet.', error.message);
       return false;
     }
 
@@ -961,7 +961,7 @@ async function loadMingConnections() {
       await supabaseClient.rpc('get_my_connection_profiles');
 
     if (profileError) {
-      console.warn('Ming: connection profiles could not be loaded.', profileError.message);
+      console.warn('Tweaklr: connection profiles could not be loaded.', profileError.message);
       return false;
     }
 
@@ -1014,7 +1014,7 @@ async function loadMingConnections() {
 
     return true;
   } catch (error) {
-    console.warn('Ming: connection load failed.', error);
+    console.warn('Tweaklr: connection load failed.', error);
     return false;
   }
 }
@@ -1033,7 +1033,7 @@ function isUuidPerson(id) {
 async function ensureMingCallAuthenticatedUser() {
   const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
   if (sessionError || !session?.access_token) {
-    console.warn('Ming: authenticated call session is not ready.', sessionError?.message || '');
+    console.warn('Tweaklr: authenticated call session is not ready.', sessionError?.message || '');
     return false;
   }
 
@@ -1041,14 +1041,14 @@ async function ensureMingCallAuthenticatedUser() {
   // call layer from proceeding with a stale or locally cached session.
   const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
   if (userError || !user?.id || !isUuidPerson(user.id)) {
-    console.warn('Ming: authenticated call user could not be verified.', userError?.message || '');
+    console.warn('Tweaklr: authenticated call user could not be verified.', userError?.message || '');
     return false;
   }
 
   currentUser.id = user.id;
   await supabaseClient.realtime.setAuth(session.access_token);
 
-  console.log('Ming: call auth verified.', {
+  console.log('Tweaklr: call auth verified.', {
     userId: user.id,
     role: session.user?.role || null
   });
@@ -1138,7 +1138,7 @@ async function loadMingNotifications() {
         });
       });
     } else {
-      console.warn('Ming: Daily Update notifications could not be loaded.', updateError.message);
+      console.warn('Tweaklr: Daily Update notifications could not be loaded.', updateError.message);
     }
 
     /* Post activity notifications: likes and comments on the current user's posts. */
@@ -1171,10 +1171,10 @@ async function loadMingNotifications() {
         ]);
 
         if (likesResult.error) {
-          console.warn('Ming: post-like notifications could not be loaded.', likesResult.error.message);
+          console.warn('Tweaklr: post-like notifications could not be loaded.', likesResult.error.message);
         }
         if (commentsResult.error) {
-          console.warn('Ming: post-comment notifications could not be loaded.', commentsResult.error.message);
+          console.warn('Tweaklr: post-comment notifications could not be loaded.', commentsResult.error.message);
         }
 
         const likeRows = likesResult.error ? [] : (likesResult.data || []);
@@ -1194,7 +1194,7 @@ async function loadMingNotifications() {
           if (!actorsError) {
             (actors || []).forEach(actor => actorMap.set(actor.id, actor));
           } else {
-            console.warn('Ming: post notification profiles could not be loaded.', actorsError.message);
+            console.warn('Tweaklr: post notification profiles could not be loaded.', actorsError.message);
           }
         }
 
@@ -1234,7 +1234,7 @@ async function loadMingNotifications() {
         });
       }
     } catch (postNotificationError) {
-      console.warn('Ming: post activity notifications failed.', postNotificationError);
+      console.warn('Tweaklr: post activity notifications failed.', postNotificationError);
     }
 
     notifications = next.sort((a, b) => b.at - a.at);
@@ -1242,7 +1242,7 @@ async function loadMingNotifications() {
     updateNotifDot();
     return true;
   } catch (error) {
-    console.warn('Ming: notification load failed.', error);
+    console.warn('Tweaklr: notification load failed.', error);
     return false;
   }
 }
@@ -1394,7 +1394,7 @@ async function refreshMingCurrentUserProfile() {
       .maybeSingle();
 
     if (error || !profile) {
-      console.warn('Ming: could not refresh current profile.', error?.message || 'Profile not found.');
+      console.warn('Tweaklr: could not refresh current profile.', error?.message || 'Profile not found.');
       return;
     }
 
@@ -1416,7 +1416,7 @@ async function refreshMingCurrentUserProfile() {
 
     if (state.loaded.profile) renderProfile();
   } catch (error) {
-    console.warn('Ming: current profile refresh failed.', error);
+    console.warn('Tweaklr: current profile refresh failed.', error);
   }
 }
 
@@ -1760,7 +1760,7 @@ async function loadMingDailyUpdates() {
       .rpc('get_daily_updates', { p_limit: 30 });
 
     if (error) {
-      console.warn('Ming: Daily Updates backend could not be loaded.', error.message);
+      console.warn('Tweaklr: Daily Updates backend could not be loaded.', error.message);
       dailyUpdates = [];
       return false;
     }
@@ -1815,7 +1815,7 @@ async function loadMingDailyUpdates() {
 
     return true;
   } catch (error) {
-    console.warn('Ming: Daily Updates load failed.', error);
+    console.warn('Tweaklr: Daily Updates load failed.', error);
     dailyUpdates = [];
     return false;
   }
@@ -1826,7 +1826,7 @@ async function loadMingDailyUpdateComments(updateId) {
     .rpc('get_daily_update_comments', { p_update_id: updateId });
 
   if (error) {
-    console.warn('Ming: Daily Update comments could not be loaded.', error.message);
+    console.warn('Tweaklr: Daily Update comments could not be loaded.', error.message);
     return null;
   }
 
@@ -2114,7 +2114,7 @@ async function getDailyUpdateMediaFiles(data) {
 
       files.push(new File([blob], name || fallbackName, { type }));
     } catch (error) {
-      console.warn('Ming: Daily Update media fetch for sharing failed.', error);
+      console.warn('Tweaklr: Daily Update media fetch for sharing failed.', error);
     }
   }
 
@@ -2309,7 +2309,7 @@ async function downloadDailyUpdate(id) {
       completed += 1;
       await sleep(180);
     } catch (error) {
-      console.warn('Ming: Daily Update media download failed.', error);
+      console.warn('Tweaklr: Daily Update media download failed.', error);
     }
   }
 
@@ -2349,7 +2349,7 @@ async function toggleLike(id) {
       btn.classList.add('bump');
     });
   } catch (error) {
-    console.warn('Ming: Daily Update like failed.', error.message);
+    console.warn('Tweaklr: Daily Update like failed.', error.message);
   }
 }
 
@@ -2404,7 +2404,7 @@ async function openComments(id) {
       .single();
 
     if (error) {
-      console.warn('Ming: Daily Update reply failed.', error.message);
+      console.warn('Tweaklr: Daily Update reply failed.', error.message);
       toast('Could not post reply.', 'alert');
       return;
     }
@@ -2442,7 +2442,7 @@ async function deleteMingDailyUpdate(id) {
     .eq('author_id', currentUser.id);
 
   if (error) {
-    console.warn('Ming: Daily Update delete failed.', error.message);
+    console.warn('Tweaklr: Daily Update delete failed.', error.message);
     toast('Could not delete update.', 'alert');
     return false;
   }
@@ -2489,7 +2489,7 @@ async function createUpdate(kind, title, body, activityMeta = null, mediaFiles =
     const { error: uploadError } = await supabaseClient.storage.from('ming-post-media').upload(path, file, { contentType: file.type, cacheControl: '3600', upsert: false });
     if (uploadError) {
       if (uploadedMedia.length) await supabaseClient.storage.from('ming-post-media').remove(uploadedMedia.map(x => x.path)).catch(() => {});
-      console.warn('Ming: post media upload failed.', uploadError.message);
+      console.warn('Tweaklr: post media upload failed.', uploadError.message);
       toast('Could not upload the photo or video.', 'alert');
       return false;
     }
@@ -2525,7 +2525,7 @@ async function createUpdate(kind, title, body, activityMeta = null, mediaFiles =
 
   if (error) {
     if (uploadedMedia.length) await supabaseClient.storage.from('ming-post-media').remove(uploadedMedia.map(x => x.path)).catch(() => {});
-    console.warn('Ming: Daily Update create failed.', error.message);
+    console.warn('Tweaklr: Daily Update create failed.', error.message);
     toast('Could not share the update.', 'alert');
     return false;
   }
@@ -2596,7 +2596,7 @@ async function loadMingDiscoverableProfiles(radiusKm = null) {
     }
 
     const { data, error } = await supabaseClient.rpc('get_discoverable_profiles', { p_radius_km: radiusKm });
-    if (error) { console.warn('Ming: real-user discovery is not ready yet.', error.message); return false; }
+    if (error) { console.warn('Tweaklr: real-user discovery is not ready yet.', error.message); return false; }
     mingDiscoverPeople = (data || [])
       .filter(profile => profile.distance_km != null && Number.isFinite(Number(profile.distance_km)))
       .map(profile => {
@@ -2618,7 +2618,7 @@ async function loadMingDiscoverableProfiles(radiusKm = null) {
     });
     mingDiscoverPeople.forEach(p => mingConnectionProfiles.set(p.id, p));
     return true;
-  } catch (error) { console.warn('Ming: real-user discovery failed.', error); return false; }
+  } catch (error) { console.warn('Tweaklr: real-user discovery failed.', error); return false; }
 }
 
 async function publishMingApproxLocation() {
@@ -2629,11 +2629,11 @@ async function publishMingApproxLocation() {
   if (key === mingLocationPublishKey) return true;
   try {
     const { error } = await supabaseClient.rpc('set_my_discovery_location', { p_latitude: lat, p_longitude: lng, p_accuracy_m: Number(state.userLocation.accuracy) });
-    if (error) { console.warn('Ming: approximate discovery location could not be published.', error.message); return false; }
+    if (error) { console.warn('Tweaklr: approximate discovery location could not be published.', error.message); return false; }
     mingLocationPublishKey = key;
     mingLastPublishedAt = now();
     return true;
-  } catch (error) { console.warn('Ming: approximate discovery location failed.', error); return false; }
+  } catch (error) { console.warn('Tweaklr: approximate discovery location failed.', error); return false; }
 }
 
 async function loadMingDiscoverContent() {
@@ -2643,7 +2643,7 @@ async function loadMingDiscoverContent() {
     const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
     if (sessionError || !session?.user) return false;
     const { data: rows, error } = await supabaseClient.rpc('get_daily_updates', { p_limit: 100 });
-    if (error) console.warn('Ming: Discover Daily Updates could not be loaded.', error.message);
+    if (error) console.warn('Tweaklr: Discover Daily Updates could not be loaded.', error.message);
     else {
       const updates = rows || [];
       const activityIds = updates.filter(r => r.kind === 'activity').map(r => r.id);
@@ -2664,7 +2664,7 @@ async function loadMingDiscoverContent() {
       });
       if (activityIds.length) {
         const { data: participants, error: participantError } = await supabaseClient.from('daily_update_participants').select('update_id, user_id').in('update_id', activityIds);
-        if (participantError) console.warn('Ming: Discover activity participants could not be loaded.', participantError.message);
+        if (participantError) console.warn('Tweaklr: Discover activity participants could not be loaded.', participantError.message);
         else {
           const counts = new Map();
           (participants || []).forEach(row => { counts.set(row.update_id, (counts.get(row.update_id) || 0) + 1); if (row.user_id === session.user.id) discoverActivityJoined.add(row.update_id); });
@@ -2675,10 +2675,10 @@ async function loadMingDiscoverContent() {
     const lat = hasLocation() ? Number(state.userLocation.latitude.toFixed(7)) : null;
     const lng = hasLocation() ? Number(state.userLocation.longitude.toFixed(7)) : null;
     const { data: placeRows, error: placeError } = await supabaseClient.rpc('get_discover_places', { p_latitude: lat, p_longitude: lng, p_radius_km: 5 });
-    if (placeError) console.warn('Ming: Discover places could not be loaded.', placeError.message);
+    if (placeError) console.warn('Tweaklr: Discover places could not be loaded.', placeError.message);
     else discoverPlaces = (placeRows || []).map(row => ({ id: row.id, name: row.name, kind: row.kind, note: row.note || '', hue: 26, km: row.distance_km == null ? null : Number(row.distance_km), saved: !!row.saved_by_me }));
     return true;
-  } catch (error) { console.warn('Ming: Discover content load failed.', error); return false; }
+  } catch (error) { console.warn('Tweaklr: Discover content load failed.', error); return false; }
 }
 
 async function loadDiscover() {
@@ -2743,7 +2743,7 @@ async function loadMingNearbyActivities(radiusKm = state.radius) {
     });
 
     if (error) {
-      console.warn('Ming: Nearby activities could not be loaded.', error.message);
+      console.warn('Tweaklr: Nearby activities could not be loaded.', error.message);
       return false;
     }
 
@@ -2791,7 +2791,7 @@ async function loadMingNearbyActivities(radiusKm = state.radius) {
 
     return true;
   } catch (error) {
-    console.warn('Ming: Nearby activity load failed.', error);
+    console.warn('Tweaklr: Nearby activity load failed.', error);
     return false;
   }
 }
@@ -3049,7 +3049,7 @@ async function sendConnection(id) {
       });
 
     if (error) {
-      console.error('Ming: connection request failed:', error.message);
+      console.error('Tweaklr: connection request failed:', error.message);
       toast(/duplicate|unique/i.test(error.message) ? 'A request already exists.' : 'Could not send connection request.', 'alert');
       return;
     }
@@ -3092,7 +3092,7 @@ async function loadMingMessages() {  try {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.warn('Ming: messages backend is not ready yet.', error.message);
+      console.warn('Tweaklr: messages backend is not ready yet.', error.message);
       return false;
     }
 
@@ -3107,7 +3107,7 @@ async function loadMingMessages() {  try {
     if (hiddenError) {
       // The delete migration may not have been run yet. Keep normal
       // messaging working rather than breaking the whole Messages screen.
-      console.warn('Ming: message hide list is not ready yet.', hiddenError.message);
+      console.warn('Tweaklr: message hide list is not ready yet.', hiddenError.message);
     } else {
       hiddenMessageIds = new Set((hiddenRows || []).map(row => row.message_id));
     }
@@ -3149,7 +3149,7 @@ async function loadMingMessages() {  try {
     updateProfileMessageUnreadBadge();
     return true;
   } catch (error) {
-    console.warn('Ming: message load failed.', error);
+    console.warn('Tweaklr: message load failed.', error);
     return false;
   }
 }
@@ -3208,7 +3208,7 @@ async function trackMingPresence() {
       online_at: new Date().toISOString()
     });
   } catch (error) {
-    console.warn('Ming: presence track failed.', error);
+    console.warn('Tweaklr: presence track failed.', error);
   }
 }
 
@@ -3243,7 +3243,7 @@ async function startMingPresence() {
   channel.subscribe(async status => {
     if (status !== 'SUBSCRIBED') {
       if (status !== 'CLOSED' && status !== 'CHANNEL_ERROR') {
-        console.warn('Ming: presence realtime status:', status);
+        console.warn('Tweaklr: presence realtime status:', status);
       }
       return;
     }
@@ -3275,7 +3275,7 @@ function chatTopicFor(a, b) {
 }
 
 /* ------------------------------------------------------------
-   MING CALLING — WebRTC + Supabase Realtime signaling
+   TWEAKLR CALLING — WebRTC + Supabase Realtime signaling
 ------------------------------------------------------------ */
 let mingCallInboxChannel = null;
 let mingCallOutboundChannel = null;
@@ -3322,7 +3322,7 @@ async function getMingRtcConfig() {
     });
 
     if (!response.ok) {
-      console.warn('Ming: TURN credentials unavailable; using STUN fallback.', response.status);
+      console.warn('Tweaklr: TURN credentials unavailable; using STUN fallback.', response.status);
       return MING_RTC_CONFIG;
     }
 
@@ -3336,7 +3336,7 @@ async function getMingRtcConfig() {
       iceServers: data.iceServers
     };
   } catch (error) {
-    console.warn('Ming: TURN credential request failed; using STUN fallback.', error);
+    console.warn('Tweaklr: TURN credential request failed; using STUN fallback.', error);
     return MING_RTC_CONFIG;
   }
 }
@@ -3504,7 +3504,7 @@ async function ensureMingCallOutboundChannel(targetId) {
   mingCallOutboundChannelPromise = (async () => {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session?.access_token) {
-      console.warn('Ming: call realtime auth session is unavailable.');
+      console.warn('Tweaklr: call realtime auth session is unavailable.');
       return null;
     }
     await supabaseClient.realtime.setAuth(session.access_token);
@@ -3571,7 +3571,7 @@ async function closeMingCallOutboundChannel() {
 async function sendCallInboxSignal(targetId, payload) {
   if (!isUuidPerson(targetId) || !payload?.callId) return false;
 
-  console.log('Ming: sending call signal', {
+  console.log('Tweaklr: sending call signal', {
     type: payload.type,
     callId: payload.callId,
     to: targetId
@@ -3583,7 +3583,7 @@ async function sendCallInboxSignal(targetId, payload) {
   try {
     const channel = await ensureMingCallOutboundChannel(targetId);
     if (!channel) {
-      console.warn('Ming: call outbound channel could not connect.');
+      console.warn('Tweaklr: call outbound channel could not connect.');
       return false;
     }
 
@@ -3595,14 +3595,14 @@ async function sendCallInboxSignal(targetId, payload) {
 
     if (result === 'ok') return true;
 
-    console.warn('Ming: call realtime send was rejected.', {
+    console.warn('Tweaklr: call realtime send was rejected.', {
       result,
       type: payload.type,
       callId: payload.callId
     });
     return false;
   } catch (error) {
-    console.warn('Ming: call realtime send failed.', {
+    console.warn('Tweaklr: call realtime send failed.', {
       type: payload.type,
       callId: payload.callId,
       error
@@ -3632,7 +3632,7 @@ async function ensureMingCallServiceWorker() {
     mingServiceWorkerRegistration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
     return mingServiceWorkerRegistration;
   } catch (error) {
-    console.warn('Ming: service worker registration failed.', error);
+    console.warn('Tweaklr: service worker registration failed.', error);
     return null;
   }
 }
@@ -3678,14 +3678,14 @@ async function ensureMingPushReady({ prompt = false } = {}) {
     }, { onConflict: 'endpoint' });
 
     if (error) {
-      console.warn('Ming: could not save push subscription.', error.message);
+      console.warn('Tweaklr: could not save push subscription.', error.message);
       return false;
     }
 
     mingPushReady = true;
     return true;
   } catch (error) {
-    console.warn('Ming: push setup failed.', error);
+    console.warn('Tweaklr: push setup failed.', error);
     return false;
   }
 }
@@ -3710,7 +3710,7 @@ async function showMingIncomingCallNotification(payload) {
       }
     );
   } catch (error) {
-    console.warn('Ming: incoming call notification failed.', error);
+    console.warn('Tweaklr: incoming call notification failed.', error);
   }
 }
 
@@ -3726,7 +3726,7 @@ async function createMingCallInvite(payload) {
     expires_at: new Date(Date.now() + 90 * 1000).toISOString()
   });
   if (error) {
-    console.warn('Ming: call invite persistence failed.', {
+    console.warn('Tweaklr: call invite persistence failed.', {
       message: error.message,
       code: error.code,
       details: error.details,
@@ -3763,7 +3763,7 @@ async function sendMingCallPush(payload) {
       })
     });
   } catch (error) {
-    console.warn('Ming: call push request failed.', error);
+    console.warn('Tweaklr: call push request failed.', error);
   }
 }
 
@@ -3795,7 +3795,7 @@ async function restorePendingMingCall() {
     setCallTitle(row.kind === 'video' ? 'Incoming video call' : 'Incoming voice call');
     setCallStatus('Incoming call');
   } catch (error) {
-    console.warn('Ming: pending call restore failed.', error);
+    console.warn('Tweaklr: pending call restore failed.', error);
   }
 }
 
@@ -3850,7 +3850,7 @@ async function setupCallPeer({ remoteId, callId, kind, role }) {
   // Keep ICE diagnostics visible in the console instead of collapsing every
   // WebRTC failure into the same generic "could not connect" message.
   pc.oniceconnectionstatechange = () => {
-    console.log('Ming: ICE state', {
+    console.log('Tweaklr: ICE state', {
       callId,
       role,
       state: pc.iceConnectionState,
@@ -3866,7 +3866,7 @@ async function setupCallPeer({ remoteId, callId, kind, role }) {
   };
 
   pc.onicecandidateerror = event => {
-    console.warn('Ming: ICE candidate error', {
+    console.warn('Tweaklr: ICE candidate error', {
       callId,
       role,
       url: event.url,
@@ -3879,7 +3879,7 @@ async function setupCallPeer({ remoteId, callId, kind, role }) {
     if (!event.candidate) return;
     const candidate = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
     const candidateType = candidate.candidate?.match(/\\btyp\\s+(\\w+)/)?.[1] || 'unknown';
-    console.log('Ming: ICE candidate gathered', {
+    console.log('Tweaklr: ICE candidate gathered', {
       callId,
       role,
       candidateType,
@@ -3931,7 +3931,7 @@ async function setupCallPeer({ remoteId, callId, kind, role }) {
     } else if (pc.connectionState === 'connecting') {
       setCallStatus('Connecting…');
     } else if (pc.connectionState === 'failed') {
-      console.warn('Ming: WebRTC connection failed', {
+      console.warn('Tweaklr: WebRTC connection failed', {
         callId,
         role,
         iceConnectionState: pc.iceConnectionState,
@@ -4034,7 +4034,7 @@ async function startMingCall(kind) {
     void sendMingCallPush(offerPayload);
     if (!(await sendCallSignal(remoteId, offerPayload))) throw new Error('Could not send call invitation.');
   } catch (error) {
-    console.warn('Ming: outgoing call failed.', error);
+    console.warn('Tweaklr: outgoing call failed.', error);
     await endMingCall({ notify: false, reason: 'failed' });
   }
 }
@@ -4101,7 +4101,7 @@ async function acceptMingCall() {
       throw new Error('Could not send call answer.');
     }
   } catch (error) {
-    console.warn('Ming: accepting call failed.', error);
+    console.warn('Tweaklr: accepting call failed.', error);
     await endMingCall({ notify: true, reason: 'failed' });
   }
 }
@@ -4130,7 +4130,7 @@ async function handleMingCallSignal(payload) {
   if (!isUuidPerson(authenticatedUserId) || payload.to !== authenticatedUserId) return;
   currentUser.id = authenticatedUserId;
 
-  console.log('Ming: received call signal', {
+  console.log('Tweaklr: received call signal', {
     type: payload.type,
     callId: payload.callId,
     from: payload.from
@@ -4178,7 +4178,7 @@ async function handleMingCallSignal(payload) {
 
   if (payload.type === 'answer' && mingCall.role === 'caller') {
     try {
-      console.log('Ming: applying call answer', {
+      console.log('Tweaklr: applying call answer', {
         callId: mingCall.callId
       });
       await mingCall.pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
@@ -4188,7 +4188,7 @@ async function handleMingCallSignal(payload) {
       }
       setCallStatus('Connecting…');
     } catch (error) {
-      console.warn('Ming: applying call answer failed.', error);
+      console.warn('Tweaklr: applying call answer failed.', error);
       await endMingCall({ notify: true, reason: 'failed' });
     }
     return;
@@ -4231,7 +4231,7 @@ async function startMingCallInbox() {
   await supabaseClient.realtime.setAuth(session.access_token);
 
   const topic = callTopicFor(session.user.id);
-  console.log('Ming: starting call inbox.', {
+  console.log('Tweaklr: starting call inbox.', {
     userId: session.user.id,
     topic
   });
@@ -4241,20 +4241,20 @@ async function startMingCallInbox() {
   });
 
   channel.on('broadcast', { event: 'call' }, ({ payload }) => {
-    handleMingCallSignal(payload).catch(error => console.warn('Ming: call signal handling failed.', error));
+    handleMingCallSignal(payload).catch(error => console.warn('Tweaklr: call signal handling failed.', error));
   });
 
   mingCallInboxChannel = channel;
 
   channel.subscribe((status, error) => {
     if (status === 'SUBSCRIBED') {
-      console.log('Ming: call inbox connected.');
+      console.log('Tweaklr: call inbox connected.');
       void restorePendingMingCall();
       return;
     }
 
     if (['TIMED_OUT', 'CHANNEL_ERROR', 'CLOSED'].includes(status)) {
-      console.warn('Ming: call inbox disconnected.', status, error || '');
+      console.warn('Tweaklr: call inbox disconnected.', status, error || '');
 
       // Do not remove the channel from inside its own status callback.
       // Supabase can synchronously emit another close/error event here,
@@ -4271,7 +4271,7 @@ async function startMingCallInbox() {
       return;
     }
 
-    console.warn('Ming: call realtime status:', status, error || '');
+    console.warn('Tweaklr: call realtime status:', status, error || '');
   });
 }
 
@@ -4391,7 +4391,7 @@ async function startMingChatRealtime(personId) {
   channel.subscribe(async status => {
     if (status !== 'SUBSCRIBED') {
       if (status !== 'CLOSED' && status !== 'CHANNEL_ERROR') {
-        console.warn('Ming: chat realtime status:', status);
+        console.warn('Tweaklr: chat realtime status:', status);
       }
       return;
     }
@@ -4440,7 +4440,7 @@ async function markMingConversationRead(personId) {
     .eq('sender_id', personId)
     .is('read_at', null);
 
-  if (error) console.warn('Ming: could not mark messages read.', error.message);
+  if (error) console.warn('Tweaklr: could not mark messages read.', error.message);
 }
 
 async function subscribeMingMessages() {
@@ -4847,7 +4847,7 @@ async function deleteChatMessage(messageId, mode) {
       });
 
     if (error) {
-      console.warn('Ming: delete for me failed.', error.message);
+      console.warn('Tweaklr: delete for me failed.', error.message);
       toast('Could not delete this message for you. Run the message delete migration first.', 'alert');
       return false;
     }
@@ -4881,7 +4881,7 @@ async function deleteChatMessage(messageId, mode) {
     .select('id');
 
   if (error) {
-    console.warn('Ming: delete for everyone failed.', error.message);
+    console.warn('Tweaklr: delete for everyone failed.', error.message);
     toast('Could not delete this message. Run the message delete migration first.', 'alert');
     return false;
   }
@@ -5435,7 +5435,7 @@ async function loadMingProfileLikedUpdates() {
       .rpc('get_daily_updates', { p_limit: 100 });
 
     if (error) {
-      console.warn('Ming: liked Daily Updates could not be loaded.', error.message);
+      console.warn('Tweaklr: liked Daily Updates could not be loaded.', error.message);
       return false;
     }
 
@@ -5481,7 +5481,7 @@ async function loadMingProfileLikedUpdates() {
     profileLikesLoaded = true;
     return true;
   } catch (error) {
-    console.warn('Ming: liked Daily Updates load failed.', error);
+    console.warn('Tweaklr: liked Daily Updates load failed.', error);
     return false;
   }
 }
@@ -5591,7 +5591,7 @@ function renderProfile() {
       try {
         await openSpaces();
       } catch (error) {
-        console.error('Ming: Your Spaces direct navigation failed:', error);
+        console.error('Tweaklr: Your Spaces direct navigation failed:', error);
         toast('Your Spaces could not be loaded right now.', 'alert');
       }
     });
@@ -5807,7 +5807,7 @@ async function loadMingSearchData() {
       searchDataReady = true;
       return true;
     } catch (error) {
-      console.warn('Ming: Search data load failed.', error);
+      console.warn('Tweaklr: Search data load failed.', error);
       searchDataReady = false;
       return false;
     } finally {
@@ -6005,7 +6005,7 @@ function updateProfileMessageUnreadBadge() {
 }
 
 /* ------------------------------------------------------------
-   MING NOTIFICATION POPUPS
+   TWEAKLR NOTIFICATION POPUPS
 ------------------------------------------------------------ */
 let mingNotificationPopupHost = null;
 let mingNotificationAudioContext = null;
@@ -6405,7 +6405,7 @@ async function toggleMingDiscoverability() {
       .eq('id', session.user.id);
 
     if (error) {
-      console.error('Ming: discoverability update failed:', error.message);
+      console.error('Tweaklr: discoverability update failed:', error.message);
       toast('Could not update discoverability', 'alert');
       return;
     }
@@ -6421,7 +6421,7 @@ async function toggleMingDiscoverability() {
     openSettingsSheet();
     toast(next ? 'You are now discoverable nearby' : 'You are hidden from nearby discovery', next ? 'check' : 'shield');
   } catch (error) {
-    console.error('Ming: discoverability update failed:', error);
+    console.error('Tweaklr: discoverability update failed:', error);
     toast('Could not update discoverability', 'alert');
   }
 }
@@ -6706,7 +6706,7 @@ async function saveAvatarCrop() {
     });
 
   if (uploadError) {
-    console.error('Ming: avatar upload failed:', uploadError);
+    console.error('Tweaklr: avatar upload failed:', uploadError);
     toast('Could not upload photo', 'alert');
     return;
   }
@@ -6725,7 +6725,7 @@ async function saveAvatarCrop() {
 
   if (profileError) {
     console.error(
-      'Ming: avatar profile update failed:',
+      'Tweaklr: avatar profile update failed:',
       profileError.message
     );
     toast('Could not save photo', 'alert');
@@ -6770,7 +6770,7 @@ document.addEventListener('click', e => {
   const target = e.target?.closest?.('#call-overlay [data-action]');
   if (!target) return;
 
-  console.log('Ming: call control click reached document', {
+  console.log('Tweaklr: call control click reached document', {
     action: target.dataset.action,
     tag: target.tagName,
     disabled: !!target.disabled,
@@ -6843,7 +6843,7 @@ document.addEventListener('click', async e => {
           .eq('id', connections.find(c => c.personId === arg)?.id || '');
 
         if (error) {
-          console.error('Ming: removing connection failed:', error.message);
+          console.error('Tweaklr: removing connection failed:', error.message);
           toast('Could not remove connection.', 'alert');
           break;
         }
@@ -6880,7 +6880,7 @@ document.addEventListener('click', async e => {
           .eq('id', r.id);
 
         if (error) {
-          console.error('Ming: accepting connection failed:', error.message);
+          console.error('Tweaklr: accepting connection failed:', error.message);
           toast('Could not accept request.', 'alert');
           break;
         }
@@ -6914,7 +6914,7 @@ document.addEventListener('click', async e => {
           .eq('id', r.id);
 
         if (error) {
-          console.error('Ming: declining connection failed:', error.message);
+          console.error('Tweaklr: declining connection failed:', error.message);
           toast('Could not dismiss request.', 'alert');
           break;
         }
@@ -6948,7 +6948,7 @@ document.addEventListener('click', async e => {
       }
       const { error } = await supabaseClient.from('daily_update_participants').insert({ update_id: a.id, user_id: session.user.id });
       if (error && error.code !== '23505') {
-        console.error('Ming: joining activity failed:', error.message);
+        console.error('Tweaklr: joining activity failed:', error.message);
         toast('Could not join activity.', 'alert');
         break;
       }
@@ -6998,7 +6998,7 @@ document.addEventListener('click', async e => {
       try {
         await openSpaces();
       } catch (error) {
-        console.error('Ming: Your Spaces navigation failed:', error);
+        console.error('Tweaklr: Your Spaces navigation failed:', error);
         toast('Your Spaces could not be loaded right now.', 'alert');
       }
 
@@ -7202,7 +7202,7 @@ document.addEventListener('click', async e => {
             cacheControl: '3600'
           });
           if (uploadError) {
-            console.error('Ming: avatar upload failed:', uploadError.message);
+            console.error('Tweaklr: avatar upload failed:', uploadError.message);
             toast('Could not upload photo', 'alert');
             break;
           }
@@ -7233,7 +7233,7 @@ document.addEventListener('click', async e => {
             });
 
           if (usernameError) {
-            console.error('Ming: username update failed:', usernameError.message);
+            console.error('Tweaklr: username update failed:', usernameError.message);
 
             if (/already exists|duplicate|unique/i.test(usernameError.message)) {
               toast('That username is already taken.', 'alert');
@@ -7264,7 +7264,7 @@ document.addEventListener('click', async e => {
           .eq('id', session.user.id);
 
         if (error) {
-          console.error('Ming: profile update failed:', error.message);
+          console.error('Tweaklr: profile update failed:', error.message);
           toast('Could not save profile', 'alert');
           break;
         }
@@ -7276,7 +7276,7 @@ document.addEventListener('click', async e => {
         toast(usernameChanged ? 'Profile and username updated' : 'Profile updated', 'check');
 
       } catch (error) {
-        console.error('Ming: profile update failed:', error);
+        console.error('Tweaklr: profile update failed:', error);
         toast('Could not save profile', 'alert');
       }
 
@@ -7307,7 +7307,7 @@ document.addEventListener('click', async e => {
           .eq('id', session.user.id);
 
         if (error) {
-          console.error('Ming: activity update failed:', error.message);
+          console.error('Tweaklr: activity update failed:', error.message);
           toast('Could not update activity', 'alert');
           break;
         }
@@ -7317,7 +7317,7 @@ document.addEventListener('click', async e => {
         renderProfile();
         toast('Updated', 'check');
       } catch (error) {
-        console.error('Ming: activity update failed:', error);
+        console.error('Tweaklr: activity update failed:', error);
         toast('Could not update activity', 'alert');
       }
       break;
@@ -7495,7 +7495,7 @@ document.addEventListener('click', async e => {
           .createSignedUrl(path, 3600);
 
         if (error || !data?.signedUrl) {
-          console.error('Ming: could not create voice playback URL:', error?.message || 'No signed URL returned.');
+          console.error('Tweaklr: could not create voice playback URL:', error?.message || 'No signed URL returned.');
           toast('Could not load this voice note.', 'alert');
           return;
         }
@@ -7510,7 +7510,7 @@ document.addEventListener('click', async e => {
         });
 
         audio.addEventListener('error', () => {
-          console.error('Ming: voice playback failed.', audio.error?.message || audio.error?.code || 'Unknown audio error');
+          console.error('Tweaklr: voice playback failed.', audio.error?.message || audio.error?.code || 'Unknown audio error');
           voiceBtn.textContent = '▶';
           toast('This voice note could not be played.', 'alert');
         });
@@ -7525,7 +7525,7 @@ document.addEventListener('click', async e => {
         voiceBtn.textContent = '▶';
       }
     } catch (error) {
-      console.error('Ming: voice playback failed:', error);
+      console.error('Tweaklr: voice playback failed:', error);
       voiceBtn.textContent = '▶';
       toast('This voice note could not be played.', 'alert');
     }
@@ -7687,7 +7687,7 @@ boot();
    SPACES.JS
 ================================*/
 /* ============================================================
-   ming — Spaces
+   Tweaklr — Spaces
    spaces.js  ·  loaded after app.js, reuses its helpers
    ($, esc, icon, avatar, toast, openSheet, openModal, pushStack,
     popStack, currentUser, people, byId, hasLocation, distLabel…)
@@ -8001,11 +8001,11 @@ const Server = (() => {
       const result = await supabaseClient.rpc('get_my_ming_spaces');
       data = result.data;
       if (result.error) {
-        console.warn('Ming: Spaces database load failed.', result.error.message);
+        console.warn('Tweaklr: Spaces database load failed.', result.error.message);
         return false;
       }
     } catch (error) {
-      console.warn('Ming: Spaces database load request failed.', error);
+      console.warn('Tweaklr: Spaces database load request failed.', error);
       return false;
     }
 
@@ -8089,12 +8089,12 @@ const Server = (() => {
       try {
         const { data: rows, error } = await supabaseClient.rpc(loader.rpc);
         if (error) {
-          console.warn(`Ming: optional Spaces loader skipped (${loader.name}).`, error.message);
+          console.warn(`Tweaklr: optional Spaces loader skipped (${loader.name}).`, error.message);
           continue;
         }
         db[loader.name] = (rows || []).map(loader.map);
       } catch (error) {
-        console.warn(`Ming: optional Spaces loader skipped (${loader.name}).`, error);
+        console.warn(`Tweaklr: optional Spaces loader skipped (${loader.name}).`, error);
       }
     }
     const memberIds = [...new Set(db.members.map(m => m.userId).filter(id => id && id !== currentUser.id))];
@@ -8156,7 +8156,7 @@ const Server = (() => {
         });
 
         if (error) {
-          console.warn('Ming: Space creation failed.', error.message);
+          console.warn('Tweaklr: Space creation failed.', error.message);
           return deny(error.message || 'Could not create this Space.');
         }
 
@@ -8235,7 +8235,7 @@ const Server = (() => {
         if (!session.userId || !isUuidPerson(session.userId)) return deny('Please sign in again.');
         const { error } = await supabaseClient.rpc('delete_ming_space', { p_space_id: p.spaceId });
         if (error) {
-          console.warn('Ming: Space deletion failed.', error.message);
+          console.warn('Tweaklr: Space deletion failed.', error.message);
           return deny(error.message || 'Could not delete this Space.');
         }
         db.spaces = db.spaces.filter(x => x.id !== p.spaceId);
@@ -8248,7 +8248,7 @@ const Server = (() => {
         if (!session.userId || !isUuidPerson(session.userId)) return deny('Please sign in again.');
         const { data, error } = await supabaseClient.rpc('redeem_ming_space_invite', { p_code: p.code || '' });
         if (error) {
-          console.warn('Ming: Space join failed.', error.message);
+          console.warn('Tweaklr: Space join failed.', error.message);
           return deny(error.message || 'That invitation could not be used.');
         }
         const joined = data;
@@ -8582,7 +8582,7 @@ const spaceById = id => Server.db.spaces.find(s => s.id === id);
 async function loadSpacesFromDatabase() {
   if (typeof Server !== 'undefined' && Server.load) {
     try { return await Server.load(); }
-    catch (error) { console.error('Ming: Spaces database load failed:', error); return false; }
+    catch (error) { console.error('Tweaklr: Spaces database load failed:', error); return false; }
   }
   return false;
 }
@@ -8627,7 +8627,7 @@ function mountScreen(html) {
   const el = wrap.firstElementChild;
   const app = document.getElementById('app');
   if (!app || !el) {
-    console.error('Ming: Could not mount a Spaces screen because the app container is unavailable.');
+    console.error('Tweaklr: Could not mount a Spaces screen because the app container is unavailable.');
     return null;
   }
 
@@ -8705,7 +8705,7 @@ mountScreen(`
 ['#screen-spaces .scroll', '#screen-createspace .scroll', '#screen-wallet .scroll'].forEach(sel => {
   const el = document.querySelector(sel);
   if (!el) {
-    console.warn('Ming: Spaces screen scroll target was not available during mount:', sel);
+    console.warn('Tweaklr: Spaces screen scroll target was not available during mount:', sel);
     return;
   }
   el.addEventListener('scroll', () => {
@@ -8720,7 +8720,7 @@ async function openSpaces() {
   /* Navigation must happen immediately; database loading must never block the screen transition. */
   const screen = document.getElementById('screen-spaces');
   if (!screen) {
-    console.error('Ming: Spaces screen is not mounted.');
+    console.error('Tweaklr: Spaces screen is not mounted.');
     toast('Spaces could not be opened right now.', 'alert');
     return;
   }
@@ -8739,7 +8739,7 @@ async function openSpaces() {
   try {
     renderSpaces();
   } catch (error) {
-    console.error('Ming: Spaces screen render failed:', error);
+    console.error('Tweaklr: Spaces screen render failed:', error);
     toast('Spaces could not be loaded right now.', 'alert');
   }
 }
@@ -9864,7 +9864,7 @@ function openWallet() {
   pushStack('wallet');
   try { renderWallet(); }
   catch (error) {
-    console.error('Ming: Wallet screen render failed:', error);
+    console.error('Tweaklr: Wallet screen render failed:', error);
     toast('Wallet could not be loaded right now.', 'alert');
   }
 }
@@ -10425,7 +10425,7 @@ document.addEventListener('input', e => {
   const homeScreen = document.querySelector('#screen-home .scroll, [data-tab="home"] .scroll');
 
   if (!anchor && !homeScreen) {
-    console.warn('Ming: Home Spaces rail could not find a Home container yet.');
+    console.warn('Tweaklr: Home Spaces rail could not find a Home container yet.');
     return;
   }
 
@@ -10501,7 +10501,7 @@ function seedNewSpace(space) {
    THEME.JS
 =================================*/
 /* ============================================================
-   ming — theme toggle
+   Tweaklr — theme toggle
    theme.js  ·  sun ⇄ moon, one control, reused everywhere it appears
 
    Priority for the resolved theme:
@@ -10609,7 +10609,7 @@ function seedNewSpace(space) {
 }
 
 /* ------------------------------------------------------------
-   MING AUTH — STRICT FORM VALIDATION + SUPABASE AUTH
+   TWEAKLR AUTH — STRICT FORM VALIDATION + SUPABASE AUTH
 ------------------------------------------------------------ */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -10988,7 +10988,7 @@ setMessage(
 
 
 /* ------------------------------------------------------
-   OPEN MING AFTER SUCCESSFUL LOGIN
+   OPEN TWEAKLR AFTER SUCCESSFUL LOGIN
 ------------------------------------------------------ */
 
 window.location.href = 'app.html';
@@ -11014,7 +11014,7 @@ window.location.href = 'app.html';
 
 
 /* ------------------------------------------------------------
-   MING AUTH SESSION
+   TWEAKLR AUTH SESSION
 ------------------------------------------------------------ */
 
 (async function initMingAuthSession() {
@@ -11032,13 +11032,13 @@ window.location.href = 'app.html';
   } = await supabaseClient.auth.getSession();
 
   if (error || !session?.user) {
-    console.log('Ming: no authenticated session. Returning to login.');
+    console.log('Tweaklr: no authenticated session. Returning to login.');
 
     window.location.href = 'index.html';
 
     return;
   }
 
-  console.log('Ming: authenticated session detected.');
+  console.log('Tweaklr: authenticated session detected.');
 
 })();
