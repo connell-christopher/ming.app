@@ -3474,6 +3474,12 @@ html.theme-transitioning *::after {
   cursor: pointer;
 }
 .chat-bubble__reply {
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  border: 0;
+  cursor: pointer;
   display: block;
   margin: -2px -2px 7px;
   padding: 6px 8px;
