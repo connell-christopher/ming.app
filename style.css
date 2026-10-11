@@ -3456,7 +3456,7 @@ html.theme-transitioning *::after {
 
 
 /* ============================================================
-   MING CHAT INTERACTIONS
+   TWEAKLR CHAT INTERACTIONS
 ============================================================ */
 .chat-message-row {
   touch-action: pan-y;
@@ -3771,7 +3771,7 @@ html.theme-transitioning *::after {
 }
 
 /* ------------------------------------------------------------
-   MING NOTIFICATION POPUPS
+   TWEAKLR NOTIFICATION POPUPS
 ------------------------------------------------------------ */
 .ming-notification-popups {
   position: fixed;
@@ -3902,7 +3902,7 @@ html.theme-transitioning *::after {
 .search-person-row .meta .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 
-/* Ming chat attachments */
+/* Tweaklr chat attachments */
 .chat-attach-btn{width:38px;height:38px;min-width:38px;border-radius:13px;display:grid;place-items:center;border:1px solid var(--border);background:var(--surface-2);color:var(--coffee)}
 .chat-attach-btn svg{width:18px;height:18px}
 .chat-attachment-preview{padding:7px 12px;border-top:1px solid var(--border);background:var(--surface)}
