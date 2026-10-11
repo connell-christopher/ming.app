@@ -4754,7 +4754,6 @@ function openMessageActions(messageId) {
         <button data-action="chat-reply:${esc(messageId)}"><span class="tw-action-icon tw-action-reply" aria-hidden="true"></span><br>Reply</button>
         <button data-action="chat-copy:${esc(messageId)}"><span class="tw-action-icon tw-action-copy" aria-hidden="true"></span><br>Copy</button>
         <button data-action="chat-forward:${esc(messageId)}"><span class="tw-action-icon tw-action-forward" aria-hidden="true"></span><br>Forward</button>
-        <button data-action="chat-react:${esc(messageId)}"><span class="tw-action-icon tw-action-react" aria-hidden="true"></span><br>React</button>
         <button data-action="chat-delete:${esc(messageId)}"><span class="tw-action-icon tw-action-delete" aria-hidden="true"></span><br>Delete</button>
       </div>
       <div class="chat-emoji-grid" aria-label="Tweaklr reactions">${emojis.map(e => `<button class="tweaklr-emoji-btn" data-action="chat-add-reaction:${esc(messageId)}:${encodeURIComponent(e)}" aria-label="${e.replace('tw_','Tweaklr ')}">${tweaklrReactionSvg(e)}</button>`).join('')}</div>`
