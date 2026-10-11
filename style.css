@@ -4115,16 +4115,51 @@ html.theme-transitioning *::after {
 #auth-screen .auth-logo {
   display: grid;
   place-items: center;
-  width: 62px;
-  height: 62px;
+  width: 76px;
+  height: 76px;
   margin: 0 auto 18px;
   border: 1px solid rgba(241,210,174,.34);
-  border-radius: 21px;
+  border-radius: 25px;
   color: #f1d2ae;
-  background: radial-gradient(circle at 30% 22%, rgba(241,210,174,.20), transparent 58%), linear-gradient(145deg, rgba(124,51,65,.42), rgba(111,78,55,.18));
-  box-shadow: 0 12px 32px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.12);
-  font-size: 34px;
+  background:
+    radial-gradient(circle at 28% 20%, rgba(255,240,215,.19), transparent 42%),
+    radial-gradient(circle at 76% 80%, rgba(124,51,65,.28), transparent 52%),
+    linear-gradient(145deg, rgba(124,51,65,.38), rgba(111,78,55,.12));
+  box-shadow: 0 14px 36px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.13);
   line-height: 1;
+}
+#auth-screen .auth-logo svg {
+  display: block;
+  width: 48px;
+  height: 48px;
+  overflow: visible;
+  filter: drop-shadow(0 3px 8px rgba(241,210,174,.16));
+}
+#auth-screen .auth-moon-core {
+  transform-origin: 42px 40px;
+  animation: authMoonFloat 7s ease-in-out infinite;
+}
+#auth-screen .auth-moon-orbit {
+  opacity: .72;
+}
+#auth-screen .auth-moon-orbit-dot {
+  filter: drop-shadow(0 0 4px rgba(241,210,174,.55));
+}
+#auth-screen .auth-moon-star {
+  transform-origin: 62px 20px;
+  animation: authMoonTwinkle 4.5s ease-in-out infinite;
+}
+@keyframes authMoonFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.8px); }
+}
+@keyframes authMoonTwinkle {
+  0%, 100% { opacity: .82; transform: scale(.94); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #auth-screen .auth-moon-core,
+  #auth-screen .auth-moon-star { animation: none !important; }
 }
 #auth-screen .auth-brand h1 {
   margin: 0;
