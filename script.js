@@ -1912,7 +1912,7 @@ function renderHomePeople() {
   }
 
   const near = mingDiscoverPeople
-    .filter(p => p.km != null && p.km <= 3)
+    .filter(p => p.km != null && p.km <= 15)
     .sort((a, b) => a.km - b.km);
 
   host.innerHTML = sectionHead('People nearby', null, { t: 'See all', a: 'go-nearby' }) +
@@ -1924,7 +1924,7 @@ function renderHomePeople() {
           <div class="tag">${esc(p.tag.split(' · ')[0])}</div>
           <div class="dist">${esc(distLabel(p.km))}</div>
         </button>`).join('')}</div>`
-      : emptyState('No people nearby yet', 'No other discoverable Ming members with a fresh location are within 3 km right now.'));
+      : emptyState('No people nearby yet', 'No other discoverable Ming members with a fresh location are within 15 km right now.'));
 }
 
 function renderHomeFeed() {
@@ -2879,7 +2879,7 @@ function renderNearby() {
 
     <div class="radius-ctl">
       <div class="lbl"><b>Discovery area</b><span id="radius-val">${state.radius} km</span></div>
-      <input type="range" id="radius" min="0.5" max="5" step="0.5" value="${state.radius}" aria-label="Discovery radius in kilometres" />
+      <input type="range" id="radius" min="0.5" max="50" step="0.5" value="${state.radius}" aria-label="Discovery radius in kilometres" />
     </div>
 
     <div class="privacy-note">${icon('shield')}
@@ -2893,7 +2893,7 @@ function renderNearby() {
           <div class="meta"><div class="n">${esc(p.name)}</div><div class="s">${esc(p.tag)} · ${esc(p.activity)}</div></div>
           <div class="right"><div class="d">${esc(distLabel(p.km))}</div><div class="t">${esc(areaLabel())}</div></div>
         </button>`).join('')
-      : emptyState('No one nearby yet.', 'Check back soon, or expand your discovery area to see more of the neighbourhood.', { t: 'Expand to 5 km', a: 'expand-radius' })}
+      : emptyState('No one nearby yet.', 'Check back soon, or expand your discovery area to see more of the neighbourhood.', { t: 'Expand to 50 km', a: 'expand-radius' })}
     </div>
 
     <div class="section">${sectionHead('Activity nearby', 'Next few days')}
@@ -7039,7 +7039,7 @@ document.addEventListener('click', async e => {
     }
 
     case 'enable-location': closeSheet(); requestLocation(() => { if (state.tab !== 'nearby') return; }); break;
-    case 'expand-radius': state.radius = 5; renderNearby(); toast('Discovery area expanded to 5 km', 'pin'); break;
+    case 'expand-radius': state.radius = 50; renderNearby(); toast('Discovery area expanded to 50 km', 'pin'); break;
 
     case 'create':
       closeSheet();
