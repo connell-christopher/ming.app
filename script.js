@@ -2138,7 +2138,7 @@ async function shareDailyUpdate(id) {
         <button data-action="share-external:${esc(id)}"><span style="font-size:24px">↗</span><br>Other apps</button>
         <button data-action="download-update:${esc(id)}"><span style="font-size:24px">↓</span><br>Download</button>
       </div>
-      <div class="section" style="padding:0">
+      <div class="section share-update-recipients" style="padding:0">
         <div class="section-head"><div><h2>Send to a connection</h2><p>Actual media files will be sent</p></div></div>
         ${connected.length ? connected.map(p => `
           <button class="opt" data-action="send-update:${esc(id)}:${esc(p.id)}">
