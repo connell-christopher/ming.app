@@ -10,7 +10,7 @@ self.addEventListener('push', event => {
   const title = data.kind === 'video' ? 'Incoming video call' : 'Incoming voice call';
   const caller = data.callerName || 'Someone';
   const options = {
-    body: caller + ' is calling you on Ming',
+    body: caller + ' is calling you on Tweaklr',
     icon: './favicon.ico',
     badge: './favicon.ico',
     tag: 'ming-call-' + (data.callId || 'incoming'),
