@@ -6451,7 +6451,7 @@ function openMoonAbout() {
     title: 'Moonflower is private',
     sub: 'It never appears on your Tweaklr profile.',
     body: `<p style="font-size:14.5px;line-height:1.6;padding:4px 0 8px">
-      Ming is the world around you. Moonflower is the world inside you.</p>
+      Tweaklr is the world around you. Moonflower is the world inside you.</p>
       <p style="font-size:14px;line-height:1.6;color:var(--muted)">
       Nothing you write here is shared, ranked, shown to people nearby, or used anywhere else in the app. No one can see that you opened it.</p>`,
     foot: `<button class="btn btn--soft btn--block" data-action="close-sheet">Close</button>`
