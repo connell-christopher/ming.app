@@ -4626,6 +4626,17 @@ function setChatReply(messageId) {  const c = convoFor(state.activeChat);
   }
 }
 
+function jumpToRepliedMessage(messageId) {
+  const row = Array.from(document.querySelectorAll('#chat-thread .chat-message-row'))
+    .find(item => item.dataset.messageId === messageId);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.classList.remove('is-replying');
+  void row.offsetWidth;
+  row.classList.add('is-replying');
+  setTimeout(() => row.classList.remove('is-replying'), 1400);
+}
+
 function clearChatReply() {
   chatReplyTarget = null;
   const preview = $('#chat-reply-preview');
@@ -4694,7 +4705,7 @@ function renderThread() {
     <div class="chat-message-row ${m.me ? 'chat-message-row--outgoing' : 'chat-message-row--incoming'}"
          data-message-id="${esc(m.id)}">
       <div class="chat-bubble" data-message-id="${esc(m.id)}">
-        ${reply ? `<span class="chat-bubble__reply"><strong>${reply.me ? 'You' : esc(byId(state.activeChat)?.short || 'Them')}</strong>${reply.type === 'voice' ? '🎙️ Voice note' : esc((reply.text || '').slice(0, 110))}</span>` : ''}
+        ${reply ? `<button type="button" class="chat-bubble__reply" data-action="chat-jump-reply:${esc(reply.id)}" aria-label="Jump to replied message"><strong>${reply.me ? 'You' : esc(byId(state.activeChat)?.short || 'Them')}</strong>${reply.type === 'voice' ? '🎙️ Voice note' : esc((reply.text || '').slice(0, 110))}</button>` : ''}
         ${m.type === 'voice' ? renderVoiceMessage(m) : (m.attachmentPath ? renderChatAttachment(m) : `<span class="chat-bubble__text">${esc(m.text)}</span>`)}
         <span class="chat-bubble__time">${clockTime(m.at)}${m.me ? ` · ${m.read ? 'Read' : 'Sent'}` : ''}</span>
         ${Object.entries(reactions).length ? `<span class="chat-reactions">${Object.entries(reactions).map(([emoji,count]) => tweaklrReactionMarkup(emoji,count)).join('')}</span>` : ''}
@@ -7525,6 +7536,7 @@ document.addEventListener('click', async e => {
   if (!b) return;
   const [verb,arg,arg2]=b.dataset.action.split(':');
   if(verb==='chat-reply'){ closeSheet(); setChatReply(arg); }
+  if(verb==='chat-jump-reply'){ jumpToRepliedMessage(arg); }
   if(verb==='chat-cancel-reply'){ clearChatReply(); }
   if(verb==='chat-copy'){ copyChatMessage(arg); }
   if(verb==='chat-forward'){ forwardChatMessage(arg); }
