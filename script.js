@@ -4845,7 +4845,7 @@ function openMessageActions(messageId) {
   if (!m) return;
 
   const editAction = canEditChatMessage(m)
-    ? `<button data-action="chat-edit:${esc(messageId)}"><span class="tw-action-icon tw-action-copy" aria-hidden="true"></span><br>Edit</button>`
+    ? `<button data-action="chat-edit:${esc(messageId)}"><span aria-hidden="true">✎</span><br>Edit</button>`
     : '';
 
   openSheet({
