@@ -4516,8 +4516,28 @@ async function subscribeMingMessages() {
         const c = conversations.find(x => x.personId === row.recipient_id);
         const m = c?.messages.find(x => x.id === row.id);
         if (!m) return;
+        m.text = row.body;
         m.read = !!row.read_at;
         if (state.activeChat === row.recipient_id) renderThread();
+        if (state.loaded.messages) renderMessages();
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'messages',
+        filter: 'recipient_id=eq.' + session.user.id
+      },
+      payload => {
+        const row = payload.new;
+        const c = conversations.find(x => x.personId === row.sender_id);
+        const m = c?.messages.find(x => x.id === row.id);
+        if (!m) return;
+        m.text = row.body;
+        m.read = !!row.read_at;
+        if (state.activeChat === row.sender_id) renderThread();
         if (state.loaded.messages) renderMessages();
       }
     )
