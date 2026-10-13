@@ -4741,11 +4741,93 @@ function tweaklrReactionMarkup(id, count) {
   return '<span class="chat-reaction" data-tweaklr-reaction="' + esc(id) + '">' + tweaklrReactionSvg(id) + (count > 1 ? '<b>' + count + '</b>' : '') + '</span>';
 }
 
+function canEditChatMessage(m) {
+  const ageMs = Date.now() - Number(m?.at || 0);
+  return !!m &&
+    m.me === true &&
+    m.type === 'text' &&
+    !m.attachmentPath &&
+    !m.voicePath &&
+    ageMs >= 0 &&
+    ageMs <= 60 * 60 * 1000;
+}
+
+function openChatMessageEditor(messageId) {
+  const c = convoFor(state.activeChat);
+  const m = c.messages.find(x => x.id === messageId);
+  if (!m || !canEditChatMessage(m)) {
+    toast('You can edit your text messages for up to 1 hour after sending.', 'alert');
+    return;
+  }
+
+  closeSheet();
+  openModal({
+    title: 'Edit message',
+    lede: 'You can edit this message within 1 hour of sending it.',
+    fields: `<div class="field"><label for="chat-edit-text">Message</label><textarea id="chat-edit-text" rows="4">${esc(m.text || '')}</textarea></div>`,
+    actions: [
+      { t: 'Cancel', cls: 'btn--soft', a: 'close-modal' },
+      { t: 'Save changes', cls: 'btn--primary', a: 'chat-edit-save:' + messageId }
+    ]
+  });
+}
+
+async function saveEditedChatMessage(messageId) {
+  const c = convoFor(state.activeChat);
+  const m = c.messages.find(x => x.id === messageId);
+  const input = document.getElementById('chat-edit-text');
+  const nextText = input?.value.trim() || '';
+
+  if (!m || !canEditChatMessage(m)) {
+    closeModal();
+    toast('You can edit your text messages for up to 1 hour after sending.', 'alert');
+    return;
+  }
+  if (!nextText) {
+    toast('A message cannot be empty.', 'alert');
+    return;
+  }
+
+  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+  if (sessionError || !session?.user) {
+    toast('Please sign in again.', 'alert');
+    return;
+  }
+
+  const { data: updatedRows, error } = await supabaseClient
+    .from('messages')
+    .update({ body: nextText })
+    .eq('id', messageId)
+    .eq('sender_id', session.user.id)
+    .select('id, body')
+    .maybeSingle();
+
+  if (error) {
+    console.warn('Tweaklr: message edit failed.', error.message);
+    toast('Could not edit this message.', 'alert');
+    return;
+  }
+  if (!updatedRows) {
+    toast('This message could not be edited. Check that it is yours and still within the 1-hour limit.', 'alert');
+    return;
+  }
+
+  m.text = updatedRows.body;
+  closeModal();
+  renderThread();
+  if (state.loaded.messages) renderMessages();
+  toast('Message edited', 'check');
+}
+
 function openMessageActions(messageId) {
   const c = convoFor(state.activeChat);
   const m = c.messages.find(x => x.id === messageId);
   if (!m) return;
-  const emojis = ['tw_heart','tw_laugh','tw_wow','tw_sad','tw_angry','tw_like'];
+
+  const editAction = canEditChatMessage(m)
+    ? `<button data-action="chat-edit:${esc(messageId)}"><span class="tw-action-icon tw-action-copy" aria-hidden="true"></span><br>Edit</button>`
+    : '';
+
   openSheet({
     title: 'Message',
     sub: 'Choose an action',
@@ -4755,8 +4837,8 @@ function openMessageActions(messageId) {
         <button data-action="chat-copy:${esc(messageId)}"><span class="tw-action-icon tw-action-copy" aria-hidden="true"></span><br>Copy</button>
         <button data-action="chat-forward:${esc(messageId)}"><span class="tw-action-icon tw-action-forward" aria-hidden="true"></span><br>Forward</button>
         <button data-action="chat-delete:${esc(messageId)}"><span class="tw-action-icon tw-action-delete" aria-hidden="true"></span><br>Delete</button>
-      </div>
-      <div class="chat-emoji-grid" aria-label="Tweaklr reactions">${emojis.map(e => `<button class="tweaklr-emoji-btn" data-action="chat-add-reaction:${esc(messageId)}:${encodeURIComponent(e)}" aria-label="${e.replace('tw_','Tweaklr ')}">${tweaklrReactionSvg(e)}</button>`).join('')}</div>`
+        ${editAction}
+      </div>`
   });
 }
 
@@ -7534,6 +7616,8 @@ document.addEventListener('click', async e => {
   const b=e.target.closest('[data-action^="chat-"]');
   if (!b) return;
   const [verb,arg,arg2]=b.dataset.action.split(':');
+  if(verb==='chat-edit'){ openChatMessageEditor(arg); }
+  if(verb==='chat-edit-save'){ await saveEditedChatMessage(arg); }
   if(verb==='chat-reply'){ closeSheet(); setChatReply(arg); }
   if(verb==='chat-jump-reply'){ jumpToRepliedMessage(arg); }
   if(verb==='chat-cancel-reply'){ clearChatReply(); }
