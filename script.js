@@ -4815,20 +4815,23 @@ async function saveEditedChatMessage(messageId) {
   }
 
   const { data: updatedRows, error } = await supabaseClient
-    .from('messages')
-    .update({ body: nextText })
-    .eq('id', messageId)
-    .eq('sender_id', session.user.id)
-    .select('id, body')
+    .rpc('ming_edit_message', {
+      p_message_id: messageId,
+      p_body: nextText
+    })
     .maybeSingle();
 
   if (error) {
     console.warn('Tweaklr: message edit failed.', error.message);
-    toast('Could not edit this message.', 'alert');
+    if (/function .*ming_edit_message.* not found|Could not find the function/i.test(error.message || '')) {
+      toast('Message editing needs the latest database migration. Run supabase_message_edit_migration.sql in Supabase SQL Editor.', 'alert');
+    } else {
+      toast(error.message || 'Could not edit this message.', 'alert');
+    }
     return;
   }
-  if (!updatedRows) {
-    toast('This message could not be edited. Check that it is yours and still within the 1-hour limit.', 'alert');
+  if (!updatedRows?.id) {
+    toast('The database did not confirm this edit. Refresh and try again.', 'alert');
     return;
   }
 
