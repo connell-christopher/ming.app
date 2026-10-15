@@ -4647,10 +4647,26 @@ function setChatReply(messageId) {  const c = convoFor(state.activeChat);
 }
 
 function jumpToRepliedMessage(messageId) {
-  const row = Array.from(document.querySelectorAll('#chat-thread .chat-message-row'))
+  const thread = document.querySelector('#chat-thread');
+  if (!thread || !messageId) return;
+
+  const row = Array.from(thread.querySelectorAll('.chat-message-row'))
     .find(item => item.dataset.messageId === messageId);
   if (!row) return;
-  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Scroll the conversation itself so the original message is brought into view
+  // without unexpectedly moving the whole page or chat layout.
+  const threadRect = thread.getBoundingClientRect();
+  const rowRect = row.getBoundingClientRect();
+  const targetTop = thread.scrollTop + rowRect.top - threadRect.top
+    - Math.max(0, (thread.clientHeight - rowRect.height) / 2);
+
+  if (typeof thread.scrollTo === 'function') {
+    thread.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+  } else {
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   row.classList.remove('is-replying');
   void row.offsetWidth;
   row.classList.add('is-replying');
