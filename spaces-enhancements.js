@@ -9,8 +9,34 @@
   window.__tweaklrSpacesDNAInstalled = true;
 
   const ROOT = '#screen-space';
+  // Custom Tweaklr moon-glass mini-icons replace platform emoji throughout this panel.
+  const ICON_PATHS = {
+    target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 12l7-7m-3 0h3v3"/>',
+    timer:'<path d="M9 2h6m-3 0v3m6.2 1.8 1.4-1.4M12 7v5l3 2"/><circle cx="12" cy="13" r="8"/>',
+    hands:'<path d="M3 12l4-4 3 2 2-1 5 2-5 5-4-2-3 1z"/><path d="M7 8l2-3 3 2m-1 8 2 1 4-4"/>',
+    laugh:'<circle cx="12" cy="12" r="9"/><path d="M8 10h.1M16 10h.1M7.5 13a4.5 4.5 0 009 0z"/>',
+    cloud:'<path d="M6 18h11a4 4 0 000-8 5.5 5.5 0 00-10-1A4.5 4.5 0 006 18z"/>',
+    leaf:'<path d="M20 4C10 4 5 7 5 13a5 5 0 005 5c6 0 9-7 10-14zM4 21l8-9"/>',
+    dice:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 8h.1M16 8h.1M12 12h.1M8 16h.1M16 16h.1"/>',
+    trophy:'<path d="M8 4h8v5a4 4 0 01-8 0zM8 6H4v2a4 4 0 004 4m8-6h4v2a4 4 0 01-4 4M12 13v5m-4 2h8m-6-2h4"/>',
+    heart:'<path d="M12 20S3 14.5 3 8.5A4.5 4.5 0 0112 7a4.5 4.5 0 019 1.5C21 14.5 12 20 12 20z"/>',
+    letter:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/>',
+    moon:'<path d="M19 15A8 8 0 019 5a8 8 0 1010 10z"/><path d="M16 3v3m-1.5-1.5h3"/>',
+    handshake:'<path d="M3 10l4-4 4 2 2-1 8 4-7 6-4-2-3 1-4-4z"/><path d="m9 13 3 2m1-4 3 2"/>',
+    bag:'<path d="M5 8h14l1 12H4L5 8z"/><path d="M9 8V6a3 3 0 016 0v2m-6 5h6"/>',
+    briefcase:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V4h8v3M3 12h18m-11 0v2h4v-2"/>',
+    pin:'<path d="M12 21s7-7 7-12a7 7 0 10-14 0c0 5 7 12 7 12z"/><circle cx="12" cy="9" r="2"/>',
+    sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M19 5l-1.5 1.5m-11 11L5 19"/>',
+    good:'<path d="M8 11V5a2 2 0 014 0v4h5a2 2 0 012 2l-1 7a2 2 0 01-2 2H9l-4-3v-6z"/>',
+    rain:'<path d="M6 14a4 4 0 010-8 6 6 0 0111 2 3 3 0 010 6zM8 17l-1 2m6-2-1 2m6-2-1 2"/>',
+    fire:'<path d="M13 2c1 5-4 6-2 10 1-2 3-3 4-5 4 4 5 7 2 11a6 6 0 01-11-3c0-4 3-7 7-13z"/>',
+    bubbles:'<circle cx="9" cy="10" r="5"/><circle cx="16" cy="15" r="4"/><circle cx="17" cy="5" r="2"/>'
+  };
+  function brandIcon(name) {
+    return '<svg class="sp-dna-emoji" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><defs><linearGradient id="sp-dna-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F1D2AE"/><stop offset=".52" stop-color="#B77A80"/><stop offset="1" stop-color="#8B3543"/></linearGradient></defs><circle class="sp-dna-emoji__orb" cx="12" cy="12" r="11"/><g class="sp-dna-emoji__symbol">' + (ICON_PATHS[name] || ICON_PATHS.moon) + '</g></svg>';
+  }
   const MOODS = [
-    ['☀️', 'Sunny'], ['💛', 'Good'], ['🌧️', 'Low-key'], ['🔥', 'Energised'], ['🫧', 'Need calm']
+    ['sun', 'Sunny'], ['good', 'Good'], ['rain', 'Low-key'], ['fire', 'Energised'], ['bubbles', 'Need calm']
   ];
   const DARES = [
     'Send the most dramatic voice note you can in 10 seconds.',
@@ -54,7 +80,7 @@
   }
   function toolButton(action, label, icon) {
     return '<button type="button" class="sp-dna-action" data-sp-dna="' + action + '">' +
-      '<span aria-hidden="true">' + icon + '</span><b>' + label + '</b></button>';
+      '<span class="sp-dna-action__icon" aria-hidden="true">' + brandIcon(icon) + '</span><b>' + label + '</b></button>';
   }
   function renderTools() {
     const screen = activeScreen();
@@ -69,16 +95,16 @@
     }
     const nature = activeNature();
     const config = {
-      business: { title: 'BOARD MODE', desc: 'Keep a goal and deadline close.', buttons: toolButton('goal','Set pinned goal','🎯') + toolButton('deadline','Set deadline','⏳') },
-      friendly: { title: 'VIBE CHECK', desc: 'Share your mood with yourself on this device.', buttons: toolButton('mood','Choose mood','🫶') + toolButton('joke','Save an inside joke','😂') },
-      casual: { title: 'NO PRESSURE', desc: 'A personal quiet-mode preference. Existing chat receipts are unchanged.', buttons: toolButton('quiet','Toggle quiet preference','☁️') + toolButton('reset-quiet','Reset preference','🌿') },
-      silly: { title: 'CHAOS ENGINE', desc: 'A fresh prompt whenever the room needs chaos.', buttons: toolButton('dare','Generate a dare','🎲') + toolButton('meme-vote','Vote meme of the day','🏆') },
-      romantic: { title: 'FOR TWO', desc: 'Little gestures and a shared-moment countdown.', buttons: toolButton('thinking','Thinking of you','💗') + toolButton('love-note','Write a love letter','💌') + toolButton('rom-countdown','Set countdown','🌙') },
-      marketplace: { title: 'DEAL STUDIO', desc: 'Work out an offer before you send it in chat.', buttons: toolButton('haggle','Open haggle slider','🤝') + toolButton('claim-note','Save a claim reminder','🛍️') }
+      business: { title: 'BOARD MODE', desc: 'Keep a goal and deadline close.', buttons: toolButton('goal','Set pinned goal','target') + toolButton('deadline','Set deadline','timer') },
+      friendly: { title: 'VIBE CHECK', desc: 'Share your mood with yourself on this device.', buttons: toolButton('mood','Choose mood','hands') + toolButton('joke','Save an inside joke','laugh') },
+      casual: { title: 'NO PRESSURE', desc: 'A personal quiet-mode preference. Existing chat receipts are unchanged.', buttons: toolButton('quiet','Toggle quiet preference','cloud') + toolButton('reset-quiet','Reset preference','leaf') },
+      silly: { title: 'CHAOS ENGINE', desc: 'A fresh prompt whenever the room needs chaos.', buttons: toolButton('dare','Generate a dare','dice') + toolButton('meme-vote','Vote meme of the day','trophy') },
+      romantic: { title: 'FOR TWO', desc: 'Little gestures and a shared-moment countdown.', buttons: toolButton('thinking','Thinking of you','heart') + toolButton('love-note','Write a love letter','letter') + toolButton('rom-countdown','Set countdown','moon') },
+      marketplace: { title: 'DEAL STUDIO', desc: 'Work out an offer before you send it in chat.', buttons: toolButton('haggle','Open haggle slider','handshake') + toolButton('claim-note','Save a claim reminder','bag') }
     }[nature];
     if (!config) { panel.hidden = true; return; }
     panel.hidden = false;
-    panel.innerHTML = '<div class="sp-dna-top"><div><span class="sp-dna-kicker">TWEAKLR SIGNATURE</span><h3>' + config.title + '</h3><p>' + config.desc + '</p></div><span class="sp-dna-orb" aria-hidden="true">' + ({business:'💼',friendly:'🤝',casual:'☕',silly:'🤡',romantic:'🔐',marketplace:'🏪'}[nature] || '✦') + '</span></div>' +
+    panel.innerHTML = '<div class="sp-dna-top"><div><span class="sp-dna-kicker">TWEAKLR SIGNATURE</span><h3>' + config.title + '</h3><p>' + config.desc + '</p></div><span class="sp-dna-orb" aria-hidden="true">' + brandIcon(({business:'briefcase',friendly:'hands',casual:'cloud',silly:'dice',romantic:'moon',marketplace:'bag'}[nature] || 'moon')) + '</span></div>' +
       '<div class="sp-dna-actions">' + config.buttons + '</div>' + renderSavedSummary(nature);
     panel.dataset.nature = nature;
     panel.dataset.spaceName = activeName();
@@ -92,22 +118,23 @@
         const ms = new Date(deadline).getTime() - Date.now();
         countdown = '<span class="sp-dna-summary">' + (Number.isFinite(ms) ? (ms >= 0 ? Math.ceil(ms / 3600000) + ' hours left' : 'Deadline passed') : 'Deadline saved') + '</span>';
       }
-      return goal ? '<div class="sp-dna-saved"><b>📌 ' + esc(goal) + '</b>' + countdown + '</div>' : '';
+      return goal ? '<div class="sp-dna-saved"><span class="sp-dna-saved-icon">' + brandIcon('pin') + '</span><b>' + esc(goal) + '</b>' + countdown + '</div>' : '';
     }
     if (nature === 'friendly') {
       const mood = read('mood', null), jokes = read('jokes', []);
-      return '<div class="sp-dna-saved">' + (mood ? '<b>Your vibe today: ' + esc(mood) + '</b>' : '<span>No mood selected today.</span>') +
+      const moodIcon = mood ? MOODS.find(m => (m[0] + ' ' + m[1]) === mood)?.[0] : null;
+      return '<div class="sp-dna-saved">' + (mood ? '<span class="sp-dna-saved-icon">' + brandIcon(moodIcon || 'moon') + '</span><b>Your vibe today: ' + esc(mood.split(' ').slice(1).join(' ')) + '</b>' : '<span>No mood selected today.</span>') +
         (jokes.length ? '<span>' + jokes.length + ' inside joke' + (jokes.length === 1 ? '' : 's') + ' saved on this device</span>' : '') + '</div>';
     }
-    if (nature === 'casual') return '<div class="sp-dna-saved"><span>' + (read('quiet', false) ? '☁️ Quiet preference is on (visual preference only).' : 'No-pressure preference is off.') + '</span></div>';
+    if (nature === 'casual') return '<div class="sp-dna-saved"><span>' + (read('quiet', false) ? 'Quiet preference is on (visual preference only).' : 'No-pressure preference is off.') + '</span></div>';
     if (nature === 'silly') return '<div class="sp-dna-saved"><span>' + esc(read('dare', 'Ready for a little chaos?')) + '</span></div>';
     if (nature === 'romantic') {
       const date = read('rom-date', '');
-      return '<div class="sp-dna-saved"><span>' + (date ? '🌙 Countdown: ' + esc(date) : '💗 Your little rituals, kept personal on this device.') + '</span></div>';
+      return '<div class="sp-dna-saved"><span class="sp-dna-saved-icon">' + brandIcon(date ? 'moon' : 'heart') + '</span><span>' + (date ? 'Countdown: ' + esc(date) : 'Your little rituals, kept personal on this device.') + '</span></div>';
     }
     if (nature === 'marketplace') {
       const claim = read('claim', '');
-      return '<div class="sp-dna-saved"><span>' + (claim ? '🛍️ Reminder saved: ' + esc(claim) : 'Compare an offer before you send it.') + '</span></div>';
+      return '<div class="sp-dna-saved"><span class="sp-dna-saved-icon">' + brandIcon('bag') + '</span><span>' + (claim ? 'Reminder saved: ' + esc(claim) : 'Compare an offer before you send it.') + '</span></div>';
     }
     return '';
   }
@@ -136,7 +163,7 @@
         write('deadline', v ? parsed.toISOString() : ''); announce(v ? 'Deadline saved on this device.' : 'Deadline cleared.'); break;
       }
       case 'mood': {
-        const choice = ask('Choose a mood: ' + MOODS.map((m,i) => (i+1)+'. '+m[0]+' '+m[1]).join(' | '), '1');
+        const choice = ask('Choose a mood: ' + MOODS.map((m,i) => (i+1)+'. '+m[1]).join(' | '), '1');
         if (choice === null) return;
         const mood = MOODS[Number(choice)-1];
         if (!mood) { announce('Choose a number from 1 to ' + MOODS.length + '.'); return; }
@@ -161,7 +188,7 @@
       }
       case 'thinking': {
         const count = Number(read('thinking-count', 0)) + 1;
-        write('thinking-count', count); announce('💗 Thinking of you. Gesture recorded on this device.'); break;
+        write('thinking-count', count); announce('Thinking of you. Gesture recorded on this device.'); break;
       }
       case 'love-note': {
         const note = ask('Write your love letter. It will be saved on this device only; it is not sent to the other member.');
