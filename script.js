@@ -1371,10 +1371,39 @@ const TWEAK_INTERESTS = [
   'Motivation', 'News', 'Books', 'Nature', 'Cars', 'DIY'
 ];
 
+// A broad, expandable interest catalog: 55 topics × 20 discovery angles = 1,100
+// additional searchable tags. These are generated locally; no API is needed.
+const TWEAK_MORE_TOPICS = [
+  'Afrobeats', 'African cinema', 'African history', 'Anime', 'Architecture',
+  'Artificial intelligence', 'Astronomy', 'Beauty', 'Books', 'Business',
+  'Camping', 'Cars', 'Climate', 'Comedy', 'Cooking', 'Crafts', 'Cricket',
+  'Cybersecurity', 'Dance', 'Design', 'Documentaries', 'Education',
+  'Entrepreneurship', 'Esports', 'Fashion', 'Finance', 'Fitness', 'Football',
+  'Gaming', 'Gardening', 'Health and wellness', 'History', 'Home decor',
+  'Investing', 'K-pop', 'Movies', 'Mental wellness', 'Mobile photography',
+  'Motorcycles', 'Parenting', 'Personal development', 'Pets', 'Photography',
+  'Podcasts', 'Programming', 'Relationships', 'Science', 'Skincare',
+  'Small business', 'Space', 'Sports', 'Streetwear', 'Technology', 'Travel',
+  'TV series'
+];
+const TWEAK_MORE_ANGLES = [
+  'beginner guides', 'tips and tricks', 'how-to videos', 'news and updates',
+  'reviews', 'history and origins', 'culture and community', 'ideas and inspiration',
+  'challenges', 'deep dives', 'highlights', 'behind the scenes', 'stories',
+  'trends', 'tutorials', 'recommendations', 'daily life', 'interviews',
+  'myths and facts', 'creative projects'
+];
+const TWEAK_MORE_INTERESTS = [...new Set(
+  TWEAK_MORE_TOPICS.flatMap(topic =>
+    TWEAK_MORE_ANGLES.map(angle => topic + ' ' + angle)
+  )
+)].filter(tag => !TWEAK_INTERESTS.includes(tag));
+const TWEAK_ALL_INTERESTS = [...new Set([...TWEAK_INTERESTS, ...TWEAK_MORE_INTERESTS])];
+
 function getTweakInterestTags() {
   try {
     const saved = JSON.parse(localStorage.getItem('tweaklr-tweak-interests') || '[]');
-    return Array.isArray(saved) ? [...new Set(saved.filter(tag => TWEAK_INTERESTS.includes(tag)))] : [];
+    return Array.isArray(saved) ? [...new Set(saved.filter(tag => TWEAK_ALL_INTERESTS.includes(tag)))] : [];
   } catch (_) {
     return [];
   }
@@ -1401,6 +1430,13 @@ function renderTweak() {
         <div class="tweak-tags">${TWEAK_INTERESTS.map(tag => `
           <button type="button" class="tweak-tag ${tags.includes(tag) ? 'is-selected' : ''}" data-action="tweak-tag:${esc(tag)}" aria-pressed="${tags.includes(tag) ? 'true' : 'false'}">${tags.includes(tag) ? '<span>✓</span>' : '<span>＋</span>'}${esc(tag)}</button>
         `).join('')}</div>
+        <button type="button" class="tweak-more-toggle" data-action="tweak-more-tags" aria-expanded="false">More... <span aria-hidden="true">⌄</span></button>
+        <section class="tweak-more-panel" id="tweak-more-panel" hidden>
+          <label class="tweak-search-label" for="tweak-tag-search">Search 1,100+ more interests</label>
+          <div class="tweak-tag-search-wrap"><span aria-hidden="true">⌕</span><input id="tweak-tag-search" type="search" autocomplete="off" placeholder="Start typing an interest..." aria-label="Search more interests"><button type="button" data-action="tweak-clear-search" aria-label="Clear search" hidden>×</button></div>
+          <p class="tweak-search-hint">Suggestions update as you type.</p>
+          <div id="tweak-tag-suggestions" class="tweak-tag-suggestions" aria-live="polite"></div>
+        </section>
         <button type="button" class="btn btn--primary tweak-continue" data-action="tweak-save-tags" ${tags.length < 5 ? 'disabled' : ''}>Continue to Tweak <span aria-hidden="true">→</span></button>
         <p class="tweak-privacy-note">Your likes, comments, follows, connections and messages in Tweak are designed to belong to your Tweaklr account.</p>
       </section>`;
@@ -1426,12 +1462,77 @@ function renderTweak() {
 }
 
 function toggleTweakInterest(tag) {
-  if (!TWEAK_INTERESTS.includes(tag)) return;
+  if (!TWEAK_ALL_INTERESTS.includes(tag)) return;
   const tags = getTweakInterestTags();
   const next = tags.includes(tag) ? tags.filter(item => item !== tag) : [...tags, tag];
   try { localStorage.setItem('tweaklr-tweak-interests', JSON.stringify(next)); } catch (_) {}
+  const searchOpen = localStorage.getItem('tweaklr-tweak-more-open') === 'true';
   renderTweak();
+  if (searchOpen) {
+    const panel = $('#tweak-more-panel');
+    const toggle = $('.tweak-more-toggle');
+    if (panel) panel.hidden = false;
+    if (toggle) { toggle.setAttribute('aria-expanded', 'true'); toggle.innerHTML = 'Less... <span aria-hidden="true">⌃</span>'; }
+    const input = $('#tweak-tag-search');
+    if (input) {
+      try { input.value = sessionStorage.getItem('tweaklr-tweak-search') || ''; } catch (_) {}
+      renderTweakTagSuggestions(input.value);
+    }
+  }
 }
+
+function toggleTweakMoreTags() {
+  const panel = $('#tweak-more-panel');
+  const toggle = $('.tweak-more-toggle');
+  if (!panel || !toggle) return;
+  const open = panel.hidden;
+  panel.hidden = !open;
+  toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  toggle.innerHTML = open ? 'Less... <span aria-hidden="true">⌃</span>' : 'More... <span aria-hidden="true">⌄</span>';
+  try { localStorage.setItem('tweaklr-tweak-more-open', open ? 'true' : 'false'); } catch (_) {}
+  if (open) {
+    const input = $('#tweak-tag-search');
+    if (input) input.focus();
+    renderTweakTagSuggestions(input ? input.value : '');
+  }
+}
+
+function renderTweakTagSuggestions(rawQuery) {
+  const host = $('#tweak-tag-suggestions');
+  const input = $('#tweak-tag-search');
+  const clear = document.querySelector('[data-action="tweak-clear-search"]');
+  if (!host) return;
+  const query = String(rawQuery || '').trim().toLocaleLowerCase();
+  if (clear) clear.hidden = !query;
+  if (!query) {
+    const popular = TWEAK_MORE_INTERESTS.slice(0, 12);
+    host.innerHTML = '<div class="tweak-suggestion-caption">Popular interests</div>' + popular.map(tag => {
+      const selected = getTweakInterestTags().includes(tag);
+      return '<button type="button" class="tweak-suggestion ' + (selected ? 'is-selected' : '') + '" data-action="tweak-tag:' + esc(tag) + '" aria-pressed="' + (selected ? 'true' : 'false') + '"><span>' + (selected ? '✓' : '＋') + '</span>' + esc(tag) + '</button>';
+    }).join('');
+    return;
+  }
+  const matches = TWEAK_ALL_INTERESTS.filter(tag => tag.toLocaleLowerCase().includes(query))
+    .sort((a, b) => {
+      const al = a.toLocaleLowerCase(), bl = b.toLocaleLowerCase();
+      return (al.startsWith(query) ? 0 : 1) - (bl.startsWith(query) ? 0 : 1) || al.localeCompare(bl);
+    }).slice(0, 14);
+  if (!matches.length) {
+    host.innerHTML = '<div class="tweak-no-results"><span aria-hidden="true">✦</span><b>Ooops. Not yet available here.</b><small>Try another word or choose a related interest.</small></div>';
+    return;
+  }
+  host.innerHTML = '<div class="tweak-suggestion-caption">' + matches.length + ' suggestion' + (matches.length === 1 ? '' : 's') + '</div>' + matches.map(tag => {
+    const selected = getTweakInterestTags().includes(tag);
+    return '<button type="button" class="tweak-suggestion ' + (selected ? 'is-selected' : '') + '" data-action="tweak-tag:' + esc(tag) + '" aria-pressed="' + (selected ? 'true' : 'false') + '"><span>' + (selected ? '✓' : '＋') + '</span>' + esc(tag) + '</button>';
+  }).join('');
+}
+
+document.addEventListener('input', event => {
+  if (!event.target || event.target.id !== 'tweak-tag-search') return;
+  const query = event.target.value || '';
+  try { sessionStorage.setItem('tweaklr-tweak-search', query); } catch (_) {}
+  renderTweakTagSuggestions(query);
+});
 
 function saveTweakInterests() {
   const tags = getTweakInterestTags();
@@ -7018,6 +7119,14 @@ document.addEventListener('click', async e => {
 
   switch (verb) {
     case 'tweak-tag': toggleTweakInterest(arg); break;
+    case 'tweak-more-tags': toggleTweakMoreTags(); break;
+    case 'tweak-clear-search': {
+      const input = $('#tweak-tag-search');
+      if (input) { input.value = ''; input.focus(); }
+      try { sessionStorage.removeItem('tweaklr-tweak-search'); } catch (_) {}
+      renderTweakTagSuggestions('');
+      break;
+    }
     case 'tweak-save-tags': saveTweakInterests(); break;
     case 'tweak-edit-tags':
       try { localStorage.setItem('tweaklr-tweak-onboarded', 'false'); } catch (_) {}
