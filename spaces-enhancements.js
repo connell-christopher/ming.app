@@ -53,17 +53,60 @@
   function activeName() {
     return document.querySelector(ROOT + ' .sp-bar .ttl .n')?.textContent?.trim() || 'Space';
   }
-  function key(suffix) {
-    return 'tweaklr_spaces_dna_v1:' + encodeURIComponent(activeNature()) + ':' +
-      encodeURIComponent(activeName()) + ':' + suffix;
-  }
+  // Signature-tool state is stored in Supabase per Space and signed-in user.
+  // No localStorage fallback: a backend failure must never pretend the data was saved.
+  let dnaState = {};
+  let dnaSpaceId = '';
+  let dnaLoaded = false;
+  let dnaSaveQueue = Promise.resolve();
+  function activeSpaceId() { return activeScreen()?.dataset.spaceId || ''; }
   function read(suffix, fallback) {
-    try { const v = localStorage.getItem(key(suffix)); return v === null ? fallback : JSON.parse(v); }
-    catch (_) { return fallback; }
+    return Object.prototype.hasOwnProperty.call(dnaState, suffix) ? dnaState[suffix] : fallback;
   }
   function write(suffix, value) {
-    try { localStorage.setItem(key(suffix), JSON.stringify(value)); return true; }
-    catch (_) { announce('Could not save on this device.'); return false; }
+    const spaceId = activeSpaceId();
+    if (!spaceId || !window.supabaseClient) {
+      announce('Open a saved Space and sign in to save this.');
+      return false;
+    }
+    dnaState[suffix] = value;
+    const snapshot = JSON.parse(JSON.stringify(dnaState));
+    dnaSaveQueue = dnaSaveQueue.then(async () => {
+      const { error } = await window.supabaseClient.rpc('save_ming_space_dna_state', {
+        p_space_id: spaceId, p_state: snapshot
+      });
+      if (error) throw error;
+    }).then(() => {
+      if (activeSpaceId() === spaceId) announce('Saved to your Space.');
+    }).catch(error => {
+      console.warn('Tweaklr Spaces signature-tool save failed.', error);
+      if (activeSpaceId() === spaceId) announce('Could not save to the database. Run the Spaces DNA migration and try again.');
+    });
+    return true;
+  }
+  async function loadDnaState() {
+    const spaceId = activeSpaceId();
+    if (!spaceId || !window.supabaseClient || !window.supabaseClient.auth) {
+      dnaState = {}; dnaSpaceId = ''; dnaLoaded = false; return;
+    }
+    if (spaceId === dnaSpaceId && dnaLoaded) return;
+    dnaSpaceId = spaceId; dnaState = {}; dnaLoaded = false;
+    try {
+      const { data: { session }, error: sessionError } = await window.supabaseClient.auth.getSession();
+      if (sessionError || !session?.user) {
+        announce('Sign in to load your saved Space tools.');
+        return;
+      }
+      const { data, error } = await window.supabaseClient.rpc('get_ming_space_dna_state', { p_space_id: spaceId });
+      if (error) throw error;
+      if (activeSpaceId() !== spaceId) return;
+      dnaState = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+      dnaLoaded = true;
+    } catch (error) {
+      console.warn('Tweaklr Spaces signature-tool load failed.', error);
+      if (activeSpaceId() === spaceId) announce('Could not load saved tools. Run the Spaces DNA migration.');
+    }
+    if (activeSpaceId() === spaceId) refreshPanel();
   }
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -147,7 +190,7 @@
     const result = window.prompt(label, initial || '');
     return result === null ? null : result.trim();
   }
-  function handle(action) {
+  async function handle(action) {
     switch (action) {
       case 'goal': {
         const v = ask('Set a pinned goal for this Business Space:', read('goal', ''));
@@ -234,8 +277,14 @@
   function start() {
     const screen = activeScreen();
     if (!screen) return;
+    let lastSpaceId = '';
     const observer = new MutationObserver(() => {
       if (screen.dataset.nature) {
+        const id = activeSpaceId();
+        if (id && id !== lastSpaceId) {
+          lastSpaceId = id;
+          loadDnaState();
+        }
         if (!document.getElementById('sp-dna-panel')) renderTools();
         else {
           const panel = document.getElementById('sp-dna-panel');
@@ -245,6 +294,7 @@
     });
     observer.observe(screen, {attributes:true, childList:true, subtree:true, attributeFilter:['data-nature']});
     renderTools();
+    if (activeSpaceId()) { lastSpaceId = activeSpaceId(); loadDnaState(); }
     document.addEventListener('click', function (event) {
       if (event.target.closest('#screen-space [data-sp]')) setTimeout(refreshPanel, 80);
     });
