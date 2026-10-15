@@ -9290,6 +9290,7 @@ function openSpace(id, tab) {
   sp.tab = tab || NATURES[s.nature].tabs[0][0];
   const screen = $('#screen-space');
   screen.dataset.nature = s.nature;
+  screen.dataset.spaceId = s.id;
   const theme = spaceTheme(s);
   screen.style.setProperty('--sp-accent', theme.colors[0]);
   screen.style.setProperty('--sp-accent-2', theme.colors[1]);
