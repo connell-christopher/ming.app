@@ -59,7 +59,7 @@
   function renderTools() {
     const screen = activeScreen();
     const head = screen?.querySelector('#sp-head');
-    if (!screen || !head || !screen.classList.contains('is-active') && !screen.classList.contains('active')) return;
+    if (!screen || !head || !screen.dataset.nature) return;
     let panel = document.getElementById('sp-dna-panel');
     if (!panel) {
       panel = document.createElement('section');
@@ -81,6 +81,7 @@
     panel.innerHTML = '<div class="sp-dna-top"><div><span class="sp-dna-kicker">TWEAKLR SIGNATURE</span><h3>' + config.title + '</h3><p>' + config.desc + '</p></div><span class="sp-dna-orb" aria-hidden="true">' + ({business:'💼',friendly:'🤝',casual:'☕',silly:'🤡',romantic:'🔐',marketplace:'🏪'}[nature] || '✦') + '</span></div>' +
       '<div class="sp-dna-actions">' + config.buttons + '</div>' + renderSavedSummary(nature);
     panel.dataset.nature = nature;
+    panel.dataset.spaceName = activeName();
   }
   function renderSavedSummary(nature) {
     if (nature === 'business') {
@@ -211,7 +212,7 @@
         if (!document.getElementById('sp-dna-panel')) renderTools();
         else {
           const panel = document.getElementById('sp-dna-panel');
-          if (panel.dataset.nature !== activeNature()) refreshPanel();
+          if (panel.dataset.nature !== activeNature() || panel.dataset.spaceName !== activeName()) refreshPanel();
         }
       }
     });
