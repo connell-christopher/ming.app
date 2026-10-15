@@ -11,14 +11,7 @@ create table if not exists public.ming_space_dna_state (
 
 alter table public.ming_space_dna_state enable row level security;
 revoke all on public.ming_space_dna_state from anon, authenticated;
-grant select, insert, update, delete on public.ming_space_dna_state to authenticated;
-
-drop policy if exists "own Space DNA state" on public.ming_space_dna_state;
-create policy "own Space DNA state"
-on public.ming_space_dna_state
-for all to authenticated
-using (user_id = (select auth.uid()))
-with check (user_id = (select auth.uid()));
+-- All access goes through the membership-checking security-definer RPCs.
 
 create or replace function public.get_ming_space_dna_state(p_space_id uuid)
 returns jsonb
