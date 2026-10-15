@@ -65,14 +65,14 @@
   }
   function write(suffix, value) {
     const spaceId = activeSpaceId();
-    if (!spaceId || !window.supabaseClient) {
+    if (!spaceId || !supabaseClient) {
       announce('Open a saved Space and sign in to save this.');
       return false;
     }
     dnaState[suffix] = value;
     const snapshot = JSON.parse(JSON.stringify(dnaState));
     dnaSaveQueue = dnaSaveQueue.then(async () => {
-      const { error } = await window.supabaseClient.rpc('save_ming_space_dna_state', {
+      const { error } = await supabaseClient.rpc('save_ming_space_dna_state', {
         p_space_id: spaceId, p_state: snapshot
       });
       if (error) throw error;
@@ -86,18 +86,18 @@
   }
   async function loadDnaState() {
     const spaceId = activeSpaceId();
-    if (!spaceId || !window.supabaseClient || !window.supabaseClient.auth) {
+    if (!spaceId || !supabaseClient || !supabaseClient.auth) {
       dnaState = {}; dnaSpaceId = ''; dnaLoaded = false; return;
     }
     if (spaceId === dnaSpaceId && dnaLoaded) return;
     dnaSpaceId = spaceId; dnaState = {}; dnaLoaded = false;
     try {
-      const { data: { session }, error: sessionError } = await window.supabaseClient.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
       if (sessionError || !session?.user) {
         announce('Sign in to load your saved Space tools.');
         return;
       }
-      const { data, error } = await window.supabaseClient.rpc('get_ming_space_dna_state', { p_space_id: spaceId });
+      const { data, error } = await supabaseClient.rpc('get_ming_space_dna_state', { p_space_id: spaceId });
       if (error) throw error;
       if (activeSpaceId() !== spaceId) return;
       dnaState = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
@@ -139,7 +139,7 @@
     const nature = activeNature();
     const config = {
       business: { title: 'BOARD MODE', desc: 'Keep a goal and deadline close.', buttons: toolButton('goal','Set pinned goal','target') + toolButton('deadline','Set deadline','timer') },
-      friendly: { title: 'VIBE CHECK', desc: 'Share your mood with yourself on this device.', buttons: toolButton('mood','Choose mood','hands') + toolButton('joke','Save an inside joke','laugh') },
+      friendly: { title: 'VIBE CHECK', desc: 'Save your mood to your account for this Space.', buttons: toolButton('mood','Choose mood','hands') + toolButton('joke','Save an inside joke','laugh') },
       casual: { title: 'NO PRESSURE', desc: 'A personal quiet-mode preference. Existing chat receipts are unchanged.', buttons: toolButton('quiet','Toggle quiet preference','cloud') + toolButton('reset-quiet','Reset preference','leaf') },
       silly: { title: 'CHAOS ENGINE', desc: 'A fresh prompt whenever the room needs chaos.', buttons: toolButton('dare','Generate a dare','dice') + toolButton('meme-vote','Vote meme of the day','trophy') },
       romantic: { title: 'FOR TWO', desc: 'Little gestures and a shared-moment countdown.', buttons: toolButton('thinking','Thinking of you','heart') + toolButton('love-note','Write a love letter','letter') + toolButton('rom-countdown','Set countdown','moon') },
@@ -167,13 +167,13 @@
       const mood = read('mood', null), jokes = read('jokes', []);
       const moodIcon = mood ? MOODS.find(m => (m[0] + ' ' + m[1]) === mood)?.[0] : null;
       return '<div class="sp-dna-saved">' + (mood ? '<span class="sp-dna-saved-icon">' + brandIcon(moodIcon || 'moon') + '</span><b>Your vibe today: ' + esc(mood.split(' ').slice(1).join(' ')) + '</b>' : '<span>No mood selected today.</span>') +
-        (jokes.length ? '<span>' + jokes.length + ' inside joke' + (jokes.length === 1 ? '' : 's') + ' saved on this device</span>' : '') + '</div>';
+        (jokes.length ? '<span>' + jokes.length + ' inside joke' + (jokes.length === 1 ? '' : 's') + ' saved to your account</span>' : '') + '</div>';
     }
-    if (nature === 'casual') return '<div class="sp-dna-saved"><span>' + (read('quiet', false) ? 'Quiet preference is on (visual preference only).' : 'No-pressure preference is off.') + '</span></div>';
+    if (nature === 'casual') return '<div class="sp-dna-saved"><span>' + (read('quiet', false) ? 'Your quiet preference is on.' : 'No-pressure preference is off.') + '</span></div>';
     if (nature === 'silly') return '<div class="sp-dna-saved"><span>' + esc(read('dare', 'Ready for a little chaos?')) + '</span></div>';
     if (nature === 'romantic') {
       const date = read('rom-date', '');
-      return '<div class="sp-dna-saved"><span class="sp-dna-saved-icon">' + brandIcon(date ? 'moon' : 'heart') + '</span><span>' + (date ? 'Countdown: ' + esc(date) : 'Your little rituals, kept personal on this device.') + '</span></div>';
+      return '<div class="sp-dna-saved"><span class="sp-dna-saved-icon">' + brandIcon(date ? 'moon' : 'heart') + '</span><span>' + (date ? 'Countdown: ' + esc(date) : 'Your little rituals, saved privately to your account.') + '</span></div>';
     }
     if (nature === 'marketplace') {
       const claim = read('claim', '');
@@ -195,7 +195,7 @@
       case 'goal': {
         const v = ask('Set a pinned goal for this Business Space:', read('goal', ''));
         if (v === null) return;
-        write('goal', v); announce(v ? 'Goal saved on this device.' : 'Goal cleared.'); break;
+        write('goal', v); announce(v ? 'Goal saved to your account.' : 'Goal cleared.'); break;
       }
       case 'deadline': {
         const old = read('deadline', '');
@@ -203,20 +203,20 @@
         if (v === null) return;
         const parsed = new Date(v.replace(' ', 'T'));
         if (v && !Number.isFinite(parsed.getTime())) { announce('Use YYYY-MM-DD HH:MM.'); return; }
-        write('deadline', v ? parsed.toISOString() : ''); announce(v ? 'Deadline saved on this device.' : 'Deadline cleared.'); break;
+        write('deadline', v ? parsed.toISOString() : ''); announce(v ? 'Deadline saved to your account.' : 'Deadline cleared.'); break;
       }
       case 'mood': {
         const choice = ask('Choose a mood: ' + MOODS.map((m,i) => (i+1)+'. '+m[1]).join(' | '), '1');
         if (choice === null) return;
         const mood = MOODS[Number(choice)-1];
         if (!mood) { announce('Choose a number from 1 to ' + MOODS.length + '.'); return; }
-        write('mood', mood[0] + ' ' + mood[1]); announce('Vibe saved for you on this device.'); break;
+        write('mood', mood[0] + ' ' + mood[1]); announce('Vibe saved to your account.'); break;
       }
       case 'joke': {
         const v = ask('Save an inside joke (do not include anything private you would not want stored locally):');
         if (v === null || !v) return;
         const jokes = read('jokes', []); jokes.unshift({text:v, at:Date.now()});
-        write('jokes', jokes.slice(0, 30)); announce('Inside joke saved on this device.'); break;
+        write('jokes', jokes.slice(0, 30)); announce('Inside joke saved to your account.'); break;
       }
       case 'quiet': write('quiet', !read('quiet', false)); announce(read('quiet', false) ? 'Quiet preference enabled. Existing receipts are unchanged.' : 'Quiet preference disabled.'); break;
       case 'reset-quiet': write('quiet', false); announce('Quiet preference reset.'); break;
@@ -231,19 +231,19 @@
       }
       case 'thinking': {
         const count = Number(read('thinking-count', 0)) + 1;
-        write('thinking-count', count); announce('Thinking of you. Gesture recorded on this device.'); break;
+        write('thinking-count', count); announce('Thinking of you. Gesture saved to your account.'); break;
       }
       case 'love-note': {
-        const note = ask('Write your love letter. It will be saved on this device only; it is not sent to the other member.');
+        const note = ask('Write your love letter. It will be saved to your account only; it is not sent to the other member.');
         if (note === null || !note) return;
         const notes = read('love-notes', []); notes.unshift({text:note, at:Date.now()});
-        write('love-notes', notes.slice(0, 20)); announce('Love letter saved privately on this device, not sent.'); break;
+        write('love-notes', notes.slice(0, 20)); announce('Love letter saved privately to your account, not sent.'); break;
       }
       case 'rom-countdown': {
         const v = ask('What date are you counting down to? (YYYY-MM-DD)', read('rom-date', ''));
         if (v === null) return;
         if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { announce('Use YYYY-MM-DD.'); return; }
-        write('rom-date', v); announce(v ? 'Countdown date saved on this device.' : 'Countdown cleared.'); break;
+        write('rom-date', v); announce(v ? 'Countdown date saved to your account.' : 'Countdown cleared.'); break;
       }
       case 'haggle': {
         const raw = ask('Enter the listed price (number only):');
@@ -260,7 +260,7 @@
       case 'claim-note': {
         const v = ask('Save a reminder for an item you want to claim (item name or link):');
         if (v === null || !v) return;
-        write('claim', v); announce('Claim reminder saved on this device; no item has been reserved.'); break;
+        write('claim', v); announce('Claim reminder saved to your account; no item has been reserved.'); break;
       }
     }
     refreshPanel();
