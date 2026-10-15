@@ -950,6 +950,19 @@
 @media (prefers-reduced-motion: reduce) { #screen-space .sp-dna-action { transition:none; } }
 
 
+/* Prevent the Spaces signature panel from clipping its action buttons on mobile. */
+#screen-space .sp-dna-panel {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  flex: 0 0 auto;
+}
+#screen-space .sp-dna-actions {
+  height: auto;
+  min-height: 36px;
+  overflow: visible;
+}
+
 /* Custom Tweaklr moon-glass emoji system — Spaces DNA panel only. */
 #screen-space .sp-dna-emoji {
   display: block;
