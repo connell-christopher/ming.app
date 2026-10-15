@@ -96,7 +96,6 @@
       const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
       if (sessionError || !session?.user) {
         announce('Sign in to load your saved Space tools.');
-        dnaLoadingSpaceId = '';
         return;
       }
       const { data, error } = await supabaseClient.rpc('get_ming_space_dna_state', { p_space_id: spaceId });
@@ -106,7 +105,6 @@
       dnaLoaded = true;
       dnaLoadingSpaceId = '';
     } catch (error) {
-      dnaLoadingSpaceId = '';
       console.warn('Tweaklr Spaces signature-tool load failed.', error);
       if (activeSpaceId() === spaceId) announce('Could not load saved tools. Run the Spaces DNA migration.');
     }
