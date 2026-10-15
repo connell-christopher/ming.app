@@ -948,3 +948,54 @@
 #screen-space .sp-dna-offer input { width:100%; accent-color:var(--sp-accent-2,var(--coffee)); }
 #screen-space .sp-dna-offer small { color:var(--muted); font-size:10px; line-height:1.4; }
 @media (prefers-reduced-motion: reduce) { #screen-space .sp-dna-action { transition:none; } }
+
+
+/* Custom Tweaklr moon-glass emoji system — Spaces DNA panel only. */
+#screen-space .sp-dna-emoji {
+  display: block;
+  width: 24px;
+  height: 24px;
+  overflow: visible;
+}
+#screen-space .sp-dna-emoji__orb {
+  fill: url(#sp-dna-grad);
+  stroke: rgba(255,255,255,.72);
+  stroke-width: .7;
+}
+#screen-space .sp-dna-emoji__symbol {
+  fill: none;
+  stroke: #3B2028;
+  stroke-width: 1.55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#screen-space .sp-dna-action__icon {
+  display: inline-grid;
+  flex: 0 0 25px;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+}
+#screen-space .sp-dna-action__icon .sp-dna-emoji {
+  width: 23px;
+  height: 23px;
+}
+#screen-space .sp-dna-orb {
+  display: grid;
+  place-items: center;
+}
+#screen-space .sp-dna-orb .sp-dna-emoji {
+  width: 32px;
+  height: 32px;
+}
+#screen-space .sp-dna-saved-icon {
+  display: inline-grid;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+}
+#screen-space .sp-dna-saved-icon .sp-dna-emoji {
+  width: 19px;
+  height: 19px;
+}
