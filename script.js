@@ -1293,7 +1293,7 @@ let moonChat = [
 const state = {
   tab: 'home',
   stack: [],
-  loaded: { home: false, discover: false, nearby: false, profile: false },
+  loaded: { home: false, discover: false, nearby: false, tweak: false, profile: false },
   discoverFilter: 'all',
   radius: 2,
   locStatus: 'unknown',   // unknown | requesting | granted | denied | unavailable | timeout
@@ -1358,6 +1358,97 @@ function skeletonRail() {
 }
 
 /* ------------------------------------------------------------
+   TWEAK — INTEREST ONBOARDING / FEED SHELL
+   Frontend-only foundation. TikTok OAuth and persistent creator
+   publishing require approved API access and server/database work.
+------------------------------------------------------------ */
+const TWEAK_INTERESTS = [
+  'Comedy', 'Music', 'Afrobeats', 'Fashion', 'Beauty', 'Gaming',
+  'Football', 'Basketball', 'Fitness', 'Travel', 'Food', 'Lifestyle',
+  'Relationships', 'Friendship', 'Technology', 'Cybersecurity', 'AI',
+  'Programming', 'Business', 'Side hustles', 'Entrepreneurship',
+  'Education', 'Science', 'Art', 'Photography', 'Movies', 'Dance',
+  'Motivation', 'News', 'Books', 'Nature', 'Cars', 'DIY'
+];
+
+function getTweakInterestTags() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('tweaklr-tweak-interests') || '[]');
+    return Array.isArray(saved) ? [...new Set(saved.filter(tag => TWEAK_INTERESTS.includes(tag)))] : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function renderTweak() {
+  const host = $('#tweak-body');
+  if (!host) return;
+  const tags = getTweakInterestTags();
+  const onboarded = localStorage.getItem('tweaklr-tweak-onboarded') === 'true' && tags.length >= 5;
+
+  if (!onboarded) {
+    host.innerHTML = `
+      <section class="tweak-welcome">
+        <div class="tweak-eyebrow"><span>✦</span> YOUR PERSONAL VIDEO SPACE</div>
+        <h2>Find your kind of <em>content.</em></h2>
+        <p>Choose at least five interests. Tweak will use them to shape a feed around the creators and topics you care about.</p>
+        <div class="tweak-source-card">
+          <div class="tweak-source-icon">♪</div>
+          <div class="tweak-source-copy"><b>Connect TikTok</b><span>Bring eligible videos from your connected account into your Tweak experience.</span></div>
+          <button type="button" class="tweak-connect-btn" data-action="tweak-connect">Connect</button>
+        </div>
+        <div class="tweak-tag-heading"><div><b>Choose your interests</b><span>Pick at least 5</span></div><strong>${tags.length}/5 minimum</strong></div>
+        <div class="tweak-tags">${TWEAK_INTERESTS.map(tag => `
+          <button type="button" class="tweak-tag ${tags.includes(tag) ? 'is-selected' : ''}" data-action="tweak-tag:${esc(tag)}" aria-pressed="${tags.includes(tag) ? 'true' : 'false'}">${tags.includes(tag) ? '<span>✓</span>' : '<span>＋</span>'}${esc(tag)}</button>
+        `).join('')}</div>
+        <button type="button" class="btn btn--primary tweak-continue" data-action="tweak-save-tags" ${tags.length < 5 ? 'disabled' : ''}>Continue to Tweak <span aria-hidden="true">→</span></button>
+        <p class="tweak-privacy-note">Your likes, comments, follows, connections and messages in Tweak are designed to belong to your Tweaklr account.</p>
+      </section>`;
+    return;
+  }
+
+  host.innerHTML = `
+    <section class="tweak-feed-head">
+      <div><span class="tweak-eyebrow">MADE FOR YOUR INTERESTS</span><h2>Your Tweak feed</h2></div>
+      <button type="button" class="tweak-edit-tags" data-action="tweak-edit-tags" aria-label="Edit interests">Edit tags</button>
+    </section>
+    <div class="tweak-selected-tags">${tags.map(tag => '<span>' + esc(tag) + '</span>').join('')}</div>
+    <section class="tweak-feed-empty">
+      <div class="tweak-play-orbit"><span>▶</span><i></i><b></b></div>
+      <h3>Your feed starts here.</h3>
+      <p>Tweak is ready for content that matches your interests. TikTok sign-in and live video publishing are not connected yet, so no external videos or creator posts are being shown in this preview.</p>
+      <div class="tweak-feed-sources">
+        <div><span>♪</span><b>TikTok videos</b><small>Requires approved TikTok API access</small></div>
+        <div><span>＋</span><b>Tweaklr videos</b><small>Native publishing setup pending</small></div>
+      </div>
+      <button type="button" class="tweak-outline-btn" data-action="tweak-connect">Connect TikTok</button>
+    </section>`;
+}
+
+function toggleTweakInterest(tag) {
+  if (!TWEAK_INTERESTS.includes(tag)) return;
+  const tags = getTweakInterestTags();
+  const next = tags.includes(tag) ? tags.filter(item => item !== tag) : [...tags, tag];
+  try { localStorage.setItem('tweaklr-tweak-interests', JSON.stringify(next)); } catch (_) {}
+  renderTweak();
+}
+
+function saveTweakInterests() {
+  const tags = getTweakInterestTags();
+  if (tags.length < 5) {
+    toast('Choose at least five interests to continue.', 'alert');
+    return;
+  }
+  try { localStorage.setItem('tweaklr-tweak-onboarded', 'true'); } catch (_) {}
+  renderTweak();
+  toast('Your Tweak interests are saved.', 'check');
+}
+
+function beginTweakSetup() {
+  toast('TikTok sign-in is not connected yet. It requires approved TikTok API access and a secure server-side OAuth flow.', 'alert');
+}
+
+/* ------------------------------------------------------------
    NAVIGATION
 ------------------------------------------------------------ */
 const nav = $('#nav');
@@ -1372,7 +1463,7 @@ function setTab(tab, opts = {}) {
     b.classList.toggle('is-on', on);
     if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
-  fab.classList.toggle('hidden', tab === 'moonflower' || tab === 'profile');
+  fab.classList.toggle('hidden', tab === 'moonflower' || tab === 'profile' || tab === 'tweak');
   const scroller = $(`#screen-${tab} .scroll`);
   if (scroller && !opts.keepScroll) scroller.scrollTop = 0;
   ensureLoaded(tab);
@@ -1424,6 +1515,7 @@ function ensureLoaded(tab) {
   if (tab === 'home' && !state.loaded.home) return loadHome();
   if (tab === 'discover' && !state.loaded.discover) return loadDiscover();
   if (tab === 'nearby' && !state.loaded.nearby) return loadNearby();
+  if (tab === 'tweak') renderTweak();
   if (tab === 'profile') {
     if (!state.loaded.profile) {
       state.loaded.profile = true;
@@ -6925,6 +7017,13 @@ document.addEventListener('click', async e => {
   const [verb, arg, arg2] = host.dataset.action.split(':');
 
   switch (verb) {
+    case 'tweak-tag': toggleTweakInterest(arg); break;
+    case 'tweak-save-tags': saveTweakInterests(); break;
+    case 'tweak-edit-tags':
+      try { localStorage.setItem('tweaklr-tweak-onboarded', 'false'); } catch (_) {}
+      renderTweak();
+      break;
+    case 'tweak-connect': beginTweakSetup(); break;
     case 'person': openPerson(arg); break;
     case 'like': toggleLike(arg); break;
     case 'comments': openComments(arg); break;
