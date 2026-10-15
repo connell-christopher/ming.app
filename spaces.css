@@ -814,3 +814,105 @@
   border-color: color-mix(in srgb, var(--sp-accent-2) 28%, var(--border));
   background: color-mix(in srgb, var(--sp-accent-2) 7%, var(--surface));
 }
+
+
+/* ============================================================
+   SPACES DNA — visual-only, additive layer.
+   Intentionally scoped to the existing Space screen. No existing
+   layout, data, messaging, or membership behavior is replaced.
+============================================================ */
+#screen-space.sp {
+  --sp-dna-glow: color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 18%, transparent);
+  isolation: isolate;
+}
+#screen-space.sp .sp-head {
+  position: relative;
+  overflow: hidden;
+  border-bottom-color: color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 22%, var(--border));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+#screen-space.sp .sp-head::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  width: 180px;
+  height: 120px;
+  right: -65px;
+  top: -62px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--sp-dna-glow), transparent 72%);
+}
+#screen-space.sp .sp-body {
+  background-color: color-mix(in srgb, var(--surface) 97%, var(--sp-accent-2, var(--coffee)));
+  background-image: radial-gradient(var(--sp-dna-glow) .7px, transparent .7px);
+  background-size: 19px 19px;
+}
+#screen-space.sp .sp-card {
+  border-radius: 18px;
+  border-color: color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 13%, var(--border));
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+#screen-space.sp .sp-card:active {
+  transform: scale(.992);
+}
+
+/* Business: focused, structured board-room atmosphere. */
+#screen-space.sp[data-nature="business"] { --sp-dna-glow: rgba(145,91,54,.22); }
+#screen-space.sp[data-nature="business"] .sp-body {
+  background-image: linear-gradient(rgba(145,91,54,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(145,91,54,.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+#screen-space.sp[data-nature="business"] .sp-card { border-radius: 12px; }
+
+/* Friendly: soft, warm circles — a familiar living-room feel. */
+#screen-space.sp[data-nature="friendly"] { --sp-dna-glow: rgba(191,133,91,.22); }
+#screen-space.sp[data-nature="friendly"] .sp-body {
+  background-image: radial-gradient(rgba(191,133,91,.07) 1.2px, transparent 1.2px);
+  background-size: 23px 23px;
+}
+#screen-space.sp[data-nature="friendly"] .sp-card { border-radius: 22px 22px 22px 8px; }
+
+/* Casual: low-stimulation, airy and quiet. */
+#screen-space.sp[data-nature="casual"] { --sp-dna-glow: rgba(172,148,117,.17); }
+#screen-space.sp[data-nature="casual"] .sp-body { background-image: none; }
+#screen-space.sp[data-nature="casual"] .sp-card { border-radius: 24px; box-shadow: none; }
+
+/* Silly: playful diagonal confetti. */
+#screen-space.sp[data-nature="silly"] { --sp-dna-glow: rgba(230,112,65,.22); }
+#screen-space.sp[data-nature="silly"] .sp-body {
+  background-image: radial-gradient(rgba(230,112,65,.10) 1.5px, transparent 1.5px), radial-gradient(rgba(232,184,79,.10) 1.5px, transparent 1.5px);
+  background-position: 0 0, 10px 10px;
+  background-size: 20px 20px;
+}
+#screen-space.sp[data-nature="silly"] .sp-card { border-radius: 20px 20px 7px 20px; }
+
+/* Romantic: soft glow, gently rounded surfaces. */
+#screen-space.sp[data-nature="romantic"] { --sp-dna-glow: rgba(205,105,135,.22); }
+#screen-space.sp[data-nature="romantic"] .sp-body {
+  background-image: radial-gradient(ellipse at 50% 0%, rgba(205,105,135,.09), transparent 62%);
+  background-size: 100% 260px;
+  background-repeat: no-repeat;
+}
+#screen-space.sp[data-nature="romantic"] .sp-card { border-radius: 22px; }
+
+/* Marketplace: clean, useful, product-card energy. */
+#screen-space.sp[data-nature="marketplace"] { --sp-dna-glow: rgba(48,139,91,.20); }
+#screen-space.sp[data-nature="marketplace"] .sp-body {
+  background-image: linear-gradient(rgba(48,139,91,.035) 1px, transparent 1px);
+  background-size: 100% 28px;
+}
+#screen-space.sp[data-nature="marketplace"] .sp-card { border-radius: 14px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  #screen-space.sp .sp-head::after { animation: sp-dna-breathe 7s ease-in-out infinite alternate; }
+  @keyframes sp-dna-breathe {
+    from { opacity: .55; transform: scale(.92); }
+    to { opacity: 1; transform: scale(1.08); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #screen-space.sp *, #screen-space.sp *::before, #screen-space.sp *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
