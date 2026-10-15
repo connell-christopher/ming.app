@@ -408,6 +408,33 @@
   </section>
 
 
+  <!-- TWEAK: independent creator discovery section -->
+  <section class="screen" id="screen-tweak" data-tab="tweak" aria-label="Tweak">
+
+    <header class="topbar">
+      <div class="topbar-row">
+        <div style="flex:1 1 auto">
+          <div class="topbar-title">Tweak <span class="tweak-brand-mark">✦</span></div>
+          <div class="topbar-sub">Your interests. Your creators. Your Tweaklr.</div>
+        </div>
+        <button class="icon-btn theme-toggle" data-theme-toggle type="button" aria-pressed="false" aria-label="Switch theme">
+          <span class="tt-halo" aria-hidden="true"></span>
+          <svg class="tt-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <g class="tt-sun"><circle cx="12" cy="12" r="4.3"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/><line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/></g>
+            <g class="tt-moon"><path d="M20.5 15.1A8.6 8.6 0 0 1 8.9 3.5 8.7 8.7 0 1 0 20.5 15.1Z"/><circle class="tt-crater" cx="11.1" cy="14.2" r="1.2"/><circle class="tt-crater" cx="14.7" cy="14.7" r=".55"/></g>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="scroll" data-scroll>
+      <div id="tweak-body"></div>
+      <p class="wordmark-foot"><b>Tweaklr</b></p>
+    </div>
+
+  </section>
+
+
   <!-- MOONFLOWER -->
   <section class="screen moon" id="screen-moonflower" data-tab="moonflower" aria-label="Moonflower">
 
@@ -836,9 +863,9 @@
       <span class="lb">Discover</span>
     </button>
 
-    <button data-nav="nearby">
-      <svg><use href="#i-pin"/></svg>
-      <span class="lb">Nearby</span>
+    <button data-nav="tweak">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.8a1 1 0 0 1 1.5-.86l9.1 5.2a2.1 2.1 0 0 1 0 3.72l-9.1 5.2A1 1 0 0 1 8 18.2V5.8Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M4.5 7.5v9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <span class="lb">Tweak</span>
     </button>
 
     <button data-nav="moonflower">
