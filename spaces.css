@@ -916,3 +916,35 @@
     transition-duration: .01ms !important;
   }
 }
+
+/* Spaces signature-tools panel — isolated from all non-Spaces screens. */
+#screen-space .sp-dna-panel {
+  position: relative;
+  margin: 10px 14px 8px;
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 22%, var(--border));
+  border-radius: 20px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--surface) 94%, var(--sp-accent-2, var(--coffee))), var(--surface));
+  box-shadow: 0 12px 30px -24px rgba(0,0,0,.45);
+}
+#screen-space .sp-dna-top { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+#screen-space .sp-dna-kicker { font-size:9px; font-weight:800; letter-spacing:.14em; color:var(--sp-accent-2,var(--coffee)); }
+#screen-space .sp-dna-top h3 { margin:4px 0 0; font-size:16px; letter-spacing:.04em; }
+#screen-space .sp-dna-top p { margin:4px 0 0; color:var(--muted); font-size:11px; line-height:1.4; max-width:290px; }
+#screen-space .sp-dna-orb { flex:0 0 42px; width:42px; height:42px; display:grid; place-items:center; border-radius:15px; background:var(--sp-dna-glow, color-mix(in srgb, var(--sp-accent-2,var(--coffee)) 13%, transparent)); font-size:21px; }
+#screen-space .sp-dna-actions { display:flex; gap:7px; flex-wrap:wrap; margin-top:12px; }
+#screen-space .sp-dna-action { display:flex; align-items:center; gap:7px; min-height:36px; padding:8px 10px; border:1px solid var(--border); border-radius:12px; color:var(--text); background:var(--surface-2); font:inherit; font-size:11px; cursor:pointer; }
+#screen-space .sp-dna-action span { font-size:14px; }
+#screen-space .sp-dna-action b { font-size:11px; font-weight:700; }
+#screen-space .sp-dna-action:active { transform:scale(.97); }
+#screen-space .sp-dna-saved { display:flex; flex-wrap:wrap; gap:7px 12px; align-items:center; margin-top:10px; padding-top:9px; border-top:1px solid var(--border); color:var(--muted); font-size:10.5px; }
+#screen-space .sp-dna-saved b { color:var(--text); font-weight:650; }
+#screen-space .sp-dna-summary { padding:3px 7px; border-radius:999px; background:var(--surface-2); }
+#screen-space .sp-dna-notice { margin-top:10px; padding:9px 10px; border-radius:11px; background:var(--surface-2); color:var(--text); font-size:11px; line-height:1.4; }
+#screen-space .sp-dna-notice[hidden] { display:none; }
+#screen-space .sp-dna-offer { display:grid; gap:8px; margin-top:12px; padding:11px; border:1px solid var(--border); border-radius:13px; background:var(--surface-2); }
+#screen-space .sp-dna-offer label { display:flex; flex-wrap:wrap; gap:6px; font-size:12px; }
+#screen-space .sp-dna-offer input { width:100%; accent-color:var(--sp-accent-2,var(--coffee)); }
+#screen-space .sp-dna-offer small { color:var(--muted); font-size:10px; line-height:1.4; }
+@media (prefers-reduced-motion: reduce) { #screen-space .sp-dna-action { transition:none; } }
