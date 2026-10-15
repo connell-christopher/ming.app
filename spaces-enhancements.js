@@ -1,7 +1,7 @@
 /* Tweaklr Spaces DNA add-on.
  * Additive companion module: never replaces existing Space renderers,
  * message handlers, or backend state. Experimental personal tools are
- * explicitly stored on this device until shared backend actions exist.
+ * persisted in Supabase for the signed-in member of each Space.
  */
 (function () {
   'use strict';
@@ -58,6 +58,7 @@
   let dnaState = {};
   let dnaSpaceId = '';
   let dnaLoaded = false;
+  let dnaLoadingSpaceId = '';
   let dnaSaveQueue = Promise.resolve();
   function activeSpaceId() { return activeScreen()?.dataset.spaceId || ''; }
   function read(suffix, fallback) {
@@ -65,7 +66,7 @@
   }
   function write(suffix, value) {
     const spaceId = activeSpaceId();
-    if (!spaceId || !supabaseClient) {
+    if (!spaceId || !dnaLoaded || !supabaseClient) {
       announce('Open a saved Space and sign in to save this.');
       return false;
     }
@@ -89,12 +90,13 @@
     if (!spaceId || !supabaseClient || !supabaseClient.auth) {
       dnaState = {}; dnaSpaceId = ''; dnaLoaded = false; return;
     }
-    if (spaceId === dnaSpaceId && dnaLoaded) return;
-    dnaSpaceId = spaceId; dnaState = {}; dnaLoaded = false;
+    if (spaceId === dnaSpaceId && (dnaLoaded || dnaLoadingSpaceId === spaceId)) return;
+    dnaSpaceId = spaceId; dnaState = {}; dnaLoaded = false; dnaLoadingSpaceId = spaceId;
     try {
       const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
       if (sessionError || !session?.user) {
         announce('Sign in to load your saved Space tools.');
+        dnaLoadingSpaceId = '';
         return;
       }
       const { data, error } = await supabaseClient.rpc('get_ming_space_dna_state', { p_space_id: spaceId });
@@ -102,7 +104,9 @@
       if (activeSpaceId() !== spaceId) return;
       dnaState = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
       dnaLoaded = true;
+      dnaLoadingSpaceId = '';
     } catch (error) {
+      dnaLoadingSpaceId = '';
       console.warn('Tweaklr Spaces signature-tool load failed.', error);
       if (activeSpaceId() === spaceId) announce('Could not load saved tools. Run the Spaces DNA migration.');
     }
@@ -213,7 +217,7 @@
         write('mood', mood[0] + ' ' + mood[1]); announce('Vibe saved to your account.'); break;
       }
       case 'joke': {
-        const v = ask('Save an inside joke (do not include anything private you would not want stored locally):');
+        const v = ask('Save an inside joke to your account for this Space:');
         if (v === null || !v) return;
         const jokes = read('jokes', []); jokes.unshift({text:v, at:Date.now()});
         write('jokes', jokes.slice(0, 30)); announce('Inside joke saved to your account.'); break;
@@ -227,7 +231,7 @@
       case 'meme-vote': {
         const v = ask('Vote for today’s funniest meme. Enter the member name or meme description:');
         if (v === null || !v) return;
-        write('meme-vote', {vote:v, at:Date.now()}); announce('Your vote is recorded on this device only.'); break;
+        write('meme-vote', {vote:v, at:Date.now()}); announce('Your vote is saved to your account.'); break;
       }
       case 'thinking': {
         const count = Number(read('thinking-count', 0)) + 1;
