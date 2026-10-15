@@ -4357,3 +4357,94 @@ html.theme-transitioning *::after {
 @media (prefers-reduced-motion: reduce) {
   #screen-tweak .tweak-tag { transition: none; }
 }
+
+/* Tweak interest search — scoped only to the Tweak onboarding panel */
+#screen-tweak .tweak-more-toggle {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 12px 0 4px;
+  padding: 11px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 13px;
+  color: var(--coffee-light, #a97c59);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 800;
+}
+#screen-tweak .tweak-more-toggle span { font-size: 16px; }
+#screen-tweak .tweak-more-panel {
+  margin: 10px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  background: var(--surface, rgba(255,255,255,.025));
+}
+#screen-tweak .tweak-more-panel[hidden] { display: none !important; }
+#screen-tweak .tweak-search-label { display: block; margin-bottom: 9px; font-size: 12px; font-weight: 800; }
+#screen-tweak .tweak-tag-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 45px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--bg, rgba(0,0,0,.08));
+}
+#screen-tweak .tweak-tag-search-wrap > span { color: var(--coffee-light, #a97c59); font-size: 23px; line-height: 1; }
+#screen-tweak .tweak-tag-search-wrap input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+}
+#screen-tweak .tweak-tag-search-wrap input::placeholder { color: var(--muted); opacity: .8; }
+#screen-tweak .tweak-tag-search-wrap button {
+  border: 0;
+  padding: 4px 7px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 20px;
+}
+#screen-tweak .tweak-tag-search-wrap button[hidden] { display: none !important; }
+#screen-tweak .tweak-search-hint { margin: 8px 2px 12px; color: var(--muted); font-size: 10px; }
+#screen-tweak .tweak-tag-suggestions { display: flex; flex-wrap: wrap; gap: 7px; }
+#screen-tweak .tweak-suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  background: var(--surface, rgba(255,255,255,.035));
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: left;
+}
+#screen-tweak .tweak-suggestion > span { color: var(--muted); }
+#screen-tweak .tweak-suggestion.is-selected { border-color: rgba(185,120,133,.72); background: rgba(139,53,67,.16); }
+#screen-tweak .tweak-suggestion.is-selected > span { color: #c98796; }
+#screen-tweak .tweak-suggestion-caption { flex-basis: 100%; margin: 2px 0 4px; color: var(--muted); font-size: 10px; font-weight: 750; }
+#screen-tweak .tweak-no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 22px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 13px;
+  text-align: center;
+}
+#screen-tweak .tweak-no-results > span { color: var(--coffee-light, #a97c59); font-size: 21px; }
+#screen-tweak .tweak-no-results b { font-size: 13px; }
+#screen-tweak .tweak-no-results small { color: var(--muted); font-size: 10px; line-height: 1.5; }
