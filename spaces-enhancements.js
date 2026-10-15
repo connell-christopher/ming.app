@@ -11,8 +11,8 @@
   const ROOT = '#screen-space';
   // Custom Tweaklr moon-glass mini-icons replace platform emoji throughout this panel.
   const ICON_PATHS = {
-    target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 12l7-7m-3 0h3v3"/>',
-    timer:'<path d="M9 2h6m-3 0v3m6.2 1.8 1.4-1.4M12 7v5l3 2"/><circle cx="12" cy="13" r="8"/>',
+    target:'<path d="M12 3.2l1.9 4.1 4.5.6-3.2 3.1.8 4.5-4-2.1-4 2.1.8-4.5-3.2-3.1 4.5-.6z"/><circle cx="12" cy="12" r="9.3" stroke-dasharray="1.4 3.2"/><path d="M17.7 17.7l2 2"/>',
+    timer:'<path d="M12 3.2a8.8 8.8 0 108.8 8.8"/><path d="M12 6.8v5.4l3.6 2"/><path d="M16.2 2.8l.8 2.1 2.2.1-1.7 1.4.6 2.1-1.9-1.2-1.8 1.2.5-2.1-1.6-1.4 2.1-.1z"/>',
     hands:'<path d="M3 12l4-4 3 2 2-1 5 2-5 5-4-2-3 1z"/><path d="M7 8l2-3 3 2m-1 8 2 1 4-4"/>',
     laugh:'<circle cx="12" cy="12" r="9"/><path d="M8 10h.1M16 10h.1M7.5 13a4.5 4.5 0 009 0z"/>',
     cloud:'<path d="M6 18h11a4 4 0 000-8 5.5 5.5 0 00-10-1A4.5 4.5 0 006 18z"/>',
