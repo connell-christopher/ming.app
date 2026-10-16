@@ -1,4 +1,5 @@
-# Supabase CLI configuration for Tweaklr Edge Functions.
+project_id = "avnuejgqaxygxeiyqeny"
+
 # OAuth callbacks are redirected from TikTok without a Supabase JWT.
 [functions.tweak-tiktok-callback]
 verify_jwt = false
