@@ -1358,52 +1358,24 @@ function skeletonRail() {
 }
 
 /* ------------------------------------------------------------
-   TWEAK — INTEREST ONBOARDING / FEED SHELL
-   Frontend-only foundation. TikTok OAuth and persistent creator
-   publishing require approved API access and server/database work.
+   TWEAK — TIKTOK TAG PREFERENCES / FEED SHELL
+   No custom tag catalog is used. Tag choices will come from
+   TikTok after approved API access and server-side integration.
 ------------------------------------------------------------ */
-const TWEAK_INTERESTS = [
-  'Comedy', 'Music', 'Afrobeats', 'Fashion', 'Beauty', 'Gaming',
-  'Football', 'Basketball', 'Fitness', 'Travel', 'Food', 'Lifestyle',
-  'Relationships', 'Friendship', 'Technology', 'Cybersecurity', 'AI',
-  'Programming', 'Business', 'Side hustles', 'Entrepreneurship',
-  'Education', 'Science', 'Art', 'Photography', 'Movies', 'Dance',
-  'Motivation', 'News', 'Books', 'Nature', 'Cars', 'DIY'
-];
-
-// A broad, expandable interest catalog: 55 topics × 20 discovery angles = 1,100
-// additional searchable tags. These are generated locally; no API is needed.
-const TWEAK_MORE_TOPICS = [
-  'Afrobeats', 'African cinema', 'African history', 'Anime', 'Architecture',
-  'Artificial intelligence', 'Astronomy', 'Beauty', 'Books', 'Business',
-  'Camping', 'Cars', 'Climate', 'Comedy', 'Cooking', 'Crafts', 'Cricket',
-  'Cybersecurity', 'Dance', 'Design', 'Documentaries', 'Education',
-  'Entrepreneurship', 'Esports', 'Fashion', 'Finance', 'Fitness', 'Football',
-  'Gaming', 'Gardening', 'Health and wellness', 'History', 'Home decor',
-  'Investing', 'K-pop', 'Movies', 'Mental wellness', 'Mobile photography',
-  'Motorcycles', 'Parenting', 'Personal development', 'Pets', 'Photography',
-  'Podcasts', 'Programming', 'Relationships', 'Science', 'Skincare',
-  'Small business', 'Space', 'Sports', 'Streetwear', 'Technology', 'Travel',
-  'TV series'
-];
-const TWEAK_MORE_ANGLES = [
-  'beginner guides', 'tips and tricks', 'how-to videos', 'news and updates',
-  'reviews', 'history and origins', 'culture and community', 'ideas and inspiration',
-  'challenges', 'deep dives', 'highlights', 'behind the scenes', 'stories',
-  'trends', 'tutorials', 'recommendations', 'daily life', 'interviews',
-  'myths and facts', 'creative projects'
-];
-const TWEAK_MORE_INTERESTS = [...new Set(
-  TWEAK_MORE_TOPICS.flatMap(topic =>
-    TWEAK_MORE_ANGLES.map(angle => topic + ' ' + angle)
-  )
-)].filter(tag => !TWEAK_INTERESTS.includes(tag));
-const TWEAK_ALL_INTERESTS = [...new Set([...TWEAK_INTERESTS, ...TWEAK_MORE_INTERESTS])];
-
-function getTweakInterestTags() {
+function getTweakTikTokTags() {
   try {
-    const saved = JSON.parse(localStorage.getItem('tweaklr-tweak-interests') || '[]');
-    return Array.isArray(saved) ? [...new Set(saved.filter(tag => TWEAK_ALL_INTERESTS.includes(tag)))] : [];
+    const saved = JSON.parse(localStorage.getItem('tweaklr-tiktok-tags') || '[]');
+    return Array.isArray(saved) ? [...new Set(saved.filter(tag => typeof tag === 'string' && tag.trim()))] : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function getTweakSelectedTikTokTags() {
+  const available = getTweakTikTokTags();
+  try {
+    const saved = JSON.parse(localStorage.getItem('tweaklr-selected-tiktok-tags') || '[]');
+    return Array.isArray(saved) ? [...new Set(saved.filter(tag => available.includes(tag)))] : [];
   } catch (_) {
     return [];
   }
@@ -1412,33 +1384,30 @@ function getTweakInterestTags() {
 function renderTweak() {
   const host = $('#tweak-body');
   if (!host) return;
-  const tags = getTweakInterestTags();
-  const onboarded = localStorage.getItem('tweaklr-tweak-onboarded') === 'true' && tags.length >= 5;
+  const availableTags = getTweakTikTokTags();
+  const selectedTags = getTweakSelectedTikTokTags();
+  const onboarded = localStorage.getItem('tweaklr-tweak-onboarded') === 'true' &&
+    availableTags.length > 0 && selectedTags.length > 0;
 
   if (!onboarded) {
     host.innerHTML = `
       <section class="tweak-welcome">
         <div class="tweak-eyebrow"><span>✦</span> YOUR PERSONAL VIDEO SPACE</div>
-        <h2>Find your kind of <em>content.</em></h2>
-        <p>Choose at least five interests. Tweak will use them to shape a feed around the creators and topics you care about.</p>
+        <h2>Your feed. Your <em>interests.</em></h2>
+        <p>Tweak will let you choose hashtags available from your connected TikTok account. We won't use a separate, built-in Tweaklr tag list.</p>
         <div class="tweak-source-card">
           <div class="tweak-source-icon">♪</div>
-          <div class="tweak-source-copy"><b>Connect TikTok</b><span>Bring eligible videos from your connected account into your Tweak experience.</span></div>
+          <div class="tweak-source-copy"><b>Connect TikTok</b><span>After the TikTok integration is enabled, available TikTok tags can appear here for you to select.</span></div>
           <button type="button" class="tweak-connect-btn" data-action="tweak-connect">Connect</button>
         </div>
-        <div class="tweak-tag-heading"><div><b>Choose your interests</b><span>Pick at least 5</span></div><strong>${tags.length}/5 minimum</strong></div>
-        <div class="tweak-tags">${TWEAK_INTERESTS.map(tag => `
-          <button type="button" class="tweak-tag ${tags.includes(tag) ? 'is-selected' : ''}" data-action="tweak-tag:${esc(tag)}" aria-pressed="${tags.includes(tag) ? 'true' : 'false'}">${tags.includes(tag) ? '<span>✓</span>' : '<span>＋</span>'}${esc(tag)}</button>
-        `).join('')}</div>
-        <button type="button" class="tweak-more-toggle" data-action="tweak-more-tags" aria-expanded="false">More... <span aria-hidden="true">⌄</span></button>
-        <section class="tweak-more-panel" id="tweak-more-panel" hidden>
-          <label class="tweak-search-label" for="tweak-tag-search">Search 1,100+ more interests</label>
-          <div class="tweak-tag-search-wrap"><span aria-hidden="true">⌕</span><input id="tweak-tag-search" type="search" autocomplete="off" placeholder="Start typing an interest..." aria-label="Search more interests"><button type="button" data-action="tweak-clear-search" aria-label="Clear search" hidden>×</button></div>
-          <p class="tweak-search-hint">Suggestions update as you type.</p>
-          <div id="tweak-tag-suggestions" class="tweak-tag-suggestions" aria-live="polite"></div>
+        <section class="tweak-feed-empty tweak-tag-integration-note">
+          <div class="tweak-play-orbit"><span>#</span><i></i><b></b></div>
+          <h3>TikTok tags will appear here</h3>
+          <p>TikTok sign-in and tag retrieval are not connected yet. This area will use tags returned by TikTok after the approved API and secure server-side OAuth flow are implemented.</p>
+          <small>No custom or generated tags are being offered.</small>
         </section>
-        <button type="button" class="btn btn--primary tweak-continue" data-action="tweak-save-tags" ${tags.length < 5 ? 'disabled' : ''}>Continue to Tweak <span aria-hidden="true">→</span></button>
-        <p class="tweak-privacy-note">Your likes, comments, follows, connections and messages in Tweak are designed to belong to your Tweaklr account.</p>
+        <button type="button" class="btn btn--primary tweak-continue" data-action="tweak-save-tags" disabled>Choose TikTok tags <span aria-hidden="true">→</span></button>
+        <p class="tweak-privacy-note">Likes, comments, follows, connections and messages in Tweak are intended to belong to your Tweaklr account.</p>
       </section>`;
     return;
   }
@@ -1446,13 +1415,13 @@ function renderTweak() {
   host.innerHTML = `
     <section class="tweak-feed-head">
       <div><span class="tweak-eyebrow">MADE FOR YOUR INTERESTS</span><h2>Your Tweak feed</h2></div>
-      <button type="button" class="tweak-edit-tags" data-action="tweak-edit-tags" aria-label="Edit interests">Edit tags</button>
+      <button type="button" class="tweak-edit-tags" data-action="tweak-edit-tags" aria-label="Edit TikTok tags">Edit tags</button>
     </section>
-    <div class="tweak-selected-tags">${tags.map(tag => '<span>' + esc(tag) + '</span>').join('')}</div>
+    <div class="tweak-selected-tags">${selectedTags.map(tag => '<span>' + esc(tag) + '</span>').join('')}</div>
     <section class="tweak-feed-empty">
       <div class="tweak-play-orbit"><span>▶</span><i></i><b></b></div>
       <h3>Your feed starts here.</h3>
-      <p>Tweak is ready for content that matches your interests. TikTok sign-in and live video publishing are not connected yet, so no external videos or creator posts are being shown in this preview.</p>
+      <p>Your selected TikTok tags are saved for this preview, but TikTok sign-in and live video retrieval are not connected yet. No external videos or creator posts are being shown.</p>
       <div class="tweak-feed-sources">
         <div><span>♪</span><b>TikTok videos</b><small>Requires approved TikTok API access</small></div>
         <div><span>＋</span><b>Tweaklr videos</b><small>Native publishing setup pending</small></div>
@@ -1462,91 +1431,52 @@ function renderTweak() {
 }
 
 function toggleTweakInterest(tag) {
-  if (!TWEAK_ALL_INTERESTS.includes(tag)) return;
-  const tags = getTweakInterestTags();
-  const next = tags.includes(tag) ? tags.filter(item => item !== tag) : [...tags, tag];
-  try { localStorage.setItem('tweaklr-tweak-interests', JSON.stringify(next)); } catch (_) {}
-  const searchOpen = localStorage.getItem('tweaklr-tweak-more-open') === 'true';
+  const available = getTweakTikTokTags();
+  if (!available.includes(tag)) return;
+  const selected = getTweakSelectedTikTokTags();
+  const next = selected.includes(tag) ? selected.filter(item => item !== tag) : [...selected, tag];
+  try { localStorage.setItem('tweaklr-selected-tiktok-tags', JSON.stringify(next)); } catch (_) {}
   renderTweak();
-  if (searchOpen) {
-    const panel = $('#tweak-more-panel');
-    const toggle = $('.tweak-more-toggle');
-    if (panel) panel.hidden = false;
-    if (toggle) { toggle.setAttribute('aria-expanded', 'true'); toggle.innerHTML = 'Less... <span aria-hidden="true">⌃</span>'; }
-    const input = $('#tweak-tag-search');
-    if (input) {
-      try { input.value = sessionStorage.getItem('tweaklr-tweak-search') || ''; } catch (_) {}
-      renderTweakTagSuggestions(input.value);
-    }
-  }
 }
 
 function toggleTweakMoreTags() {
-  const panel = $('#tweak-more-panel');
-  const toggle = $('.tweak-more-toggle');
-  if (!panel || !toggle) return;
-  const open = panel.hidden;
-  panel.hidden = !open;
-  toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-  toggle.innerHTML = open ? 'Less... <span aria-hidden="true">⌃</span>' : 'More... <span aria-hidden="true">⌄</span>';
-  try { localStorage.setItem('tweaklr-tweak-more-open', open ? 'true' : 'false'); } catch (_) {}
-  if (open) {
-    const input = $('#tweak-tag-search');
-    if (input) input.focus();
-    renderTweakTagSuggestions(input ? input.value : '');
-  }
+  // Tag discovery will be rendered from TikTok's returned data after integration.
+  toast('TikTok tag selection will be available after the integration is enabled.', 'alert');
 }
 
-function renderTweakTagSuggestions(rawQuery) {
+function renderTweakTagSuggestions() {
   const host = $('#tweak-tag-suggestions');
-  const input = $('#tweak-tag-search');
-  const clear = document.querySelector('[data-action="tweak-clear-search"]');
   if (!host) return;
-  const query = String(rawQuery || '').trim().toLocaleLowerCase();
-  if (clear) clear.hidden = !query;
-  if (!query) {
-    const popular = TWEAK_MORE_INTERESTS.slice(0, 12);
-    host.innerHTML = '<div class="tweak-suggestion-caption">Popular interests</div>' + popular.map(tag => {
-      const selected = getTweakInterestTags().includes(tag);
-      return '<button type="button" class="tweak-suggestion ' + (selected ? 'is-selected' : '') + '" data-action="tweak-tag:' + esc(tag) + '" aria-pressed="' + (selected ? 'true' : 'false') + '"><span>' + (selected ? '✓' : '＋') + '</span>' + esc(tag) + '</button>';
-    }).join('');
+  const available = getTweakTikTokTags();
+  const selected = getTweakSelectedTikTokTags();
+  if (!available.length) {
+    host.innerHTML = '<div class="tweak-no-results"><span aria-hidden="true">♪</span><b>TikTok tags are not available yet.</b><small>Connect TikTok after the integration is enabled.</small></div>';
     return;
   }
-  const matches = TWEAK_ALL_INTERESTS.filter(tag => tag.toLocaleLowerCase().includes(query))
-    .sort((a, b) => {
-      const al = a.toLocaleLowerCase(), bl = b.toLocaleLowerCase();
-      return (al.startsWith(query) ? 0 : 1) - (bl.startsWith(query) ? 0 : 1) || al.localeCompare(bl);
-    }).slice(0, 14);
-  if (!matches.length) {
-    host.innerHTML = '<div class="tweak-no-results"><span aria-hidden="true">✦</span><b>Ooops. Not yet available here.</b><small>Try another word or choose a related interest.</small></div>';
-    return;
-  }
-  host.innerHTML = '<div class="tweak-suggestion-caption">' + matches.length + ' suggestion' + (matches.length === 1 ? '' : 's') + '</div>' + matches.map(tag => {
-    const selected = getTweakInterestTags().includes(tag);
-    return '<button type="button" class="tweak-suggestion ' + (selected ? 'is-selected' : '') + '" data-action="tweak-tag:' + esc(tag) + '" aria-pressed="' + (selected ? 'true' : 'false') + '"><span>' + (selected ? '✓' : '＋') + '</span>' + esc(tag) + '</button>';
+  host.innerHTML = available.map(tag => {
+    const isSelected = selected.includes(tag);
+    return '<button type="button" class="tweak-suggestion ' + (isSelected ? 'is-selected' : '') + '" data-action="tweak-tag:' + esc(tag) + '" aria-pressed="' + (isSelected ? 'true' : 'false') + '"><span>' + (isSelected ? '✓' : '＋') + '</span>' + esc(tag) + '</button>';
   }).join('');
 }
 
 document.addEventListener('input', event => {
   if (!event.target || event.target.id !== 'tweak-tag-search') return;
-  const query = event.target.value || '';
-  try { sessionStorage.setItem('tweaklr-tweak-search', query); } catch (_) {}
-  renderTweakTagSuggestions(query);
+  renderTweakTagSuggestions();
 });
 
 function saveTweakInterests() {
-  const tags = getTweakInterestTags();
-  if (tags.length < 5) {
-    toast('Choose at least five interests to continue.', 'alert');
+  const selected = getTweakSelectedTikTokTags();
+  if (!getTweakTikTokTags().length || !selected.length) {
+    toast('TikTok tag selection will be available after the integration is enabled.', 'alert');
     return;
   }
   try { localStorage.setItem('tweaklr-tweak-onboarded', 'true'); } catch (_) {}
   renderTweak();
-  toast('Your Tweak interests are saved.', 'check');
+  toast('Your TikTok tag preferences are saved.', 'check');
 }
 
 function beginTweakSetup() {
-  toast('TikTok sign-in is not connected yet. It requires approved TikTok API access and a secure server-side OAuth flow.', 'alert');
+  toast('TikTok sign-in and tag retrieval are not connected yet. They require approved TikTok API access and a secure server-side OAuth flow.', 'alert');
 }
 
 /* ------------------------------------------------------------
