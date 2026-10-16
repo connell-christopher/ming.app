@@ -4760,6 +4760,16 @@ async function openChat(personId) {
 
   const c = convoFor(personId);
   c.unread = 0;
+  // Opening a conversation also clears its related notification indicator.
+  notifications.forEach(n => {
+    if (n.type === 'message' && n.personId === personId) {
+      n.read = true;
+      notificationReadIds.add(n.id);
+    }
+  });
+  saveNotificationReadState();
+  renderNotifications();
+  updateNotifDot();
   state.activeChat = personId;
   $('#chat-av').innerHTML = avatar(p, 36);
   $('#chat-name').textContent = p.short;
@@ -7638,7 +7648,11 @@ if ($('#refresh-nearby')) {
 
 if ($('#mark-all-read')) {
   $('#mark-all-read').addEventListener('click', () => {
-    notifications.forEach(n => n.read = true);
+    notifications.forEach(n => {
+      n.read = true;
+      notificationReadIds.add(n.id);
+    });
+    saveNotificationReadState();
     renderNotifications();
     updateNotifDot();
     toast('All caught up', 'check');
