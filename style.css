@@ -4448,3 +4448,56 @@ html.theme-transitioning *::after {
 #screen-tweak .tweak-no-results > span { color: var(--coffee-light, #a97c59); font-size: 21px; }
 #screen-tweak .tweak-no-results b { font-size: 13px; }
 #screen-tweak .tweak-no-results small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+
+
+/* TWEAK — connected TikTok video feed only */
+#screen-tweak .tweak-account-status {
+  margin: -13px 2px 20px !important;
+  color: var(--muted);
+  font-size: 11px !important;
+  line-height: 1.5;
+}
+#screen-tweak .tweak-video-section { margin-top: 8px; }
+#screen-tweak .tweak-video-section .tweak-feed-head { padding: 8px 0 13px; }
+#screen-tweak .tweak-video-section .tweak-feed-head h2 { font-size: 22px; }
+#screen-tweak .tweak-video-section .tweak-outline-btn { min-width: 0; padding: 9px 11px; }
+#screen-tweak .tweak-video-feed { display: grid; gap: 13px; }
+#screen-tweak .tweak-video-message {
+  padding: 20px 15px;
+  border: 1px solid var(--border);
+  border-radius: 17px;
+  color: var(--muted);
+  background: var(--surface, rgba(255,255,255,.035));
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+#screen-tweak .tweak-video-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface, rgba(255,255,255,.035));
+}
+#screen-tweak .tweak-video-embed {
+  display: block;
+  width: 100%;
+  height: min(590px, 125vw);
+  max-height: 590px;
+  border: 0;
+  background: #0f0a08;
+}
+#screen-tweak .tweak-video-cover { display: block; background: #0f0a08; }
+#screen-tweak .tweak-video-cover img {
+  display: block;
+  width: 100%;
+  max-height: 430px;
+  object-fit: cover;
+}
+#screen-tweak .tweak-video-copy { display: grid; gap: 7px; padding: 13px 14px 15px; }
+#screen-tweak .tweak-video-copy b { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+#screen-tweak .tweak-video-copy p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+#screen-tweak .tweak-video-copy a { justify-self: start; color: var(--coffee-light, #c7a17d); font-size: 11px; font-weight: 750; text-decoration: none; }
+@media (prefers-reduced-motion: reduce) {
+  #screen-tweak .tweak-video-card { scroll-behavior: auto; }
+}
