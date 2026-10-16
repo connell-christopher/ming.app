@@ -1361,6 +1361,12 @@ function skeletonRail() {
    TWEAK — VIDEO FEED SHELL
    TikTok connection and live video integration are not active yet.
 ------------------------------------------------------------ */
+/* ------------------------------------------------------------
+   TWEAK — TikTok Display API integration
+   OAuth and access tokens are handled by Supabase Edge Functions.
+------------------------------------------------------------ */
+let tweakTikTokReturnHandled = false;
+
 function renderTweak() {
   const host = $('#tweak-body');
   if (!host) return;
@@ -1369,27 +1375,135 @@ function renderTweak() {
     <section class="tweak-welcome">
       <div class="tweak-eyebrow"><span>✦</span> YOUR PERSONAL VIDEO SPACE</div>
       <h2>Your videos. Your <em>space.</em></h2>
-      <p>Tweak is where you’ll discover videos from creators you choose to follow, with social actions belonging to your Tweaklr account.</p>
+      <p>Tweak brings eligible videos from creators who connect TikTok, while likes, comments, follows, connections and messages stay native to Tweaklr.</p>
       <div class="tweak-source-card">
         <div class="tweak-source-icon">♪</div>
-        <div class="tweak-source-copy"><b>Connect TikTok</b><span>Bring eligible videos from your connected account into your Tweak experience when integration is available.</span></div>
+        <div class="tweak-source-copy"><b>Connect TikTok</b><span>Securely link your TikTok account to bring your public videos into Tweak.</span></div>
         <button type="button" class="tweak-connect-btn" data-action="tweak-connect">Connect</button>
       </div>
-      <section class="tweak-feed-empty tweak-tag-integration-note">
-        <div class="tweak-play-orbit"><span>▶</span><i></i><b></b></div>
-        <h3>Your Tweak feed starts here</h3>
-        <p>TikTok sign-in and video retrieval are not connected yet. Once the approved integration is in place, this space can display eligible videos.</p>
-        <div class="tweak-feed-sources">
-          <div><span>♪</span><b>TikTok videos</b><small>Requires approved TikTok API access</small></div>
-          <div><span>＋</span><b>Tweaklr videos</b><small>Native publishing setup pending</small></div>
+      <p id="tweak-account-status" class="tweak-account-status" aria-live="polite">Checking TikTok connection…</p>
+      <section class="tweak-video-section">
+        <div class="tweak-feed-head">
+          <div><div class="tweak-eyebrow">FROM YOUR CONNECTED ACCOUNT</div><h2>Your TikTok videos</h2></div>
+          <button type="button" class="tweak-outline-btn" data-action="tweak-refresh">Refresh</button>
+        </div>
+        <div id="tweak-video-feed" class="tweak-video-feed" aria-live="polite">
+          <div class="tweak-video-message">Your connected videos will appear here.</div>
         </div>
       </section>
-      <p class="tweak-privacy-note">Likes, comments, follows, connections and messages in Tweak are intended to belong to your Tweaklr account.</p>
+      <p class="tweak-privacy-note">TikTok access tokens stay on the server. Tweaklr social actions are separate from TikTok likes, comments and follows.</p>
     </section>`;
+
+  handleTweakTikTokReturn();
+  loadTweakTikTokData();
 }
 
-function beginTweakSetup() {
-  toast('TikTok sign-in and video retrieval are not connected yet. They require approved TikTok API access and a secure server-side OAuth flow.', 'alert');
+function handleTweakTikTokReturn() {
+  if (tweakTikTokReturnHandled) return;
+  const url = new URL(window.location.href);
+  const status = url.searchParams.get('tiktok');
+  if (!status) return;
+  tweakTikTokReturnHandled = true;
+  const reason = url.searchParams.get('reason') || '';
+  url.searchParams.delete('tiktok');
+  url.searchParams.delete('reason');
+  history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+
+  if (status === 'connected') {
+    toast('TikTok connected successfully.', 'success');
+  } else {
+    const messages = {
+      authorization_denied: 'TikTok connection was cancelled.',
+      invalid_callback: 'TikTok returned an incomplete connection response.',
+      server_not_configured: 'TikTok integration still needs server configuration.',
+      invalid_or_expired_state: 'That TikTok connection request expired. Please try again.',
+      token_exchange_failed: 'TikTok could not complete authorization. Please try again.',
+      profile_retrieval_failed: 'TikTok profile details could not be retrieved.',
+      connection_save_failed: 'TikTok connected, but Tweaklr could not save the connection.',
+      callback_failed: 'TikTok connection failed. Please try again.'
+    };
+    toast(messages[reason] || 'TikTok connection failed. Please try again.', 'alert');
+  }
+}
+
+function safeTweakTikTokUrl(value) {
+  if (!value || typeof value !== 'string') return '';
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    const allowed = url.protocol === 'https:' &&
+      ((host === 'tiktok.com' || host.endsWith('.tiktok.com')) ||
+       /(^|\.)tiktokcdn[^.]*\.com$/i.test(host));
+    return allowed ? url.href : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+async function loadTweakTikTokData(showToast = false) {
+  const statusEl = $('#tweak-account-status');
+  const feedEl = $('#tweak-video-feed');
+  if (!statusEl || !feedEl) return;
+
+  statusEl.textContent = 'Checking TikTok connection…';
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('tweak-tiktok-videos', { body: {} });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+
+    if (!data?.connected) {
+      statusEl.textContent = 'TikTok is not connected to this Tweaklr account yet.';
+      feedEl.innerHTML = '<div class="tweak-video-message">Connect TikTok to import your public videos. Each creator must authorize their own account.</div>';
+      return;
+    }
+
+    const displayName = data.profile?.display_name || 'your TikTok account';
+    statusEl.textContent = 'Connected as ' + displayName + '.';
+    const connectButton = $('#screen-tweak [data-action="tweak-connect"]');
+    if (connectButton) connectButton.textContent = 'Reconnect';
+
+    const videos = Array.isArray(data.videos) ? data.videos : [];
+    if (!videos.length) {
+      feedEl.innerHTML = '<div class="tweak-video-message">Your TikTok account is connected, but no public videos were returned by TikTok.</div>';
+      return;
+    }
+
+    feedEl.innerHTML = videos.map(video => {
+      const title = esc(video.title || video.video_description || 'TikTok video');
+      const description = esc(video.video_description || '');
+      const embed = safeTweakTikTokUrl(video.embed_link);
+      const cover = safeTweakTikTokUrl(video.cover_image_url);
+      const share = safeTweakTikTokUrl(video.share_url);
+      const media = embed
+        ? '<iframe class="tweak-video-embed" src="' + esc(embed) + '" title="' + title + '" loading="lazy" allow="fullscreen; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>'
+        : (cover ? '<a class="tweak-video-cover" href="' + esc(share || cover) + '" target="_blank" rel="noopener noreferrer"><img src="' + esc(cover) + '" alt="' + title + '" loading="lazy"></a>' : '');
+      return '<article class="tweak-video-card">' + media +
+        '<div class="tweak-video-copy"><b>' + title + '</b>' +
+        (description && description !== title ? '<p>' + description + '</p>' : '') +
+        (share ? '<a href="' + esc(share) + '" target="_blank" rel="noopener noreferrer">Open on TikTok ↗</a>' : '') +
+        '</div></article>';
+    }).join('');
+    if (showToast) toast('TikTok videos refreshed.', 'success');
+  } catch (error) {
+    console.warn('Tweaklr: TikTok videos could not be loaded.', error);
+    statusEl.textContent = 'TikTok videos could not be loaded right now.';
+    feedEl.innerHTML = '<div class="tweak-video-message">Make sure you are signed in to Tweaklr and that the TikTok integration has been configured on the server.</div>';
+    if (showToast) toast('Could not refresh TikTok videos. Check the connection and try again.', 'alert');
+  }
+}
+
+async function beginTweakSetup() {
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('tweak-tiktok-auth-start', { body: {} });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    if (!data?.authorization_url) throw new Error('TikTok authorization URL was not returned.');
+    window.location.assign(data.authorization_url);
+  } catch (error) {
+    console.warn('Tweaklr: TikTok connection could not start.', error);
+    const message = error?.message || 'TikTok connection could not start.';
+    toast(message.length < 150 ? message : 'TikTok connection could not start. Check the server configuration.', 'alert');
+  }
 }
 
 /* ------------------------------------------------------------
@@ -6961,7 +7075,8 @@ document.addEventListener('click', async e => {
   const [verb, arg, arg2] = host.dataset.action.split(':');
 
   switch (verb) {
-    case 'tweak-connect': beginTweakSetup(); break;
+    case 'tweak-connect': await beginTweakSetup(); break;
+    case 'tweak-refresh': await loadTweakTikTokData(true); break;
     case 'person': openPerson(arg); break;
     case 'like': toggleLike(arg); break;
     case 'comments': openComments(arg); break;
