@@ -5833,7 +5833,7 @@ function renderProfile() {
     </div>
     <div class="section" id="my-updates">
       ${sectionHead('Your activity', profileContentTab === 'posts' ? 'Your posts' : 'Posts you liked')}
-      <div style="display:flex;gap:8px;padding:0 0 14px">
+      <div style="display:flex;gap:8px;padding:0 0 14px;margin-left:16px">
         <button class="btn ${profileContentTab === 'posts' ? 'btn--primary' : 'btn--soft'} btn--sm" data-action="profile-content:posts">Posts</button>
         <button class="btn ${profileContentTab === 'likes' ? 'btn--primary' : 'btn--soft'} btn--sm" data-action="profile-content:likes">Likes</button>
       </div>
