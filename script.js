@@ -9920,6 +9920,24 @@ function auditEventSummary(a) {
   if (event === 'product.listed') return 'A new marketplace listing was published.';
   return 'A change was recorded in this Space.';
 }
+async function refreshSpaceActivity(spaceId) {
+  try {
+    const { data, error } = await supabaseClient.rpc('get_my_ming_space_activity');
+    if (error) {
+      console.warn('Tweaklr: latest Space activity could not be refreshed.', error.message);
+      return;
+    }
+    const incoming = (data || []).filter(row => row.space_id === spaceId).map(row => ({
+      id: row.id, spaceId: row.space_id, actor: row.actor_id, event: row.event,
+      meta: row.meta || {}, at: new Date(row.created_at).getTime()
+    }));
+    const pending = Server.db.audit.filter(row => row.spaceId === spaceId && String(row.id).startsWith('local_'));
+    Server.db.audit = Server.db.audit.filter(row => row.spaceId !== spaceId).concat(incoming, pending);
+    if (sp.activeId === spaceId && sp.tab === 'log') refreshSpace();
+  } catch (error) {
+    console.warn('Tweaklr: latest Space activity refresh failed.', error);
+  }
+}
 function applySpaceActivityFilters() {
   const root = document.getElementById('screen-space');
   if (!root || root.dataset.nature !== 'business' || !root.querySelector('.sp-activity')) return;
@@ -10722,7 +10740,7 @@ document.addEventListener('click', async e => {
       renderSpaces();
       break;
     case 'wallet': openWallet(); break;
-    case 'tab': sp.tab = a; renderSpace(); if (S().nature === 'business' && a === 'brief') void refreshOpenRoles(S().id); break;
+    case 'tab': sp.tab = a; renderSpace(); if (S().nature === 'business' && a === 'brief') void refreshOpenRoles(S().id); if (S().nature === 'business' && a === 'log') void refreshSpaceActivity(S().id); break;
     case 'invite': closeSheet(); setTimeout(() => openInviteSheet(a), 150); break;
     case 'settings': openSpaceSettings(a); break;
     case 'delete-space': {
