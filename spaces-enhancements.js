@@ -192,20 +192,112 @@
     const result = window.prompt(label, initial || '');
     return result === null ? null : result.trim();
   }
+  function openBoardEditor(action) {
+    const isGoal = action === 'goal';
+    const screen = activeScreen();
+    if (!screen || !document.getElementById('sp-dna-panel')) return;
+    document.getElementById('sp-dna-editor')?.remove();
+
+    const currentGoal = String(read('goal', '') || '');
+    const currentDeadline = String(read('deadline', '') || '');
+    const localDeadline = currentDeadline ? (() => {
+      const date = new Date(currentDeadline);
+      if (!Number.isFinite(date.getTime())) return '';
+      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 16);
+    })() : '';
+
+    const modal = document.createElement('div');
+    modal.id = 'sp-dna-editor';
+    modal.className = 'sp-dna-editor-backdrop';
+    modal.innerHTML = '<section class="sp-dna-editor" role="dialog" aria-modal="true" aria-labelledby="sp-dna-editor-title">' +
+      '<div class="sp-dna-editor__top"><span class="sp-dna-editor__icon">' + brandIcon(isGoal ? 'target' : 'timer') + '</span>' +
+      '<button type="button" class="sp-dna-editor__close" data-editor-cancel aria-label="Close editor">×</button></div>' +
+      '<span class="sp-dna-editor__eyebrow">TWEAKLR SIGNATURE · BOARD MODE</span>' +
+      '<h3 id="sp-dna-editor-title">' + (isGoal ? 'Pin your next big move' : 'Set your finish line') + '</h3>' +
+      '<p class="sp-dna-editor__desc">' + (isGoal ? 'Give this Space one clear priority. Keep it focused, visible, and actionable.' : 'Choose when this goal should be complete. We’ll show the deadline with your pinned goal.') + '</p>' +
+      (isGoal
+        ? '<label class="sp-dna-editor__label" for="sp-dna-editor-goal">YOUR PRIORITY</label><textarea id="sp-dna-editor-goal" maxlength="180" rows="3" placeholder="e.g. Ship the new product landing page"></textarea><div class="sp-dna-editor__meta"><span>Make it clear and achievable.</span><span id="sp-dna-goal-count">0 / 180</span></div>'
+        : '<label class="sp-dna-editor__label" for="sp-dna-editor-deadline">DEADLINE · YOUR LOCAL TIME</label><input id="sp-dna-editor-deadline" type="datetime-local"><p class="sp-dna-editor__hint">Your time is converted automatically when saved.</p>') +
+      '<div class="sp-dna-editor__error" id="sp-dna-editor-error" role="alert" hidden></div>' +
+      '<div class="sp-dna-editor__actions">' +
+      ((isGoal ? currentGoal : currentDeadline) ? '<button type="button" class="sp-dna-editor__clear" data-editor-clear>Clear ' + (isGoal ? 'goal' : 'deadline') + '</button>' : '') +
+      '<button type="button" class="sp-dna-editor__cancel" data-editor-cancel>Cancel</button>' +
+      '<button type="button" class="sp-dna-editor__save" data-editor-save>Save ' + (isGoal ? 'goal' : 'deadline') + '</button></div></section>';
+    screen.appendChild(modal);
+
+    const field = modal.querySelector(isGoal ? '#sp-dna-editor-goal' : '#sp-dna-editor-deadline');
+    if (isGoal) {
+      field.value = currentGoal;
+      const count = modal.querySelector('#sp-dna-goal-count');
+      const updateCount = () => { count.textContent = field.value.length + ' / 180'; };
+      field.addEventListener('input', updateCount);
+      updateCount();
+    } else {
+      field.value = localDeadline;
+      field.min = (() => {
+        const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+        return now.toISOString().slice(0, 16);
+      })();
+    }
+    const close = () => modal.remove();
+    modal.addEventListener('click', event => {
+      if (event.target === modal || event.target.closest('[data-editor-cancel]')) close();
+      if (event.target.closest('[data-editor-clear]')) {
+        write(isGoal ? 'goal' : 'deadline', '');
+        close();
+        refreshPanel();
+        announce(isGoal ? 'Pinned goal cleared.' : 'Deadline cleared.');
+      }
+      if (event.target.closest('[data-editor-save]')) {
+        const error = modal.querySelector('#sp-dna-editor-error');
+        error.hidden = true;
+        if (isGoal) {
+          const value = field.value.trim();
+          if (!value) {
+            error.textContent = 'Add a goal first, or use Clear goal to remove the current one.';
+            error.hidden = false;
+            field.focus();
+            return;
+          }
+          if (!write('goal', value)) return;
+          close();
+          refreshPanel();
+          announce('Pinned goal saved to your Space.');
+        } else {
+          if (!field.value) {
+            error.textContent = 'Choose a date and time, or use Clear deadline to remove it.';
+            error.hidden = false;
+            field.focus();
+            return;
+          }
+          const parsed = new Date(field.value);
+          if (!Number.isFinite(parsed.getTime()) || parsed.getTime() <= Date.now()) {
+            error.textContent = 'Choose a future date and time.';
+            error.hidden = false;
+            field.focus();
+            return;
+          }
+          if (!write('deadline', parsed.toISOString())) return;
+          close();
+          refreshPanel();
+          announce('Deadline saved to your Space.');
+        }
+      }
+    });
+    modal.addEventListener('keydown', event => {
+      if (event.key === 'Escape') close();
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') modal.querySelector('[data-editor-save]')?.click();
+    });
+    field.focus();
+  }
+
   async function handle(action) {
     switch (action) {
-      case 'goal': {
-        const v = ask('Set a pinned goal for this Business Space:', read('goal', ''));
-        if (v === null) return;
-        write('goal', v); announce(v ? 'Goal saved to your account.' : 'Goal cleared.'); break;
-      }
+      case 'goal':
       case 'deadline': {
-        const old = read('deadline', '');
-        const v = ask('Enter deadline as YYYY-MM-DD HH:MM (local time):', old.replace('T', ' ').slice(0, 16));
-        if (v === null) return;
-        const parsed = new Date(v.replace(' ', 'T'));
-        if (v && !Number.isFinite(parsed.getTime())) { announce('Use YYYY-MM-DD HH:MM.'); return; }
-        write('deadline', v ? parsed.toISOString() : ''); announce(v ? 'Deadline saved to your account.' : 'Deadline cleared.'); break;
+        openBoardEditor(action);
+        return;
       }
       case 'mood': {
         const choice = ask('Choose a mood: ' + MOODS.map((m,i) => (i+1)+'. '+m[1]).join(' | '), '1');
