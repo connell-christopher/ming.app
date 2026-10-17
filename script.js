@@ -2282,14 +2282,14 @@ async function shareDailyUpdate(id) {
 
   openSheet({
     title: 'Share update',
-    sub: 'Send the actual photo or video to a connection, another app, or save it to your device.',
+    sub: 'Send the update text or its actual photo/video to a connection, another app, or save the media to your device.',
     body: `
       <div class="chat-action-grid" style="margin-bottom:12px">
         <button data-action="share-external:${esc(id)}"><span style="font-size:24px">↗</span><br>Other apps</button>
         <button data-action="download-update:${esc(id)}"><span style="font-size:24px">↓</span><br>Download</button>
       </div>
       <div class="section share-update-recipients" style="padding:0">
-        <div class="section-head"><div><h2>Send to a connection</h2><p>Actual media files will be sent</p></div></div>
+        <div class="section-head"><div><h2>Send to a connection</h2><p>The update text or its media will be sent</p></div></div>
         ${connected.length ? connected.map(p => `
           <button class="opt" data-action="send-update:${esc(id)}:${esc(p.id)}">
             ${avatar(p, 42)}
@@ -2396,13 +2396,18 @@ async function sendDailyUpdateToConnection(updateId, personId) {
   }
 
   const files = await getDailyUpdateMediaFiles(data);
-  if (!files.length) {
-    toast('Could not load the photo or video for sharing.', 'alert');
-    return;
-  }
 
   closeSheet();
   await openChat(personId);
+
+  // Text-only Daily Updates should be shared as a normal chat message.
+  // Preserve the existing actual-file flow whenever media is available.
+  if (!files.length) {
+    const message = [data.text, data.url].filter(Boolean).join('\n\n');
+    if (message) await sendMessage(message, { replyToId: null });
+    else toast('This update has no text to share.', 'alert');
+    return;
+  }
 
   let completed = 0;
   for (const file of files) {
