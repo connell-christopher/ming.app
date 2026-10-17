@@ -8776,6 +8776,7 @@ const Server = (() => {
     orderEvents: id => db.orderEvents.filter(e => e.orderId === id),
     evidenceFor: id => db.evidence.filter(e => e.disputeId === id),
     auditFor: id => db.audit.filter(a => a.spaceId === id).slice().reverse(),
+    recordActivity: audit,
     /* seeding only — never call from UI code */
     _seed: fn => fn(db, { issueInvite, ledger, account })
   };
@@ -9887,7 +9888,10 @@ function auditEventLabel(event) {
     'member.joined':'Member joined','member.role_changed':'Member role changed',
     'member.removed':'Member removed','invite.issued':'Invitation created',
     'invite.rotated':'Invitation renewed','content.created':'Space content created',
-    'task.toggled':'Task status changed','task.updated':'Task details updated','product.listed':'Product listed',
+    'task.toggled':'Task status changed','task.updated':'Task details updated',
+    'document.uploaded':'Document uploaded','document.renamed':'Document renamed',
+    'document.categorized':'Document category changed','document.deleted':'Document deleted',
+    'product.listed':'Product listed',
     'order.created':'Order created','order.funded':'Order funded',
     'order.seller_confirmed':'Seller confirmed order','order.shipped':'Order shipped',
     'order.delivered':'Delivery confirmed','order.accepted':'Order accepted',
@@ -9902,6 +9906,7 @@ function auditEventLabel(event) {
 }
 function auditEventCategory(event) {
   if (/^(task|content)\./.test(event)) return 'work';
+  if (/^document\./.test(event)) return 'documents';
   if (/^(member|space)\./.test(event)) return 'people';
   if (/^invite\./.test(event)) return 'access';
   if (/^(product|order|dispute)\./.test(event)) return 'market';
@@ -9912,6 +9917,7 @@ function auditEventSummary(a) {
   if (event === 'content.created') return (m.kind ? String(m.kind).replace(/[_-]/g,' ') : 'New content') + ' was added to the Space.';
   if (event === 'task.toggled') return m.done ? 'A task was marked complete.' : 'A task was reopened.';
   if (event === 'task.updated') return 'Task details, ownership, priority or progress were updated.';
+  if (/^document\./.test(event)) return ({'document.uploaded':'A file was added to the shared library.','document.renamed':'A shared document was renamed.','document.categorized':'A document was moved to a different category.','document.deleted':'A document was removed from the shared library.'})[event] || 'A document changed.';
   if (event === 'member.role_changed') return 'A member’s Space role or access was updated.';
   if (event === 'member.joined') return 'A new member joined this Space.';
   if (event === 'invite.issued' || event === 'invite.rotated') return 'The Space invitation was ' + (event.endsWith('rotated') ? 'renewed.' : 'created.');
@@ -9972,7 +9978,7 @@ VIEWS.business.log = s => {
   }).join('');
   return '<div class="sp-activity"><section class="sp-activity-hero"><div><span class="sp-activity-eyebrow">THE SPACE RECORD</span><h2>Every move. One timeline.</h2><p>A clear history of changes across this workspace, from people and access to tasks and marketplace activity.</p></div><div class="sp-activity-seal" aria-hidden="true">↗</div></section>'+
     '<section class="sp-activity-metrics"><article><span>◷</span><div><b>'+entries.length+'</b><small>Total events</small></div></article><article><span>✳</span><div><b>'+recent+'</b><small>Last 24 hours</small></div></article><article><span>♙</span><div><b>'+people+'</b><small>Contributors</small></div></article><article><span>✓</span><div><b>'+work+'</b><small>Work updates</small></div></article></section>'+
-    '<section class="sp-activity-toolbar"><label><span>⌕</span><input id="sp-activity-search" type="search" placeholder="Search people or activity…" aria-label="Search activity log"></label><select id="sp-activity-category" aria-label="Filter activity type"><option value="">All activity</option><option value="work">Tasks &amp; content</option><option value="people">People &amp; Space</option><option value="access">Invitations &amp; access</option><option value="market">Marketplace</option></select><select id="sp-activity-period" aria-label="Filter by date"><option value="all">Any time</option><option value="day">Last 24 hours</option><option value="week">Last 7 days</option><option value="month">Last 30 days</option></select></section>'+
+    '<section class="sp-activity-toolbar"><label><span>⌕</span><input id="sp-activity-search" type="search" placeholder="Search people or activity…" aria-label="Search activity log"></label><select id="sp-activity-category" aria-label="Filter activity type"><option value="">All activity</option><option value="work">Tasks &amp; content</option><option value="documents">Documents</option><option value="people">People &amp; Space</option><option value="access">Invitations &amp; access</option><option value="market">Marketplace</option></select><select id="sp-activity-period" aria-label="Filter by date"><option value="all">Any time</option><option value="day">Last 24 hours</option><option value="week">Last 7 days</option><option value="month">Last 30 days</option></select></section>'+
     '<section class="sp-activity-feed"><div class="sp-activity-feed-head"><div><span class="sp-activity-eyebrow">AUDIT TRAIL</span><h3>Recent activity</h3></div><span>Newest first</span></div>'+(rows || '<div class="sp-activity-empty"><span>✳</span><h3>Your Space story starts here.</h3><p>When members create content, change roles or update work, those events will appear here.</p></div>')+'<div class="sp-activity-no-results" id="sp-activity-no-results" hidden>No activity matches those filters. Try a broader search.</div></section>'+
     '<p class="sp-activity-footnote">Activity records are append-only in the database. Only members of this Space can view its history.</p></div>';
 };
@@ -10836,7 +10842,7 @@ document.addEventListener('click', async e => {
       if(file.size>25*1024*1024){toast('Documents must be 25 MB or smaller.','x');break;}
       const spaceId=sp.activeId,category=$('#docs-upload-category')?.value||'General',displayName=($('#docs-upload-name')?.value.trim()||file.name).slice(0,120);
       const up=await Server.uploadSpaceFile(spaceId,file,'document',null,null);if(!up.ok){toast(up.error||'The document could not be uploaded.','x');break;}
-      const row=up.data.file;const {data:details,error:metaError}=await supabaseClient.rpc('update_ming_space_file_details',{p_file_id:row.id,p_display_name:displayName,p_category:category});
+      const row=up.data.file;Server.recordActivity(spaceId,'document.uploaded',{fileId:row.id});const {data:details,error:metaError}=await supabaseClient.rpc('update_ming_space_file_details',{p_file_id:row.id,p_display_name:displayName,p_category:category});
       if(metaError){console.warn('Tweaklr: document uploaded but its details could not be saved.',metaError.message);toast('Uploaded, but details could not be saved. Run the Documents migration in Supabase.','x');}
       else{row.displayName=details?.display_name||displayName;row.category=details?.category||category;toast('Document uploaded','check');}
       closeSheet();await loadSpacesFromDatabase();if(sp.activeId===spaceId){sp.tab='files';renderSpace();}break;
@@ -10852,12 +10858,12 @@ document.addEventListener('click', async e => {
       if(field==='name'&&!displayName){toast('Enter a document name.','x');break;}
       const {data:details,error}=await supabaseClient.rpc('update_ming_space_file_details',{p_file_id:a,p_display_name:displayName,p_category:category});
       if(error){toast(error.message||'Document details could not be saved.','x');break;}
-      file.displayName=details?.display_name||displayName;file.category=details?.category||category;closeSheet();renderSpace();toast(field==='name'?'Document renamed':'Category updated','check');break;
+      file.displayName=details?.display_name||displayName;file.category=details?.category||category;Server.recordActivity(file.spaceId,field==='name'?'document.renamed':'document.categorized',{fileId:file.id});closeSheet();renderSpace();toast(field==='name'?'Document renamed':'Category updated','check');break;
     }
     case 'doc-delete': {
       const file=Server.db.files.find(f=>f.id===a&&f.spaceId===sp.activeId);if(!file){toast('Document not found.','x');break;}
       openModal({title:'Delete this document?',lede:'This removes the shared file from this Space. This action cannot be undone.',actions:[{t:'Keep document',cls:'btn--soft',a:'close-modal'},{t:'Delete document',cls:'btn--danger',a:'noop'}]});
-      $('#modal').querySelector('[data-action="noop"]').addEventListener('click',async()=>{const {error:storageError}=await supabaseClient.storage.from('ming-space-media').remove([file.storagePath]);if(storageError){closeModal();toast(storageError.message||'File could not be removed from storage.','x');return;}const {error}=await supabaseClient.rpc('delete_ming_space_file',{p_file_id:file.id});closeModal();if(error){toast(error.message||'File storage was removed but its record could not be deleted. Contact a Space admin.','x');return;}Server.db.files=Server.db.files.filter(f=>f.id!==file.id);renderSpace();toast('Document deleted','check');});break;
+      $('#modal').querySelector('[data-action="noop"]').addEventListener('click',async()=>{const {error:storageError}=await supabaseClient.storage.from('ming-space-media').remove([file.storagePath]);if(storageError){closeModal();toast(storageError.message||'File could not be removed from storage.','x');return;}const {error}=await supabaseClient.rpc('delete_ming_space_file',{p_file_id:file.id});closeModal();if(error){toast(error.message||'File storage was removed but its record could not be deleted. Contact a Space admin.','x');return;}Server.recordActivity(file.spaceId,'document.deleted',{fileId:file.id});Server.db.files=Server.db.files.filter(f=>f.id!==file.id);renderSpace();toast('Document deleted','check');});break;
     }
 
     /* Business Space Open Roles */
