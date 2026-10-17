@@ -8863,6 +8863,7 @@ const sp = {
   shownCodes: {},        // plaintext held in memory for the owner, this session only
   codeVisibility: {},    // UI-only reveal state; hashes are never reversed
   activeOrder: null,
+  activeRoleApplicantsId: null,
   marketTab: 'all',
   indexFilter: 'all',
   pendingMedia: []
@@ -9703,6 +9704,7 @@ function openRoleApplicationSheet(role) {
   });
 }
 async function openRoleApplicants(roleId) {
+  sp.activeRoleApplicantsId = roleId;
   const role = Server.db.openRoles.find(r => r.id === roleId);
   if (!role || !Server.can(role.spaceId, 'space.post.pin')) { toast('You cannot review applicants here.', 'x'); return; }
   const { data, error } = await supabaseClient.rpc('get_ming_space_role_applications', { p_role_id: roleId });
@@ -10698,7 +10700,7 @@ document.addEventListener('click', async e => {
         p_application_id:a, p_status:select.value
       });
       if (error) { toast(error.message || 'Application status could not be saved.', 'x'); break; }
-      const roleId = Server.db.openRoles.find(r => r.spaceId === sp.activeId && Server.can(r.spaceId, 'space.post.pin'))?.id;
+      const roleId = sp.activeRoleApplicantsId;
       await refreshOpenRoles(sp.activeId);
       toast('Applicant status updated', 'check');
       if (roleId) await openRoleApplicants(roleId);
