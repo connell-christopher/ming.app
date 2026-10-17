@@ -6791,7 +6791,7 @@ function viewAvatar() {
   if (!currentUser.avatarUrl) return;
   openModal({
     title: 'Your photo',
-    fields: `<div style="text-align:center"><img src="${esc(currentUser.avatarUrl)}" alt="Your profile photo" style="display:block;width:min(100%,360px);aspect-ratio:1;object-fit:cover;border-radius:24px;margin:0 auto"></div>`,
+    fields: `<div style="text-align:center"><img src="${esc(currentUser.avatarUrl)}" alt="Your profile photo" style="display:block;width:min(100%,360px);height:auto;aspect-ratio:1;object-fit:cover;object-position:center;border-radius:50%;clip-path:circle(50% at 50% 50%);margin:0 auto"></div>`,
     actions: [
       { t: 'Edit photo', cls: 'btn--soft', a: 'pick-avatar' },
       { t: 'Close', cls: 'btn--primary', a: 'close-modal' }
@@ -6836,7 +6836,7 @@ function openAvatarCrop() {
     lede: 'Move and zoom your photo until you like the frame.',
     fields: `
       <div style="text-align:center">
-        <div id="avatar-crop-frame" style="width:min(100%,320px);aspect-ratio:1;margin:0 auto 16px;overflow:hidden;border-radius:24px;background:#111;position:relative;touch-action:none">
+        <div id="avatar-crop-frame" style="width:min(100%,320px);aspect-ratio:1;margin:0 auto 16px;overflow:hidden;border-radius:50%;clip-path:circle(50% at 50% 50%);background:#111;position:relative;touch-action:none">
           <img id="avatar-crop-bg" src="${esc(pendingAvatarObjectUrl || '')}" alt="" aria-hidden="true" style="position:absolute;inset:-18px;width:calc(100% + 36px);height:calc(100% + 36px);object-fit:cover;filter:blur(18px);opacity:.72;transform:scale(1.08);user-select:none;-webkit-user-drag:none" />
           <img id="avatar-crop-image" src="${esc(pendingAvatarObjectUrl || '')}" alt="Photo preview" style="position:absolute;left:50%;top:50%;max-width:none;width:auto;height:auto;transform:translate(-50%,-50%) scale(.5);transform-origin:center;user-select:none;-webkit-user-drag:none" />
         </div>
