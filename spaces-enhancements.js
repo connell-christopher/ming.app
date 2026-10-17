@@ -329,6 +329,85 @@
     field.focus();
   }
 
+
+  // Friendly-only UI. Data remains in the existing per-member, per-Space state.
+  function openFriendlyModal(type) {
+    if (activeNature() !== 'friendly' || !activeScreen()) return;
+    document.getElementById('sp-friendly-modal')?.remove();
+    const moodMode = type === 'mood';
+    const currentMood = String(read('mood', '') || '');
+    const jokes = Array.isArray(read('jokes', [])) ? read('jokes', []) : [];
+    const modal = document.createElement('div');
+    modal.id = 'sp-friendly-modal';
+    modal.className = 'sp-friendly-backdrop';
+    const moodOptions = MOODS.map((m, i) => '<button type="button" class="sp-friendly-mood' +
+      (currentMood === m[0] + ' ' + m[1] ? ' is-selected' : '') +
+      '" data-friendly-mood="' + i + '"><span class="sp-friendly-mood__icon">' + brandIcon(m[0]) +
+      '</span><span><b>' + esc(m[1]) + '</b><small>' +
+      ['Feeling bright and open','Doing alright','Taking it gently','Full of energy','Looking for a quieter moment'][i] +
+      '</small></span><span class="sp-friendly-check">✓</span></button>').join('');
+    const jokeItems = jokes.map((j, i) => {
+      const text = typeof j === 'string' ? j : String(j?.text || '');
+      return '<article class="sp-friendly-joke"><p>' + esc(text) +
+        '</p><button type="button" data-friendly-delete="' + i + '" aria-label="Delete joke">×</button></article>';
+    }).join('');
+    modal.innerHTML = '<section class="sp-friendly-modal" role="dialog" aria-modal="true" aria-labelledby="sp-friendly-title">' +
+      '<header><span class="sp-friendly-orb">' + brandIcon(moodMode ? 'hands' : 'laugh') + '</span>' +
+      '<button type="button" data-friendly-close aria-label="Close">×</button></header>' +
+      '<span class="sp-friendly-eyebrow">TWEAKLR · FRIENDLY SPACE</span>' +
+      '<h3 id="sp-friendly-title">' + (moodMode ? 'Your mood, your moment' : 'The inside-joke vault') + '</h3>' +
+      '<p class="sp-friendly-copy">' + (moodMode ? 'A small check-in for you. Your vibe is saved to your account for this Space.' : 'Keep the little things your circle will never stop laughing about. Saved to your account for this Space.') + '</p>' +
+      (moodMode ? '<div class="sp-friendly-moods">' + moodOptions + '</div>' :
+        '<form class="sp-friendly-add"><label for="sp-friendly-input">SAVE A NEW INSIDE JOKE</label><textarea id="sp-friendly-input" maxlength="240" rows="2" placeholder="A phrase, a moment, a legendary bit…"></textarea><div class="sp-friendly-add__foot"><small><span data-joke-count>0</span>/240</small><button type="submit">Save to vault ↗</button></div></form>' +
+        '<div class="sp-friendly-vault-head"><b>Your saved jokes</b><span>' + jokes.length + ' / 30</span></div>' +
+        (jokes.length ? '<div class="sp-friendly-jokes">' + jokeItems + '</div>' : '<div class="sp-friendly-empty">' + brandIcon('bubbles') + '<b>Your vault starts here</b><p>Save the first moment your circle will never stop laughing about.</p></div>')) +
+      '<div class="sp-friendly-error" role="alert" hidden></div><footer><button type="button" data-friendly-close>Done</button></footer></section>';
+    activeScreen().appendChild(modal);
+    const close = () => modal.remove();
+    const error = modal.querySelector('.sp-friendly-error');
+    modal.querySelectorAll('[data-friendly-close]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); close(); }));
+    modal.addEventListener('click', e => { if (e.target === modal) close(); e.stopPropagation(); });
+    modal.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    if (moodMode) {
+      modal.querySelectorAll('[data-friendly-mood]').forEach(button => button.addEventListener('click', e => {
+        e.preventDefault();
+        const m = MOODS[Number(button.dataset.friendlyMood)];
+        if (!m) return;
+        if (!write('mood', m[0] + ' ' + m[1])) {
+          error.textContent = 'Could not save your vibe. Sign in and open a saved Space, then try again.';
+          error.hidden = false; return;
+        }
+        close(); refreshPanel();
+      }));
+    } else {
+      const input = modal.querySelector('#sp-friendly-input');
+      const count = modal.querySelector('[data-joke-count]');
+      input.addEventListener('input', () => { count.textContent = String(input.value.length); });
+      modal.querySelector('.sp-friendly-add').addEventListener('submit', e => {
+        e.preventDefault();
+        const text = input.value.trim();
+        if (!text) { error.textContent = 'Write a little memory first.'; error.hidden = false; input.focus(); return; }
+        const old = Array.isArray(read('jokes', [])) ? read('jokes', []) : [];
+        if (old.length >= 30) { error.textContent = 'Your vault is full. Delete a joke before adding another.'; error.hidden = false; return; }
+        if (!write('jokes', [{text, at:Date.now()}, ...old].slice(0, 30))) {
+          error.textContent = 'Could not save this joke. Sign in and open a saved Space, then try again.';
+          error.hidden = false; return;
+        }
+        close(); refreshPanel(); announce('Inside joke added to your vault.');
+      });
+      modal.querySelectorAll('[data-friendly-delete]').forEach(button => button.addEventListener('click', e => {
+        e.preventDefault();
+        const i = Number(button.dataset.friendlyDelete);
+        const old = Array.isArray(read('jokes', [])) ? read('jokes', []) : [];
+        if (!Number.isInteger(i) || i < 0 || i >= old.length) return;
+        if (!write('jokes', old.filter((_, index) => index !== i))) {
+          error.textContent = 'Could not remove that joke. Sign in and try again.'; error.hidden = false; return;
+        }
+        close(); refreshPanel(); announce('Inside joke removed from your vault.');
+      }));
+    }
+  }
+
   async function handle(action) {
     switch (action) {
       case 'goal':
@@ -402,6 +481,7 @@
     if (!btn || !document.querySelector(ROOT + ' #sp-dna-panel')) return;
     event.preventDefault();
     event.stopPropagation();
+    if (activeNature() === 'friendly' && (btn.dataset.spDna === 'mood' || btn.dataset.spDna === 'joke')) { openFriendlyModal(btn.dataset.spDna); return; }
     handle(btn.dataset.spDna);
   });
 
