@@ -8049,6 +8049,7 @@ const Server = (() => {
     members: [],          // { spaceId, userId, role, joinedAt }
     invites: [],          // { spaceId, codeHash, hint, expiresAt, maxUses, uses, revoked, version }
     content: [],          // { id, spaceId, kind, ... }  space-native content
+    openRoles: [],
     products: [],
     orders: [],
     orderEvents: [],      // append-only
@@ -8302,6 +8303,7 @@ const Server = (() => {
     db.members = [];
     db.invites = [];
     db.content = [];
+    db.openRoles = [];
     db.products = [];
     db.files = [];
     db.bids = [];
@@ -9480,6 +9482,7 @@ function openSpace(id, tab) {
   screen.style.setProperty('--sp-theme-name', JSON.stringify(theme.name || 'Tweaklr'));
   renderSpace();
   pushStack('space');
+  if (s.nature === 'business' && sp.tab === 'brief') void refreshOpenRoles(s.id);
 }
 
 function renderSpace() {
@@ -9512,7 +9515,7 @@ const HEADERS = {
     <div class="biz-metrics">
       <div><div class="v">${contentOf(s.id, 'task').filter(t => !t.done).length}</div><div class="k">Open tasks</div></div>
       <div><div class="v">${Server.memberCount(s.id)}</div><div class="k">Members</div></div>
-      <div><div class="v">${contentOf(s.id, 'opportunity').length}</div><div class="k">Open roles</div></div>
+      <div><div class="v">${Server.db.openRoles.filter(r => r.spaceId === s.id && r.status === 'open').length + contentOf(s.id, 'opportunity').length}</div><div class="k">Open roles</div></div>
     </div>`,
 
   friendly: s => `<div class="sp-cover" style="background:${coverFor(s)}">${spBar(s)}</div>`,
@@ -9604,25 +9607,178 @@ VIEWS.romantic.vault = s => {
 };
 
 
+/* ------------------------------------------------------------
+   BUSINESS OPEN ROLES — separate persisted workflow.
+   All writes go through guarded Supabase RPCs; this UI never
+   treats a local toast as a submitted application.
+------------------------------------------------------------ */
+function openRoleDateValue(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+function openRoleDateLabel(value) {
+  if (!value) return 'No deadline';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString([], { day:'numeric', month:'short', year:'numeric' });
+}
+async function refreshOpenRoles(spaceId) {
+  if (!spaceId || !supabaseClient) return false;
+  try {
+    const { data, error } = await supabaseClient.rpc('get_ming_space_open_roles', { p_space_id: spaceId });
+    if (error) {
+      console.warn('Tweaklr: Open Roles could not be loaded.', error.message);
+      return false;
+    }
+    const mapped = (data || []).map(r => ({
+      id:r.id, spaceId:r.space_id, createdBy:r.created_by, title:r.title,
+      employmentType:r.employment_type, workMode:r.work_mode, location:r.location || '',
+      department:r.department || '', description:r.description || '',
+      responsibilities:Array.isArray(r.responsibilities) ? r.responsibilities : [],
+      requiredSkills:Array.isArray(r.required_skills) ? r.required_skills : [],
+      compensation:r.compensation || '', applicationDeadline:r.application_deadline || null,
+      status:r.status, createdAt:r.created_at, updatedAt:r.updated_at,
+      applicationCount:Number(r.application_count || 0), myApplicationStatus:r.my_application_status || ''
+    }));
+    Server.db.openRoles = Server.db.openRoles.filter(r => r.spaceId !== spaceId).concat(mapped);
+    if (sp.activeId === spaceId && spaceById(spaceId)?.nature === 'business' && sp.tab === 'brief') {
+      const body = $('#sp-body');
+      if (body) body.innerHTML = VIEWS.business.brief(spaceById(spaceId));
+      const head = $('#sp-head');
+      if (head) head.innerHTML = HEADERS.business(spaceById(spaceId));
+    }
+    return true;
+  } catch (error) {
+    console.warn('Tweaklr: Open Roles load request failed.', error);
+    return false;
+  }
+}
+function openRoleComposer(roleId = null) {
+  const space = spaceById(sp.activeId);
+  if (!space || space.nature !== 'business' || !Server.can(space.id, 'space.post.pin')) {
+    toast('Only an owner, admin, or manager can manage Open Roles.', 'x');
+    return;
+  }
+  const role = roleId ? Server.db.openRoles.find(r => r.id === roleId && r.spaceId === space.id) : null;
+  if (roleId && !role) { toast('This role is no longer available. Refresh and try again.', 'x'); return; }
+  openSheet({
+    title: role ? 'Edit open role' : 'Create an open role',
+    sub: 'Publish a clear opportunity and tell applicants what you need.',
+    body: `
+      <div class="field"><label for="or-title">Role title</label><input id="or-title" maxlength="100" value="${esc(role?.title || '')}" placeholder="e.g. Junior Security Analyst" /></div>
+      <div class="field"><label for="or-type">Employment type</label><select id="or-type">
+        ${[['full-time','Full-time'],['part-time','Part-time'],['contract','Contract'],['internship','Internship'],['temporary','Temporary'],['volunteer','Volunteer']].map(([v,l])=>`<option value="${v}" ${(role?.employmentType || 'full-time')===v?'selected':''}>${l}</option>`).join('')}
+      </select></div>
+      <div class="field"><label for="or-mode">Work arrangement</label><select id="or-mode">
+        ${[['remote','Remote'],['hybrid','Hybrid'],['on-site','On-site']].map(([v,l])=>`<option value="${v}" ${(role?.workMode || 'remote')===v?'selected':''}>${l}</option>`).join('')}
+      </select></div>
+      <div class="field"><label for="or-location">Location (optional)</label><input id="or-location" maxlength="120" value="${esc(role?.location || '')}" placeholder="e.g. Abuja, Nigeria or Worldwide" /></div>
+      <div class="field"><label for="or-department">Team / department (optional)</label><input id="or-department" maxlength="100" value="${esc(role?.department || '')}" placeholder="e.g. Application Security" /></div>
+      <div class="field"><label for="or-description">Role description</label><textarea id="or-description" maxlength="4000" rows="5" placeholder="Explain the opportunity and what the person will do.">${esc(role?.description || '')}</textarea></div>
+      <div class="field"><label for="or-responsibilities">Responsibilities (one per line)</label><textarea id="or-responsibilities" maxlength="2000" rows="3" placeholder="Assess web applications&#10;Write clear findings">${esc((role?.responsibilities || []).join('\n'))}</textarea></div>
+      <div class="field"><label for="or-skills">Required skills (separate with commas or new lines)</label><textarea id="or-skills" maxlength="1200" rows="3" placeholder="Web security, Burp Suite, communication">${esc((role?.requiredSkills || []).join(', '))}</textarea></div>
+      <div class="field"><label for="or-compensation">Compensation / benefits (optional)</label><input id="or-compensation" maxlength="160" value="${esc(role?.compensation || '')}" placeholder="e.g. Paid internship / Salary discussed" /></div>
+      <div class="field"><label for="or-deadline">Application deadline (optional)</label><input id="or-deadline" type="datetime-local" value="${openRoleDateValue(role?.applicationDeadline)}" /></div>
+      ${role ? `<div class="field"><label for="or-status">Listing status</label><select id="or-status"><option value="open" ${role.status==='open'?'selected':''}>Open — accepting applications</option><option value="closed" ${role.status==='closed'?'selected':''}>Closed</option></select></div>` : ''}
+    `,
+    foot: `<button class="btn btn--primary btn--block" data-sp="role-save:${role?.id || 'new'}">${role ? 'Save changes' : 'Publish role'}</button>`
+  });
+}
+function openRoleApplicationSheet(role) {
+  if (!role || role.status !== 'open') { toast('This role is closed.', 'x'); return; }
+  if (role.myApplicationStatus) { toast('You have already applied. Your status is ' + role.myApplicationStatus + '.', 'check'); return; }
+  openSheet({
+    title: 'Apply · ' + role.title,
+    sub: 'Your application goes to the Business Space hiring team.',
+    body: `
+      <div class="field"><label for="oa-intro">Short introduction</label><textarea id="oa-intro" maxlength="600" rows="3" placeholder="Introduce yourself and explain why this role interests you."></textarea></div>
+      <div class="field"><label for="oa-experience">Relevant skills and experience</label><textarea id="oa-experience" maxlength="2000" rows="4" placeholder="Share relevant experience, projects, skills, or training."></textarea></div>
+      <div class="field"><label for="oa-portfolio">CV or portfolio link (optional)</label><input id="oa-portfolio" type="url" maxlength="500" placeholder="https://..." /></div>
+      <div class="field"><label for="oa-message">Application message</label><textarea id="oa-message" maxlength="2000" rows="3" placeholder="Anything else the hiring team should know?"></textarea></div>
+      <div class="ephemeral-note">${icon('shield')}<span>Only authorised Business Space managers can review your application. Use a link you are comfortable sharing.</span></div>
+    `,
+    foot: `<button class="btn btn--primary btn--block" data-sp="role-apply-submit:${role.id}">Submit application</button>`
+  });
+}
+async function openRoleApplicants(roleId) {
+  const role = Server.db.openRoles.find(r => r.id === roleId);
+  if (!role || !Server.can(role.spaceId, 'space.post.pin')) { toast('You cannot review applicants here.', 'x'); return; }
+  const { data, error } = await supabaseClient.rpc('get_ming_space_role_applications', { p_role_id: roleId });
+  if (error) { toast(error.message || 'Applicants could not be loaded.', 'x'); return; }
+  const applications = (data || []).map(a => ({
+    id:a.id, roleId:a.role_id, applicantId:a.applicant_id, introduction:a.introduction || '',
+    skillsExperience:a.skills_experience || '', portfolioUrl:a.portfolio_url || '',
+    message:a.message || '', status:a.status, createdAt:a.created_at
+  }));
+  const statuses = [['submitted','Submitted'],['reviewing','Reviewing'],['shortlisted','Shortlisted'],['interview','Interview'],['rejected','Rejected'],['hired','Hired']];
+  openSheet({
+    title: 'Applicants · ' + role.title,
+    sub: applications.length + (applications.length === 1 ? ' application' : ' applications'),
+    body: applications.length ? applications.map(a => {
+      const person = personOf(a.applicantId);
+      return `<article class="sp-card sp-role-applicant">
+        <div class="sp-role-applicant__head">${avatar(person,38)}<div class="sp-role-applicant__identity"><strong>${esc(person.short || person.name || person.username || 'Tweaklr member')}</strong><small>${esc(person.username || '')} · ${esc(timeAgo(new Date(a.createdAt).getTime()))}</small></div><span class="sp-role-status">${esc(a.status)}</span></div>
+        <div class="sp-role-applicant__section"><b>Introduction</b><p>${esc(a.introduction)}</p></div>
+        <div class="sp-role-applicant__section"><b>Skills & experience</b><p>${esc(a.skillsExperience)}</p></div>
+        ${a.portfolioUrl ? `<a class="sp-role-link" href="${esc(a.portfolioUrl)}" target="_blank" rel="noopener noreferrer">Open CV / portfolio ↗</a>` : '<div class="sp-role-muted">No CV or portfolio link supplied.</div>'}
+        <div class="sp-role-applicant__section"><b>Message</b><p>${esc(a.message)}</p></div>
+        <div class="sp-role-applicant__controls"><label for="ra-status-${a.id}">Application status</label><select id="ra-status-${a.id}">${statuses.map(([v,l])=>`<option value="${v}" ${a.status===v?'selected':''}>${l}</option>`).join('')}</select>
+        <button class="btn btn--soft btn--sm" data-sp="appstatus:${a.id}">Save status</button><button class="btn btn--soft btn--sm" data-sp="msg-applicant:${a.applicantId}">Contact applicant</button></div>
+      </article>`;
+    }).join('') : spEmpty('No applications have been submitted yet.'),
+    foot: '<button class="btn btn--soft btn--block" data-action="close-sheet">Done</button>'
+  });
+}
+async function setOpenRoleStatus(roleId, status) {
+  const role = Server.db.openRoles.find(r => r.id === roleId);
+  if (!role || !Server.can(role.spaceId, 'space.post.pin')) { toast('You cannot manage this role.', 'x'); return; }
+  const { error } = await supabaseClient.rpc('update_ming_space_open_role', {
+    p_role_id: role.id, p_title: role.title, p_employment_type: role.employmentType,
+    p_work_mode: role.workMode, p_location: role.location, p_department: role.department,
+    p_description: role.description, p_responsibilities: role.responsibilities || [],
+    p_required_skills: role.requiredSkills || [], p_compensation: role.compensation || '',
+    p_application_deadline: role.applicationDeadline || null, p_status: status
+  });
+  if (error) { toast(error.message || 'Role status could not be updated.', 'x'); return; }
+  closeSheet();
+  await refreshOpenRoles(role.spaceId);
+  toast(status === 'closed' ? 'Role closed' : 'Role reopened', 'check');
+}
+
 VIEWS.business.brief = s => {
   const notes = contentOf(s.id, 'announcement');
-  const opps = contentOf(s.id, 'opportunity');
+  const legacyOpps = contentOf(s.id, 'opportunity');
+  const roles = Server.db.openRoles.filter(r => r.spaceId === s.id);
+  const canManage = Server.can(s.id, 'space.post.pin');
   return `
-  <div class="sp-sec"><h3>Announcements ${Server.can(s.id, 'space.post.pin') ? `<span><button data-sp="new:announcement">Post</button></span>` : ''}</h3>
+  <div class="sp-sec"><h3>Announcements ${canManage ? `<span><button data-sp="new:announcement">Post</button></span>` : ''}</h3>
     ${notes.length ? notes.map(a => `
       <div class="sp-card ${a.pinned ? 'pinned' : ''}">
         <div style="font-size:14.5px;font-weight:580;letter-spacing:-.018em">${esc(a.title)}</div>
         <p style="font-size:13.5px;color:var(--muted);margin-top:6px;line-height:1.5">${esc(a.body)}</p>
         <div style="font-size:11.5px;color:var(--muted);margin-top:10px">${esc(nameOf(a.authorId))} · ${esc(timeAgo(a.at))}</div>
-      </div>`).join('') : spEmpty('Nothing announced yet.', Server.can(s.id, 'space.post.pin') ? { t: 'Post the first one', a: 'new:announcement' } : null)}
+      </div>`).join('') : spEmpty('Nothing announced yet.', canManage ? { t: 'Post the first one', a: 'new:announcement' } : null)}
   </div>
-  <div class="sp-sec"><h3>Open roles</h3>
-    ${opps.length ? opps.map(o => `
-      <div class="sp-card">
-        <div style="font-size:14.5px;font-weight:560">${esc(o.title)}</div>
-        <p style="font-size:13px;color:var(--muted);margin-top:5px;line-height:1.45">${esc(o.body)}</p>
-        <div style="margin-top:12px"><button class="btn btn--soft btn--sm" data-sp="apply:${o.id}">Express interest</button></div>
-      </div>`).join('') : spEmpty('No roles open.')}
+  <div class="sp-sec sp-open-roles">
+    <h3>Open roles ${canManage ? `<span><button data-sp="role-new">Add role</button></span>` : ''}</h3>
+    ${roles.length ? roles.map(r => `
+      <article class="sp-card sp-open-role ${r.status==='closed'?'is-closed':''}">
+        <div class="sp-open-role__top"><div><div class="sp-open-role__title">${esc(r.title)}</div><div class="sp-open-role__meta">${esc(r.employmentType.replace(/-/g,' '))} · ${esc(r.workMode.replace(/-/g,' '))}${r.department ? ' · ' + esc(r.department) : ''}</div></div><span class="sp-role-status ${r.status==='open'?'is-open':'is-closed'}">${r.status==='open'?'Open':'Closed'}</span></div>
+        ${r.location ? `<div class="sp-open-role__detail">${icon('sp-globe')}<span>${esc(r.location)}</span></div>` : ''}
+        <p class="sp-open-role__description">${esc(r.description)}</p>
+        ${r.responsibilities.length ? `<div class="sp-open-role__section"><b>Responsibilities</b><ul>${r.responsibilities.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+        ${r.requiredSkills.length ? `<div class="sp-open-role__skills"><b>Required skills</b><div>${r.requiredSkills.map(x=>`<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
+        ${r.compensation ? `<div class="sp-open-role__detail"><b>Compensation</b><span>${esc(r.compensation)}</span></div>` : ''}
+        <div class="sp-open-role__footer"><span>Deadline: ${esc(openRoleDateLabel(r.applicationDeadline))}</span><span>${r.applicationCount} applicant${r.applicationCount===1?'':'s'}</span></div>
+        ${r.myApplicationStatus ? `<div class="sp-role-applied">Your application: <b>${esc(r.myApplicationStatus.replace(/-/g,' '))}</b></div>` : ''}
+        <div class="sp-open-role__actions">
+          ${!canManage && r.status==='open' && !r.myApplicationStatus ? `<button class="btn btn--primary btn--sm" data-sp="role-apply:${r.id}">Apply</button>` : ''}
+          ${canManage ? `<button class="btn btn--soft btn--sm" data-sp="role-edit:${r.id}">Edit</button><button class="btn btn--soft btn--sm" data-sp="role-applicants:${r.id}">Applicants (${r.applicationCount})</button>${r.status==='open' ? `<button class="btn btn--soft btn--sm" data-sp="role-close:${r.id}">Close role</button>` : `<button class="btn btn--soft btn--sm" data-sp="role-reopen:${r.id}">Reopen</button>`}` : ''}
+        </div>
+      </article>`).join('') : spEmpty('No roles are published yet.', canManage ? {t:'Create the first role',a:'role-new'} : null)}
+    ${legacyOpps.length ? `<div class="sp-role-legacy"><small>Earlier opportunity posts</small>${legacyOpps.map(o=>`<div class="sp-card"><b>${esc(o.title || 'Opportunity')}</b><p>${esc(o.body || '')}</p><button class="btn btn--soft btn--sm" data-sp="apply:${o.id}">Express interest</button></div>`).join('')}</div>` : ''}
   </div>
   <div class="sp-sec"><h3>Documents</h3>
     ${contentOf(s.id, 'doc').map(d => `
@@ -10390,7 +10546,7 @@ document.addEventListener('click', async e => {
       renderSpaces();
       break;
     case 'wallet': openWallet(); break;
-    case 'tab': sp.tab = a; renderSpace(); break;
+    case 'tab': sp.tab = a; renderSpace(); if (S().nature === 'business' && a === 'brief') void refreshOpenRoles(S().id); break;
     case 'invite': closeSheet(); setTimeout(() => openInviteSheet(a), 150); break;
     case 'settings': openSpaceSettings(a); break;
     case 'delete-space': {
@@ -10477,6 +10633,78 @@ document.addEventListener('click', async e => {
       setTimeout(() => openSpace(res.data.space.id), 260);
       break;
     }
+
+    /* Business Space Open Roles */
+    case 'role-new': openRoleComposer(); break;
+    case 'role-edit': openRoleComposer(a); break;
+    case 'role-close': await setOpenRoleStatus(a, 'closed'); break;
+    case 'role-reopen': await setOpenRoleStatus(a, 'open'); break;
+    case 'role-save': {
+      const spaceId = sp.activeId;
+      if (!spaceId || !Server.can(spaceId, 'space.post.pin')) { toast('You cannot manage Open Roles here.', 'x'); break; }
+      const title = $('#or-title')?.value.trim() || '';
+      const description = $('#or-description')?.value.trim() || '';
+      if (title.length < 2 || !description) { toast('Add a role title and description first.', 'x'); break; }
+      const deadlineValue = $('#or-deadline')?.value || '';
+      const deadline = deadlineValue ? new Date(deadlineValue) : null;
+      if (deadline && Number.isNaN(deadline.getTime())) { toast('Check the application deadline.', 'x'); break; }
+      const args = {
+        p_title:title,
+        p_employment_type:$('#or-type')?.value || 'full-time',
+        p_work_mode:$('#or-mode')?.value || 'remote',
+        p_location:$('#or-location')?.value.trim() || '',
+        p_department:$('#or-department')?.value.trim() || '',
+        p_description:description,
+        p_responsibilities:($('#or-responsibilities')?.value || '').split('\n').map(x=>x.trim()).filter(Boolean).slice(0,30),
+        p_required_skills:($('#or-skills')?.value || '').split(/[\n,]/).map(x=>x.trim()).filter(Boolean).slice(0,40),
+        p_compensation:$('#or-compensation')?.value.trim() || '',
+        p_application_deadline:deadline ? deadline.toISOString() : null
+      };
+      const result = a === 'new'
+        ? await supabaseClient.rpc('create_ming_space_open_role', { p_space_id:spaceId, ...args })
+        : await supabaseClient.rpc('update_ming_space_open_role', { p_role_id:a, ...args, p_status:$('#or-status')?.value || 'open' });
+      if (result.error) { toast(result.error.message || 'The role could not be saved.', 'x'); break; }
+      closeSheet();
+      await refreshOpenRoles(spaceId);
+      toast(a === 'new' ? 'Role published' : 'Role updated', 'check');
+      break;
+    }
+    case 'role-apply': {
+      const role = Server.db.openRoles.find(r => r.id === a);
+      openRoleApplicationSheet(role);
+      break;
+    }
+    case 'role-apply-submit': {
+      const introduction = $('#oa-intro')?.value.trim() || '';
+      const skillsExperience = $('#oa-experience')?.value.trim() || '';
+      const portfolioUrl = $('#oa-portfolio')?.value.trim() || '';
+      const message = $('#oa-message')?.value.trim() || '';
+      if (!introduction || !skillsExperience || !message) { toast('Complete your introduction, skills, and application message.', 'x'); break; }
+      const { error } = await supabaseClient.rpc('apply_ming_space_open_role', {
+        p_role_id:a, p_introduction:introduction, p_skills_experience:skillsExperience,
+        p_portfolio_url:portfolioUrl, p_message:message
+      });
+      if (error) { toast(error.message || 'Your application could not be submitted.', 'x'); break; }
+      closeSheet();
+      await refreshOpenRoles(sp.activeId);
+      toast('Application submitted', 'check');
+      break;
+    }
+    case 'role-applicants': await openRoleApplicants(a); break;
+    case 'appstatus': {
+      const select = $('#ra-status-' + a);
+      if (!select) { toast('Choose an application status first.', 'x'); break; }
+      const { error } = await supabaseClient.rpc('update_ming_space_role_application_status', {
+        p_application_id:a, p_status:select.value
+      });
+      if (error) { toast(error.message || 'Application status could not be saved.', 'x'); break; }
+      const roleId = Server.db.openRoles.find(r => r.spaceId === sp.activeId && Server.can(r.spaceId, 'space.post.pin'))?.id;
+      await refreshOpenRoles(sp.activeId);
+      toast('Applicant status updated', 'check');
+      if (roleId) await openRoleApplicants(roleId);
+      break;
+    }
+    case 'msg-applicant': closeSheet(); setTimeout(() => openChat(a), 180); break;
 
     /* space content */
     case 'new': a === 'product' ? openProductComposer() : openComposerFor(a); break;
