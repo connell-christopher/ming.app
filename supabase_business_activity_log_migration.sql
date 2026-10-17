@@ -5,7 +5,7 @@
 create table if not exists public.ming_space_activity (
   id uuid primary key default gen_random_uuid(),
   space_id uuid not null references public.ming_spaces(id) on delete cascade,
-  actor_id uuid not null references auth.users(id) on delete restrict,
+  actor_id uuid not null,
   event text not null check (char_length(event) between 2 and 80),
   meta jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
