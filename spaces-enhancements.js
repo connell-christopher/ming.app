@@ -261,28 +261,29 @@
       });
     }
     const saveButton = modal.querySelector('[data-editor-save]');
-    saveButton.addEventListener('click', event => {
+    // Handle editor actions at the modal's capture phase so app-wide delegated
+    // click handlers cannot swallow Save/Clear taps before they reach the button.
+    modal.addEventListener('click', async event => {
+      const button = event.target instanceof Element ? event.target.closest('[data-editor-save], [data-editor-clear]') : null;
+      if (!button || !modal.contains(button)) return;
       event.preventDefault();
       event.stopPropagation();
+      event.stopImmediatePropagation();
+
       const error = modal.querySelector('#sp-dna-editor-error');
       error.hidden = true;
-      if (isGoal) {
-        const value = field.value.trim();
+      const key = isGoal ? 'goal' : 'deadline';
+      let value;
+      if (button.hasAttribute('data-editor-clear')) {
+        value = '';
+      } else if (isGoal) {
+        value = field.value.trim();
         if (!value) {
           error.textContent = 'Add a goal first, or use Clear goal to remove the current one.';
           error.hidden = false;
           field.focus();
           return;
         }
-        if (!write('goal', value)) {
-          error.textContent = 'Your goal was not saved. Make sure you are signed in and this is a saved Space, then try again.';
-          error.hidden = false;
-          return;
-        }
-        saveButton.disabled = true;
-        saveButton.textContent = 'Saving…';
-        close();
-        refreshPanel();
       } else {
         if (!field.value) {
           error.textContent = 'Choose a date and time, or use Clear deadline to remove it.';
@@ -297,17 +298,30 @@
           field.focus();
           return;
         }
-        if (!write('deadline', parsed.toISOString())) {
-          error.textContent = 'Your deadline was not saved. Make sure you are signed in and this is a saved Space, then try again.';
+        value = parsed.toISOString();
+      }
+
+      button.disabled = true;
+      const originalText = button.textContent;
+      button.textContent = button.hasAttribute('data-editor-clear') ? 'Clearing…' : 'Saving…';
+      try {
+        if (!write(key, value)) {
+          error.textContent = 'Your change was not saved. Make sure you are signed in and this is a saved Space, then try again.';
           error.hidden = false;
+          button.disabled = false;
+          button.textContent = originalText;
           return;
         }
-        saveButton.disabled = true;
-        saveButton.textContent = 'Saving…';
         close();
         refreshPanel();
+      } catch (saveError) {
+        console.warn('Tweaklr Board Mode editor action failed.', saveError);
+        error.textContent = 'Something interrupted the save. Please try again.';
+        error.hidden = false;
+        button.disabled = false;
+        button.textContent = originalText;
       }
-    });
+    }, true);
     modal.addEventListener('keydown', event => {
       if (event.key === 'Escape') close();
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') saveButton.click();
