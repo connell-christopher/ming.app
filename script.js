@@ -2289,16 +2289,59 @@ async function shareDailyUpdate(id) {
         <button data-action="download-update:${esc(id)}"><span style="font-size:24px">↓</span><br>Download</button>
       </div>
       <div class="section share-update-recipients" style="padding:0">
-        <div class="section-head"><div><h2>Send to a connection</h2><p>The update text or its media will be sent</p></div></div>
+        <div class="section-head"><div><h2>Find a Tweaklr user</h2><p>Search by username to share with any member</p></div></div>
+        <div class="field" style="padding:0 12px 10px">
+          <input id="share-update-user-search" type="search" maxlength="40" placeholder="Search @username…" autocomplete="off" aria-label="Search Tweaklr users by username" />
+        </div>
+        <div id="share-update-search-results" aria-live="polite"><p class="center-note">Enter a username to find someone.</p></div>
+        <div class="section-head" style="margin-top:12px"><div><h2>Your connections</h2><p>The update text or its media will be sent</p></div></div>
         ${connected.length ? connected.map(p => `
           <button class="opt" data-action="send-update:${esc(id)}:${esc(p.id)}">
             ${avatar(p, 42)}
             <span class="tx"><span class="t">${esc(p.short || p.name)}</span><span class="s">${esc(p.username || 'Connected')}</span></span>
             <span class="go">${icon('send')}</span>
-          </button>`).join('') : '<p class="center-note">No connections yet. Connect with someone to send updates directly.</p>'}
+          </button>`).join('') : '<p class="center-note">Your connections will appear here.</p>'}
       </div>`
   });
 }
+
+let shareUpdateSearchTimer = null;
+let shareUpdateSearchRequest = 0;
+
+function renderShareUpdateUserResults(host, profiles, updateId) {
+  if (!host) return;
+  if (!profiles.length) { host.innerHTML = '<p class="center-note">No matching Tweaklr users found.</p>'; return; }
+  host.innerHTML = profiles.map(profile => {
+    const p = { id: profile.id, name: profile.display_name || profile.username || 'Tweaklr user', short: profile.display_name || profile.username || 'Tweaklr user', username: profile.username ? '@' + profile.username.replace(/^@/, '') : '@user', avatarUrl: profile.avatar_url || '', hue: 26 };
+    mingConnectionProfiles.set(profile.id, p);
+    return '<button class="opt" data-action="send-update:' + esc(updateId) + ':' + esc(profile.id) + '">' + avatar(p, 42) + '<span class="tx"><span class="t">' + esc(p.short) + '</span><span class="s">' + esc(p.username) + '</span></span><span class="go">' + icon('send') + '</span></button>';
+  }).join('');
+}
+
+async function searchShareUpdateUsers(query, updateId) {
+  const host = document.getElementById('share-update-search-results');
+  if (!host) return;
+  const q = String(query || '').trim().replace(/^@+/, '').replace(/\s+/g, '');
+  const requestId = ++shareUpdateSearchRequest;
+  if (!q) { host.innerHTML = '<p class="center-note">Enter a username to find someone.</p>'; return; }
+  if (q.length < 2) { host.innerHTML = '<p class="center-note">Type at least 2 characters.</p>'; return; }
+  host.innerHTML = '<p class="center-note">Searching Tweaklr…</p>';
+  try {
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError || !session?.user) { if (requestId === shareUpdateSearchRequest) host.innerHTML = '<p class="center-note">Please sign in again to search users.</p>'; return; }
+    const { data, error } = await supabaseClient.from('profiles').select('id, username, display_name, avatar_url').ilike('username', '%' + q + '%').neq('id', session.user.id).limit(12);
+    if (requestId !== shareUpdateSearchRequest || !document.getElementById('share-update-search-results')) return;
+    if (error) { console.warn('Tweaklr: share recipient search failed.', error.message); host.innerHTML = '<p class="center-note">Could not search users right now. Try again.</p>'; return; }
+    renderShareUpdateUserResults(host, data || [], updateId);
+  } catch (error) { if (requestId !== shareUpdateSearchRequest) return; console.warn('Tweaklr: share recipient search failed.', error); host.innerHTML = '<p class="center-note">Could not search users right now. Try again.</p>'; }
+}
+
+document.addEventListener('input', e => {
+  if (e.target?.id !== 'share-update-user-search') return;
+  const updateId = document.querySelector('[data-action^="send-update:"]')?.dataset.action.split(':')[1] || new URL(window.location.href).searchParams.get('update') || '';
+  clearTimeout(shareUpdateSearchTimer);
+  shareUpdateSearchTimer = setTimeout(() => searchShareUpdateUsers(e.target.value, updateId), 280);
+});
 
 async function shareDailyUpdateExternal(id) {
   const data = await getDailyUpdateShareData(id);
@@ -2390,8 +2433,8 @@ async function shareDailyUpdateExternal(id) {
 
 async function sendDailyUpdateToConnection(updateId, personId) {
   const data = await getDailyUpdateShareData(updateId);
-  if (!data || !isUuidPerson(personId) || !isConnected(personId)) {
-    toast('You can only send updates to your connections.', 'alert');
+  if (!data || !isUuidPerson(personId) || personId === currentUser.id) {
+    toast('Choose another Tweaklr user to share this update with.', 'alert');
     return;
   }
 
