@@ -147,14 +147,14 @@
     const dark = midnight();
     const header = '<section class="silly-hero'+(dark?' is-midnight':'')+'"><div class="silly-particles" aria-hidden="true">'+Array.from({length:16},(_,i)=>'<button type="button" class="silly-particle" tabindex="-1" aria-label="Giggle particle" style="--i:'+i+'">✦</button>').join('')+'</div>'+
       '<div class="silly-hero__eyebrow"><span class="silly-live-dot"></span> ANONYMOUS NONSENSE CLUB <span class="silly-points">✦ '+points+' pts</span></div>'+
-      '<h2>WELCOME TO<br><em>THE VOID.</em></h2><p>Drop your dignity at the door. Nobody knows who typed that. Keep it silly, never cruel.</p>'+
+      '<h2>WELCOME TO<br><em>THE VOID.</em></h2><p>Drop your dignity at the door. Every post gets a fresh ghost alias. Keep it silly, never cruel.</p>'+
       (dark?'<div class="silly-midnight-banner">🌚 UK MIDNIGHT MODE · EXTRA GOBLIN ENERGY</div>':'')+
       '<div class="silly-hero__actions"><button type="button" class="silly-bored" data-silly-action="dare">🎲 I’M BORED</button><button type="button" class="silly-theme-cycle" data-silly-action="theme">🎨 Change vibe</button></div></section>'+
       '<section class="silly-mode-switch" role="tablist" aria-label="Silly feed mode">'+MODES.map(([key,label,desc])=>'<button type="button" role="tab" aria-selected="'+(mode===key)+'" class="'+(mode===key?'is-active':'')+'" data-silly-mode="'+key+'"><b>'+label+'</b><small>'+desc+'</small></button>').join('')+'</section>'+
       '<section class="silly-composer"><div class="silly-composer__top"><span>YOUR GHOSTLY THOUGHT</span><label><input type="checkbox" id="silly-filter-toggle" '+(root.dataset.sillyFilter!=='off'?'checked':'')+'> Silly Filter ✨</label></div>'+
       '<form id="silly-post-form"><textarea id="silly-post-text" maxlength="'+(dark?'1200':'420')+'" rows="3" placeholder="'+(mode==='whisper'?'It is 3:07am and the fridge just looked at me funny…':mode==='roast'?'Roast the situation, not a person’s identity…':'Say something the group chat cannot recover from…')+'"></textarea>'+
       '<div class="silly-composer__foot"><span id="silly-char-count">0 / '+(dark?'1200':'420')+'</span><button type="submit">Release the goblin ↗</button></div></form>'+
-      '<p class="silly-safety-note">No real names, handles, phone numbers, locations or private screenshots. Anonymous does not mean consequence-free.</p></section>'+
+      '<p class="silly-safety-note">No real names, handles, phone numbers, locations or private screenshots. A ghost alias is not a guarantee of total anonymity.</p></section>'+
       (dare?'<section class="silly-dare-card"><span>🎯 YOUR CURRENT DARE</span><p>'+esc(dare)+'</p><button type="button" data-silly-action="complete-dare">I DID THE THING · +10 PTS</button></section>':'')+
       '<section class="silly-feed-head"><div><span>THE FEED IS COOKING</span><h3>'+({chaos:'Fresh chaos',whisper:'Whispers from the void',roast:'The roast pit'}[mode])+'</h3></div><button type="button" data-silly-action="refresh">↻ Refresh</button></section>'+
       (posts.length?'<div class="silly-feed">'+posts.map((p,i)=>card(p,spaceId,i)).join('')+'</div>':'<div class="silly-empty"><div class="silly-empty__orb">🫧</div><b>It is suspiciously peaceful in here.</b><p>Be the first ghost to leave a little nonsense.</p></div>')+
