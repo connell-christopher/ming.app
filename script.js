@@ -9824,23 +9824,30 @@ VIEWS.business.brief = s => {
   </div>`;
 };
 
-VIEWS.business.work = s => {
-  const tasks = contentOf(s.id, 'task');
-  const open = tasks.filter(t => !t.done), done = tasks.filter(t => t.done);
-  return `
-  <div class="sp-sec"><h3>Tasks <span><button data-sp="new:task">Add</button></span></h3>
-    <div class="sp-card">
-      ${open.length ? open.map(taskRow).join('') : `<p style="font-size:13.5px;color:var(--muted);padding:6px 0">Nothing open. Rare and suspicious.</p>`}
-      ${done.length ? `<div style="font-size:11.5px;color:var(--muted);padding:12px 0 4px">Done (${done.length})</div>${done.map(taskRow).join('')}` : ''}
-    </div>
-  </div>`;
+VIEWS.business.work = space => {
+ const tasks=contentOf(space.id,'task'), statuses=[['todo','To do'],['in_progress','In progress'],['in_review','In review'],['completed','Completed']];
+ const st=t=>t.status||(t.done?'completed':'todo'), today=new Date();today.setHours(0,0,0,0);
+ const overdue=t=>t.due&&!t.done&&st(t)!=='completed'&&!Number.isNaN(Date.parse(t.due))&&new Date(t.due+'T00:00:00')<today;
+ const completed=tasks.filter(t=>st(t)==='completed'||t.done).length, active=tasks.length-completed, late=tasks.filter(overdue).length, progress=tasks.length?Math.round(completed/tasks.length*100):0;
+ const members=Server.db.members.filter(m=>m.spaceId===space.id&&m.approved!==false);
+ const memberOptions=members.map(m=>{const p=personOf(m.userId);return '<option value="'+esc(m.userId)+'">'+esc(p.short||p.name||p.username||('Member · '+m.userId.slice(0,8)))+'</option>';}).join('');
+ const cards=list=>list.map(t=>{
+  const status=st(t),p=t.assigneeId?personOf(t.assigneeId):null,owner=p?(p.short||p.name||p.username||'Space member'):(t.owner||'Unassigned'),subs=Array.isArray(t.subtasks)?t.subtasks:[];
+  const due=t.due?new Date(t.due+'T00:00:00'):null,dueText=!t.due?'No deadline':(overdue(t)?'Overdue · ':'Due ')+(due&&!Number.isNaN(+due)?due.toLocaleDateString([],{day:'numeric',month:'short'}):esc(t.due));
+  return '<article class="sp-task-card '+(overdue(t)?'is-overdue':'')+'" data-task-card data-task-title="'+esc((t.title||'').toLowerCase())+'" data-task-status="'+esc(status)+'" data-task-priority="'+esc(t.priority||'medium')+'" data-task-assignee="'+esc(t.assigneeId||'')+'">'+
+  '<div class="sp-task-card-top"><span class="sp-task-priority p-'+esc(t.priority||'medium')+'"><i></i>'+esc(({urgent:'Urgent',high:'High',medium:'Medium',low:'Low'}[t.priority||'medium']||'Medium'))+'</span><button type="button" class="sp-task-more" data-sp="task-open:'+t.id+'" aria-label="Open task details">•••</button></div>'+
+  '<button type="button" class="sp-task-title" data-sp="task-open:'+t.id+'">'+esc(t.title||'Untitled task')+'</button>'+(t.description?'<p class="sp-task-description">'+esc(t.description)+'</p>':'')+
+  '<div class="sp-task-meta"><span class="sp-task-assignee"><span class="sp-task-avatar">'+esc(owner.slice(0,1).toUpperCase())+'</span>'+esc(owner)+'</span><span class="sp-task-due '+(overdue(t)?'late':'')+'">'+icon('clock')+esc(dueText)+'</span></div>'+
+  '<div class="sp-task-card-bottom"><span class="sp-task-subcount">'+icon('check')+' '+subs.filter(x=>x.done).length+'/'+subs.length+' steps</span><select class="sp-task-status-select" data-task-status-id="'+t.id+'" aria-label="Change task status">'+statuses.map(([v,l])=>'<option value="'+v+'"'+(v===status?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'+
+  '<div class="sp-task-card-actions"><button type="button" class="btn btn--soft btn--sm" data-sp="task-open:'+t.id+'">Details</button><button type="button" class="btn btn--soft btn--sm" data-sp="task-edit:'+t.id+'">Edit</button></div></article>';
+ }).join('');
+ const board=statuses.map(([status,label])=>{const group=tasks.filter(t=>st(t)===status);return '<section class="sp-task-column col-'+status+'"><header><span class="sp-task-column-dot"></span><b>'+label+'</b><span class="sp-task-column-count">'+group.length+'</span></header><div class="sp-task-column-body">'+(group.length?cards(group):'<div class="sp-task-column-empty">Nothing here yet</div>')+'</div></section>';}).join('');
+ return '<div class="sp-tasks"><section class="sp-task-hero"><div class="sp-task-hero-copy"><span class="sp-task-eyebrow">THE WORKROOM</span><h2>Make progress visible.</h2><p>Every priority, owner and deadline in one focused workspace.</p><div class="sp-task-hero-tags"><span>'+tasks.length+' total tasks</span><span>'+progress+'% complete</span></div></div><button type="button" class="btn btn--primary sp-task-create" data-sp="new:task">＋ Create task</button><div class="sp-task-progress"><div><span>Workspace progress</span><b>'+progress+'%</b></div><div class="sp-task-progress-track"><i style="width:'+progress+'%"></i></div></div></section>'+
+ '<section class="sp-task-metrics"><article><span class="sp-task-metric-icon">◷</span><div><b>'+active+'</b><span>Active tasks</span></div></article><article><span class="sp-task-metric-icon">✓</span><div><b>'+completed+'</b><span>Completed</span></div></article><article class="'+(late?'metric-alert':'')+'"><span class="sp-task-metric-icon">!</span><div><b>'+late+'</b><span>Overdue</span></div></article><article><span class="sp-task-metric-icon">↗</span><div><b>'+tasks.filter(t=>['urgent','high'].includes(t.priority)&&st(t)!=='completed').length+'</b><span>High priority</span></div></article></section>'+
+ '<section class="sp-task-controls"><label class="sp-task-search"><span>⌕</span><input id="sp-task-search" type="search" placeholder="Find a task…" aria-label="Search tasks"></label><select id="sp-task-filter-status" aria-label="Filter by status"><option value="">All statuses</option>'+statuses.map(([v,l])=>'<option value="'+v+'">'+l+'</option>').join('')+'</select><select id="sp-task-filter-priority" aria-label="Filter by priority"><option value="">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select><select id="sp-task-filter-assignee" aria-label="Filter by assignee"><option value="">Everyone</option>'+memberOptions+'</select><button type="button" class="sp-task-view-toggle" data-sp="task-view-toggle">'+(sp.taskBoard?'List view':'Board view')+'</button></section><div class="sp-task-no-results" id="sp-task-no-results" hidden>No tasks match these filters. Try clearing a filter.</div>'+
+ '<section class="sp-task-list-mode" id="sp-task-list-mode" '+(sp.taskBoard?'hidden':'')+'><div class="sp-task-list-head"><div><span class="sp-task-eyebrow">TASK REGISTER</span><h3>All tasks</h3></div><span class="sp-task-list-count">'+tasks.length+' items</span></div><div class="sp-task-grid">'+(tasks.length?cards(tasks):'<div class="sp-task-empty"><div class="sp-task-empty-symbol">✳</div><h3>Your next win starts here.</h3><p>Create the first task and turn the plan into progress.</p><button type="button" class="btn btn--primary" data-sp="new:task">Create your first task</button></div>')+'</div></section>'+
+ '<section class="sp-task-board-mode" id="sp-task-board-mode" '+(!sp.taskBoard?'hidden':'')+'><div class="sp-task-board-heading"><div><span class="sp-task-eyebrow">LIVE WORKFLOW</span><h3>Board view</h3></div><span>Change a task status to move it</span></div><div class="sp-task-board">'+board+'</div></section></div>';
 };
-const taskRow = t => `
-  <button class="task" aria-pressed="${!!t.done}" data-sp="task:${t.id}">
-    <span class="box">${icon('check')}</span>
-    <span><span class="t" style="display:block">${esc(t.title)}</span>
-    <span class="s" style="display:block">${esc(t.owner)} · ${esc(t.due)}</span></span>
-  </button>`;
 
 VIEWS.business.people = s => membersView(s, 'Roles decide what each person can do. Changes are enforced on the server.');
 VIEWS.business.log = s => `
