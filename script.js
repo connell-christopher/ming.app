@@ -8417,18 +8417,20 @@ const Server = (() => {
       }
     ];
 
-    for (const loader of optionalLoaders) {
+    // These loaders read independent tables. Run them concurrently so the
+    // Spaces screen does not wait for five sequential network round-trips.
+    await Promise.all(optionalLoaders.map(async loader => {
       try {
         const { data: rows, error } = await supabaseClient.rpc(loader.rpc);
         if (error) {
           console.warn(`Tweaklr: optional Spaces loader skipped (${loader.name}).`, error.message);
-          continue;
+          return;
         }
         db[loader.name] = (rows || []).map(loader.map);
       } catch (error) {
         console.warn(`Tweaklr: optional Spaces loader skipped (${loader.name}).`, error);
       }
-    }
+    }));
     const memberIds = [...new Set(db.members.map(m => m.userId).filter(id => id && id !== currentUser.id))];
     if (memberIds.length) {
       const { data: profiles, error: profileError } = await supabaseClient
