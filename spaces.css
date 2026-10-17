@@ -1180,3 +1180,96 @@
 #screen-space .sp-activity-no-results[hidden]{display:none!important}
 #screen-space .sp-activity-footnote{margin:12px 3px 0;color:var(--muted);font-size:10px;line-height:1.6}
 @media(max-width:620px){#screen-space .sp-activity-hero{padding:19px 16px}#screen-space .sp-activity-seal{flex-basis:45px;width:45px;height:45px;border-radius:15px;font-size:23px}#screen-space .sp-activity-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#screen-space .sp-activity-toolbar>label{flex-basis:100%}#screen-space .sp-activity-toolbar>select{flex:1 1 42%;max-width:none}#screen-space .sp-activity-feed{padding:12px}#screen-space .sp-activity-row{gap:9px;padding:13px 1px}#screen-space .sp-activity-symbol{flex-basis:31px;width:31px;height:31px;border-radius:10px}}
+
+
+/* Tweaklr signature — premium Board Mode goal & deadline controls only.
+   Scoped to the two existing actions; no markup, state, or handlers changed. */
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action[data-sp-dna="goal"],
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action[data-sp-dna="deadline"] {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 108px;
+  padding: 14px 13px 13px;
+  overflow: hidden;
+  text-align: left;
+  border: 1px solid color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 30%, var(--border));
+  border-radius: 17px;
+  background:
+    radial-gradient(130px 80px at 100% 0%, color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 16%, transparent), transparent 75%),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-2) 88%, var(--sp-accent-2, var(--coffee))), var(--surface));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 8px 22px -18px rgba(20,12,10,.6);
+  transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action[data-sp-dna="goal"]::after,
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action[data-sp-dna="deadline"]::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: -18px;
+  bottom: -25px;
+  width: 78px;
+  height: 78px;
+  border: 1px solid color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 19%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 4%, transparent), 0 0 0 17px color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 3%, transparent);
+  pointer-events: none;
+}
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action .sp-dna-action__icon {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  flex: 0 0 35px;
+  border: 1px solid color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 34%, var(--border));
+  border-radius: 12px;
+  color: var(--sp-accent-2, var(--coffee));
+  background: color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 12%, var(--surface));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action .sp-dna-action__icon svg {
+  display: block;
+  width: 19px;
+  height: 19px;
+}
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action b {
+  position: relative;
+  z-index: 1;
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: -.01em;
+}
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action:hover {
+  border-color: color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 58%, var(--border));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 12px 25px -18px rgba(20,12,10,.75);
+}
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action:focus-visible {
+  outline: 2px solid var(--sp-accent-2, var(--coffee));
+  outline-offset: 3px;
+}
+#screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action:active {
+  transform: scale(.985);
+}
+@media (max-width: 360px) {
+  #screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action[data-sp-dna="goal"],
+  #screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action[data-sp-dna="deadline"] {
+    min-height: 100px;
+    padding: 12px 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action[data-sp-dna="goal"],
+  #screen-space #sp-dna-panel[data-nature="business"] .sp-dna-action[data-sp-dna="deadline"] {
+    transition: none;
+  }
+}
