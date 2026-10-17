@@ -2288,7 +2288,7 @@ async function shareDailyUpdate(id) {
         <button data-action="share-external:${esc(id)}"><span style="font-size:24px">↗</span><br>Other apps</button>
         <button data-action="download-update:${esc(id)}"><span style="font-size:24px">↓</span><br>Download</button>
       </div>
-      <div class="section share-update-recipients" style="padding:0">
+      <div class="section share-update-recipients" data-share-update-id="${esc(id)}" style="padding:0">
         <div class="section-head"><div><h2>Find a Tweaklr user</h2><p>Search by username to share with any member</p></div></div>
         <div class="field" style="padding:0 12px 10px">
           <input id="share-update-user-search" type="search" maxlength="40" placeholder="Search @username…" autocomplete="off" aria-label="Search Tweaklr users by username" />
@@ -2338,7 +2338,7 @@ async function searchShareUpdateUsers(query, updateId) {
 
 document.addEventListener('input', e => {
   if (e.target?.id !== 'share-update-user-search') return;
-  const updateId = document.querySelector('[data-action^="send-update:"]')?.dataset.action.split(':')[1] || new URL(window.location.href).searchParams.get('update') || '';
+  const updateId = document.querySelector('.share-update-recipients')?.dataset.shareUpdateId || new URL(window.location.href).searchParams.get('update') || '';
   clearTimeout(shareUpdateSearchTimer);
   shareUpdateSearchTimer = setTimeout(() => searchShareUpdateUsers(e.target.value, updateId), 280);
 });
