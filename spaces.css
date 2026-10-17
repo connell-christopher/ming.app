@@ -2034,3 +2034,6 @@
   #screen-space[data-nature="silly"] .silly-burst,
   #screen-space[data-nature="silly"] .silly-post { animation:none; transition:none; }
 }
+
+/* The Silly-specific feed replaces the generic signature-tools panel only in Silly. */
+#screen-space[data-nature="silly"] #sp-dna-panel[data-nature="silly"] { display:none !important; }
