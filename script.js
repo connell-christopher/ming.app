@@ -8843,7 +8843,7 @@ const NATURES = {
       { name:'Rose', colors:['#FFF0F1','#D98D9C','#813C55'] },
       { name:'Moonlit', colors:['#171727','#49436E','#C9A6C8'] }
     ],
-    tabs: [['us', 'Us', 'sp-heart2'], ['memories', 'Memories', 'sp-camera'], ['calendar', 'Calendar', 'cal'], ['health', 'Wellness', 'sp-heart2'], ['plans', 'Plans', 'sp-list'], ['names', 'Names', 'users'], ['vault', 'Vault', 'sp-doc']]
+    tabs: [['us', 'Us', 'sp-heart2'], ['memories', 'Memories', 'sp-camera'], ['letters', 'Letters', 'sp-doc'], ['calendar', 'Calendar', 'cal'], ['health', 'Wellness', 'sp-heart2'], ['plans', 'Plans', 'sp-list'], ['names', 'Names', 'users'], ['vault', 'Vault', 'sp-doc']]
   },
   marketplace: {
     label: 'Marketplace', eyebrow: 'Trade with trust', icon: 'sp-store', hue: 150,
@@ -9392,7 +9392,8 @@ const FEATURE_OPTIONS = {
     { k: 'memories', t: 'Memories', s: 'A private timeline' },
     { k: 'plans', t: 'Plans', s: 'Dates and small ideas' },
     { k: 'lists', t: 'Shared lists', s: 'Places, films, someday things' },
-    { k: 'milestones', t: 'Milestones', s: 'Dates that matter' }
+    { k: 'milestones', t: 'Milestones', s: 'Dates that matter' },
+    { k: 'loveletter', t: 'Love letters', s: 'A private letter for your person' }
   ],
   marketplace: [
     { k: 'listings', t: 'Listings', s: 'Members can list items for sale' },
@@ -10133,6 +10134,7 @@ VIEWS.romantic.us = s => {
   const plan = contentOf(s.id, 'plan')[0];
   const ms = contentOf(s.id, 'milestone');
   return `
+  <div class="rom-love-actions"><button class="btn btn--primary" data-sp="thinking-of-you">♡ Thinking of You</button><button class="btn btn--soft" data-sp="new:loveletter">Write a Love Letter</button></div>
   <div class="sp-sec"><h3>Next</h3>
     <div class="sp-card">
       ${plan ? `<div style="font-size:16px">${esc(plan.title)}</div>
@@ -10142,6 +10144,7 @@ VIEWS.romantic.us = s => {
     </div>
   </div>
   <div class="sp-sec"><h3>Lately</h3>
+    ${contentOf(s.id, 'love_note').slice(0, 3).map(n => `<article class="sp-card rom-love-note"><span>♡ A LITTLE REMINDER</span><p>${esc(n.text || 'Thinking of you ♡')}</p><small>${esc(nameOf(n.authorId))} · ${esc(timeAgo(n.at))}</small></article>`).join('')}
     ${contentOf(s.id, 'memory').slice(0, 3).map(m => `
       <div class="sp-card"><div style="font-size:14.5px;line-height:1.55">${esc(m.text)}</div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:8px">${esc(m.when)}</div></div>`).join('')
@@ -10161,6 +10164,13 @@ VIEWS.romantic.memories = s => `
         || '<p style="font-size:13.5px;color:var(--muted)">Nothing yet.</p>'}
     </div>
   </div>`;
+VIEWS.romantic.letters = s => {
+  const letters = contentOf(s.id, 'love_letter').slice().sort((a,b) => Number(b.at||0)-Number(a.at||0));
+  return '<div class="privacy-seal">' + icon('lock') + '<span>Love letters stay inside this private Space. Once sent, a letter cannot be edited.</span></div>' +
+    '<div class="sp-sec"><h3>Love letters <span><button data-sp="new:loveletter">Write a letter</button></span></h3>' +
+    (letters.length ? letters.map(l => '<article class="sp-card rom-letter"><div class="rom-letter__eyebrow">SEALED WITH LOVE</div><h4>' + esc(l.title || 'A letter for you') + '</h4><p>' + esc(l.body || '') + '</p><div class="rom-letter__foot">From ' + esc(nameOf(l.authorId)) + ' · ' + esc(l.at ? new Date(l.at).toLocaleDateString([], {day:'numeric',month:'short',year:'numeric'}) : 'Just now') + '</div></article>').join('') : spEmpty('A few honest words can become a favourite memory.', {t:'Write your first letter',a:'new:loveletter'})) +
+    '</div>';
+};
 VIEWS.romantic.plans = s => `
   <div class="sp-sec"><h3>Plans <span><button data-sp="new:plan">Add</button></span></h3>
     ${contentOf(s.id, 'plan').map(p => `
@@ -10519,6 +10529,7 @@ const COMPOSERS = {
   now: { title: 'Happening now', fields: [['text', 'What is going on?', 'textarea']], kind: 'now' },
   answer: { title: 'Answer the prompt', fields: [['text', 'Go on then', 'textarea']], kind: 'answer' },
   memory: { title: 'Keep a memory', fields: [['text', 'What do you want to remember?', 'textarea'], ['when', 'When', 'input']], kind: 'memory' },
+  loveletter: { title: 'Write a love letter', fields: [['title', 'Give your letter a title', 'input'], ['body', 'Write from the heart', 'textarea']], kind: 'love_letter' },
   plan: { title: 'Add a plan', fields: [['title', 'What', 'input'], ['when', 'When', 'input'], ['where', 'Where', 'input']], kind: 'plan' },
   milestone: { title: 'Pin a special date', fields: [['title', 'What matters?', 'input'], ['when', 'Date', 'input']], kind: 'milestone' },
   nickname: { title: 'Choose a sweet name', fields: [['name', 'Sweet name', 'input']], kind: 'nickname' },
@@ -10563,7 +10574,7 @@ function openComposerFor(key) {
     sub: '',
     body: c.fields.map(([k, label, type]) => `
       <div class="field"><label for="cx-${k}">${label}</label>
-        ${type === 'input' ? `<input id="cx-${k}" type="text" maxlength="80" />` : `<textarea id="cx-${k}" maxlength="240"></textarea>`}
+        ${type === 'input' ? `<input id="cx-${k}" type="text" maxlength="${key === 'loveletter' && k === 'title' ? 100 : 80}" />` : `<textarea id="cx-${k}" maxlength="${key === 'loveletter' ? 4000 : 240}" ${key === 'loveletter' ? 'rows="9" placeholder="Tell them what you want them to remember."' : ''}></textarea>`}
       </div>`).join('') + (c.accepts ? `<div class="field"><label for="cx-file">Attach a file</label><input id="cx-file" type="file" accept="${c.accepts}" /></div>` : ''),
     foot: `<button class="btn btn--primary btn--block" data-sp="post:${key}">Post</button>`
   });
@@ -10928,6 +10939,15 @@ document.addEventListener('click', async e => {
     case 'msg-applicant': closeSheet(); setTimeout(() => openChat(a), 180); break;
 
     /* space content */
+    case 'thinking-of-you': {
+      const active = spaceById(sp.activeId);
+      if (!active || active.nature !== 'romantic' || !Server.can(sp.activeId, 'space.post')) { toast('This moment is only available inside your Romantic Space.', 'x'); break; }
+      const recent = contentOf(sp.activeId, 'love_note').find(n => n.authorId === currentUser.id && Date.now() - Number(n.at || 0) < 30000);
+      if (recent) { toast('Your little reminder has already been sent. Give it a moment.', 'x'); break; }
+      const res = await Server.submit('space.post', { spaceId: sp.activeId, kind: 'love_note', payload: { text: 'Thinking of you ♡', createdAt: new Date().toISOString() } });
+      if (!res.ok) { toast(res.error || 'Could not send your reminder.', 'x'); break; }
+      refreshSpace(); toast('A little love has been sent ♡', 'check'); break;
+    }
     case 'new': a === 'product' ? openProductComposer() : (a === 'task' ? openTaskComposer() : openComposerFor(a)); break;
     case 'task-cancel': closeSheet(); break;
     case 'task-view-toggle': sp.taskBoard=!sp.taskBoard; renderSpace(); break;
@@ -10943,7 +10963,13 @@ document.addEventListener('click', async e => {
       const c = COMPOSERS[a];
       const payload = {};
       if(a==='task'){const title=$('#cx-title')?.value.trim()||'';if(!title){toast('Add a task name first.','x');return;}const assigneeId=$('#cx-assignee')?.value||null,m=Server.db.members.find(x=>x.spaceId===sp.activeId&&x.userId===assigneeId&&x.approved!==false),p=assigneeId?personOf(assigneeId):null;payload.title=title;payload.description=$('#cx-description')?.value.trim()||'';payload.assigneeId=m?assigneeId:null;payload.owner=m?(p.short||p.name||p.username||'Space member'):'Unassigned';payload.due=$('#cx-due')?.value||'';payload.priority=$('#cx-priority')?.value||'medium';payload.status=$('#cx-status')?.value||'todo';payload.done=payload.status==='completed';payload.subtasks=[];payload.comments=[];payload.createdBy=currentUser.id;}else c.fields.forEach(([k])=>{payload[k]=($('#cx-'+k)||{}).value||'';});
-      if (!payload[c.fields[0][0]].trim()) { toast('Say something first', 'x'); return; }
+      if (!payload[c.fields[0][0]].trim()) { toast(a === 'loveletter' ? 'Give your letter a title first.' : 'Say something first', 'x'); return; }
+      if (a === 'loveletter') {
+        payload.title = payload.title.trim();
+        payload.body = (payload.body || '').trim();
+        if (!payload.body) { toast('Write a few words before sealing your letter.', 'x'); return; }
+        if (payload.body.length > 4000) { toast('Your letter is too long.', 'x'); return; }
+      }
       if (a === 'moment') payload.hue = Math.floor(Math.random() * 360);
       if (a === 'poll') {
         payload.options = [payload.option1, payload.option2, payload.option3].filter(Boolean).map(t => ({ t, votes: 0 }));
