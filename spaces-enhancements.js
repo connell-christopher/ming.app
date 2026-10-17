@@ -241,55 +241,76 @@
       })();
     }
     const close = () => modal.remove();
+    const cancelButtons = modal.querySelectorAll('[data-editor-cancel]');
+    cancelButtons.forEach(button => button.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    }));
     modal.addEventListener('click', event => {
-      const target = event.target instanceof Element ? event.target : event.target?.parentElement;
-      if (!target) return;
-      if (target === modal || target.closest('[data-editor-cancel]')) { close(); return; }
-      if (target.closest('[data-editor-clear]')) {
-        write(isGoal ? 'goal' : 'deadline', '');
+      if (event.target === modal) close();
+    });
+    const clearButton = modal.querySelector('[data-editor-clear]');
+    if (clearButton) {
+      clearButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!write(isGoal ? 'goal' : 'deadline', '')) return;
         close();
         refreshPanel();
-        announce(isGoal ? 'Pinned goal cleared.' : 'Deadline cleared.');
-      }
-      if (target.closest('[data-editor-save]')) {
-        const error = modal.querySelector('#sp-dna-editor-error');
-        error.hidden = true;
-        if (isGoal) {
-          const value = field.value.trim();
-          if (!value) {
-            error.textContent = 'Add a goal first, or use Clear goal to remove the current one.';
-            error.hidden = false;
-            field.focus();
-            return;
-          }
-          if (!write('goal', value)) return;
-          close();
-          refreshPanel();
-          announce('Pinned goal saved to your Space.');
-        } else {
-          if (!field.value) {
-            error.textContent = 'Choose a date and time, or use Clear deadline to remove it.';
-            error.hidden = false;
-            field.focus();
-            return;
-          }
-          const parsed = new Date(field.value);
-          if (!Number.isFinite(parsed.getTime()) || parsed.getTime() <= Date.now()) {
-            error.textContent = 'Choose a future date and time.';
-            error.hidden = false;
-            field.focus();
-            return;
-          }
-          if (!write('deadline', parsed.toISOString())) return;
-          close();
-          refreshPanel();
-          announce('Deadline saved to your Space.');
+      });
+    }
+    const saveButton = modal.querySelector('[data-editor-save]');
+    saveButton.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+      const error = modal.querySelector('#sp-dna-editor-error');
+      error.hidden = true;
+      if (isGoal) {
+        const value = field.value.trim();
+        if (!value) {
+          error.textContent = 'Add a goal first, or use Clear goal to remove the current one.';
+          error.hidden = false;
+          field.focus();
+          return;
         }
+        if (!write('goal', value)) {
+          error.textContent = 'Your goal was not saved. Make sure you are signed in and this is a saved Space, then try again.';
+          error.hidden = false;
+          return;
+        }
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving…';
+        close();
+        refreshPanel();
+      } else {
+        if (!field.value) {
+          error.textContent = 'Choose a date and time, or use Clear deadline to remove it.';
+          error.hidden = false;
+          field.focus();
+          return;
+        }
+        const parsed = new Date(field.value);
+        if (!Number.isFinite(parsed.getTime()) || parsed.getTime() <= Date.now()) {
+          error.textContent = 'Choose a time later than now. The current minute may already have passed.';
+          error.hidden = false;
+          field.focus();
+          return;
+        }
+        if (!write('deadline', parsed.toISOString())) {
+          error.textContent = 'Your deadline was not saved. Make sure you are signed in and this is a saved Space, then try again.';
+          error.hidden = false;
+          return;
+        }
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving…';
+        close();
+        refreshPanel();
       }
-    }, true);
+    });
     modal.addEventListener('keydown', event => {
       if (event.key === 'Escape') close();
-      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') modal.querySelector('[data-editor-save]')?.click();
+      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') saveButton.click();
     });
     field.focus();
   }
