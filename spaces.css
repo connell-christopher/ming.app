@@ -1823,3 +1823,117 @@
 @media (prefers-reduced-motion: reduce) {
   #screen-space #sp-dna-panel[data-nature="silly"] .sp-dna-action { transition: none; }
 }
+
+
+/* Deal Studio upgrade — marketplace-only controls and deal tracker. */
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-offer--studio {
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background:
+    radial-gradient(180px 90px at 100% 0%, rgba(183,122,128,.12), transparent 75%),
+    linear-gradient(145deg, var(--surface-2), var(--surface));
+  box-shadow: 0 12px 30px -24px rgba(43,33,27,.45);
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-field {
+  display: grid;
+  gap: 6px;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-field label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-field input,
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-field textarea,
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-status select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 10px 11px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-field textarea {
+  resize: vertical;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-field input:focus,
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-field textarea:focus,
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-status select:focus {
+  outline: 2px solid color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 50%, transparent);
+  outline-offset: 1px;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-buttons .sp-dna-action {
+  justify-content: center;
+  min-width: 0;
+  padding: 10px 8px;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--surface-2);
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-card > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-card b {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-card small,
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-status > span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-status {
+  display: grid;
+  gap: 4px;
+  flex: 0 0 112px;
+  max-width: 42%;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-status select {
+  padding: 7px 6px;
+  font-size: 11px;
+}
+#screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-pill {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sp-accent-2, var(--coffee)) 12%, var(--surface));
+  font-size: 10px;
+  font-weight: 700;
+}
+@media (max-width: 380px) {
+  #screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  #screen-space[data-nature="marketplace"] #sp-dna-panel .sp-dna-deal-status {
+    width: 100%;
+    max-width: none;
+    flex-basis: auto;
+  }
+}
