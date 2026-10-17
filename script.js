@@ -8640,6 +8640,9 @@ const Server = (() => {
         const payload = Object.fromEntries(Object.entries(row).filter(([k]) => !['id','spaceId','authorId','kind','at','updatedAt'].includes(k)));
         const { error } = await supabaseClient.rpc('update_ming_space_content', { p_id: row.id, p_payload: payload });
         if (error) return deny(error.message || 'Could not save the change.');
+        if (p.op === 'taskupdate' && row.kind === 'task') {
+          audit(row.spaceId, 'task.updated', { status: row.status || (row.done ? 'completed' : 'todo'), priority: row.priority || 'medium' });
+        }
         return { ok: true, data: { row } };
       }
 
@@ -9884,7 +9887,7 @@ function auditEventLabel(event) {
     'member.joined':'Member joined','member.role_changed':'Member role changed',
     'member.removed':'Member removed','invite.issued':'Invitation created',
     'invite.rotated':'Invitation renewed','content.created':'Space content created',
-    'task.toggled':'Task status changed','product.listed':'Product listed',
+    'task.toggled':'Task status changed','task.updated':'Task details updated','product.listed':'Product listed',
     'order.created':'Order created','order.funded':'Order funded',
     'order.seller_confirmed':'Seller confirmed order','order.shipped':'Order shipped',
     'order.delivered':'Delivery confirmed','order.accepted':'Order accepted',
@@ -9908,6 +9911,7 @@ function auditEventSummary(a) {
   const m = a.meta || {}, event = String(a.event || '');
   if (event === 'content.created') return (m.kind ? String(m.kind).replace(/[_-]/g,' ') : 'New content') + ' was added to the Space.';
   if (event === 'task.toggled') return m.done ? 'A task was marked complete.' : 'A task was reopened.';
+  if (event === 'task.updated') return 'Task details, ownership, priority or progress were updated.';
   if (event === 'member.role_changed') return 'A member’s Space role or access was updated.';
   if (event === 'member.joined') return 'A new member joined this Space.';
   if (event === 'invite.issued' || event === 'invite.rotated') return 'The Space invitation was ' + (event.endsWith('rotated') ? 'renewed.' : 'created.');
