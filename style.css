@@ -2978,6 +2978,82 @@ html.theme-transitioning *::after {
 }
 .sp[data-nature="romantic"] .privacy-seal svg { width: 16px; height: 16px; color: var(--accent); flex: 0 0 auto; margin-top: 1px; }
 
+/* Romantic Space — polished love actions and sealed letters only. */
+.sp[data-nature="romantic"] .rom-love-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 14px 16px 20px;
+}
+.sp[data-nature="romantic"] .rom-love-actions .btn {
+  min-height: 46px;
+  border-radius: 15px;
+  font-weight: 650;
+  letter-spacing: .01em;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+}
+.sp[data-nature="romantic"] .rom-love-actions .btn--primary {
+  background: linear-gradient(135deg, #F0B8C5, #C97991);
+  color: #32151F;
+  border: 1px solid rgba(255,225,232,.28);
+}
+.sp[data-nature="romantic"] .rom-love-actions .btn--soft {
+  border-color: rgba(220,151,169,.26);
+  background: linear-gradient(135deg, rgba(207,119,145,.14), rgba(255,238,230,.045));
+}
+.sp[data-nature="romantic"] .rom-letter {
+  margin-bottom: 12px;
+  padding: 20px;
+  border: 1px solid rgba(219,151,169,.19);
+  background: linear-gradient(145deg, rgba(209,119,146,.10), rgba(255,246,240,.035) 72%);
+}
+.sp[data-nature="romantic"] .rom-letter__eyebrow,
+.sp[data-nature="romantic"] .rom-love-note > span {
+  display: block;
+  color: #D99AAA;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .16em;
+  margin-bottom: 10px;
+}
+.sp[data-nature="romantic"] .rom-letter h4 {
+  color: var(--text);
+  font: 400 22px/1.25 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+.sp[data-nature="romantic"] .rom-letter p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.75;
+  color: #F2E3DA;
+}
+.sp[data-nature="romantic"] .rom-letter__foot {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 18px;
+  padding-top: 12px;
+}
+.sp[data-nature="romantic"] .rom-love-note {
+  margin-bottom: 10px;
+  border-color: rgba(219,151,169,.2);
+  background: linear-gradient(135deg, rgba(207,119,145,.12), rgba(255,246,240,.035));
+}
+.sp[data-nature="romantic"] .rom-love-note p {
+  font: 400 20px/1.35 "Iowan Old Style", Palatino, Georgia, serif;
+  margin: 0 0 8px;
+}
+.sp[data-nature="romantic"] .rom-love-note small {
+  color: var(--muted);
+  font-size: 11px;
+}
+@media (max-width: 380px) {
+  .sp[data-nature="romantic"] .rom-love-actions { grid-template-columns: 1fr; }
+}
+ 
 /* ---------- 10. MARKETPLACE — clean, structured, trust-forward ---------- */
 .sp[data-nature="marketplace"] {
   --bg: #F4F5F7;
