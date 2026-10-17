@@ -157,7 +157,7 @@
       '<p class="silly-safety-note">No real names, handles, phone numbers, locations or private screenshots. Anonymous does not mean consequence-free.</p></section>'+
       (dare?'<section class="silly-dare-card"><span>🎯 YOUR CURRENT DARE</span><p>'+esc(dare)+'</p><button type="button" data-silly-action="complete-dare">I DID THE THING · +10 PTS</button></section>':'')+
       '<section class="silly-feed-head"><div><span>THE FEED IS COOKING</span><h3>'+({chaos:'Fresh chaos',whisper:'Whispers from the void',roast:'The roast pit'}[mode])+'</h3></div><button type="button" data-silly-action="refresh">↻ Refresh</button></section>'+
-      (posts.length?'<div class="silly-feed">'+posts.map((p,i)=>card(p,spaceId,i)).join('')+'</div>':'<div class="silly-empty"><div class="silly-empty__orb">🫧</div><b>It's suspiciously peaceful in here.</b><p>Be the first ghost to leave a little nonsense.</p></div>')+
+      (posts.length?'<div class="silly-feed">'+posts.map((p,i)=>card(p,spaceId,i)).join('')+'</div>':'<div class="silly-empty"><div class="silly-empty__orb">🫧</div><b>It is suspiciously peaceful in here.</b><p>Be the first ghost to leave a little nonsense.</p></div>')+
       '<div class="silly-footer-note">THE ONLY RULE: MAKE IT FUNNY, NOT PERSONAL.</div><div id="silly-toast" role="status" hidden></div>';
     root.dataset.sillyMode = mode;
     root.innerHTML = header;
