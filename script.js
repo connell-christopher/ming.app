@@ -8156,10 +8156,32 @@ const Server = (() => {
   const memberCount = spaceId => db.members.filter(m => m.spaceId === spaceId).length;
 
   function audit(spaceId, event, meta) {
-    db.audit.push(Object.freeze({
-      id: 'au_' + db.audit.length, spaceId, actor: session.userId,
+    const entry = Object.freeze({
+      id: 'local_' + db.audit.length + '_' + Date.now(), spaceId, actor: session.userId,
       event, meta: meta || {}, at: Date.now()
-    }));
+    });
+    db.audit.push(entry);
+    // Durable activity is written through a membership-checked RPC. The UI
+    // still works if the migration has not been applied; persistence then waits.
+    try {
+      void supabaseClient.rpc('record_ming_space_activity', {
+        p_space_id: spaceId, p_event: event, p_meta: meta || {}
+      }).then(({ data, error }) => {
+        if (error) {
+          console.warn('Tweaklr: Space activity could not be persisted. Run the Business Activity Log migration if it has not been applied.', error.message);
+          return;
+        }
+        if (data && data.id) {
+          const index = db.audit.indexOf(entry);
+          if (index >= 0) db.audit[index] = Object.freeze({
+            id: data.id, spaceId, actor: session.userId, event, meta: meta || {},
+            at: data.created_at ? new Date(data.created_at).getTime() : entry.at
+          });
+        }
+      }).catch(error => console.warn('Tweaklr: Space activity persistence failed.', error));
+    } catch (error) {
+      console.warn('Tweaklr: Space activity persistence could not start.', error);
+    }
   }
 
   /* ---- escrow state machine ----
@@ -8317,6 +8339,7 @@ const Server = (() => {
     db.products = [];
     db.files = [];
     db.bids = [];
+    db.audit = [];
 
     (data || []).forEach(row => {
       if (!db.spaces.some(s => s.id === row.space_id)) {
@@ -8383,6 +8406,11 @@ const Server = (() => {
         name: 'bids',
         rpc: 'get_my_ming_space_product_bids',
         map: row => ({ id: row.id, productId: row.product_id, bidderId: row.bidder_id, amount: Number(row.amount), createdAt: new Date(row.created_at).getTime() })
+      },
+      {
+        name: 'audit',
+        rpc: 'get_my_ming_space_activity',
+        map: row => ({ id: row.id, spaceId: row.space_id, actor: row.actor_id, event: row.event, meta: row.meta || {}, at: new Date(row.created_at).getTime() })
       }
     ];
 
@@ -9851,15 +9879,81 @@ VIEWS.business.work = space => {
 };
 
 VIEWS.business.people = s => membersView(s, 'Roles decide what each person can do. Changes are enforced on the server.');
-VIEWS.business.log = s => `
-  <div class="sp-sec"><h3>Activity log <span>Append-only</span></h3>
-    <div class="sp-card">
-      ${Server.auditFor(s.id).map(a => `
-        <div class="audit"><b>${esc(nameOf(a.actor))}</b> ${esc(a.event.replace(/[._]/g, ' '))}
-        <div style="opacity:.7">${esc(new Date(a.at).toLocaleString([], { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</div></div>`).join('')}
-    </div>
-    <p style="font-size:12px;color:var(--muted);padding:4px 2px">Entries cannot be edited or deleted, including by the owner.</p>
-  </div>`;
+function auditEventLabel(event) {
+  const labels = {
+    'member.joined':'Member joined','member.role_changed':'Member role changed',
+    'member.removed':'Member removed','invite.issued':'Invitation created',
+    'invite.rotated':'Invitation renewed','content.created':'Space content created',
+    'task.toggled':'Task status changed','product.listed':'Product listed',
+    'order.created':'Order created','order.funded':'Order funded',
+    'order.seller_confirmed':'Seller confirmed order','order.shipped':'Order shipped',
+    'order.delivered':'Delivery confirmed','order.accepted':'Order accepted',
+    'order.cancelled':'Order cancelled','order.disputed':'Order disputed',
+    'order.released':'Funds released','dispute.opened':'Dispute opened',
+    'dispute.evidence_added':'Dispute evidence added','space.created':'Space created',
+    'space.updated':'Space settings updated'
+  };
+  if (labels[event]) return labels[event];
+  const tail = String(event || 'activity').split('.').pop().replace(/[_-]/g,' ');
+  return tail.charAt(0).toUpperCase()+tail.slice(1);
+}
+function auditEventCategory(event) {
+  if (/^(task|content)\./.test(event)) return 'work';
+  if (/^(member|space)\./.test(event)) return 'people';
+  if (/^invite\./.test(event)) return 'access';
+  if (/^(product|order|dispute)\./.test(event)) return 'market';
+  return 'other';
+}
+function auditEventSummary(a) {
+  const m = a.meta || {}, event = String(a.event || '');
+  if (event === 'content.created') return (m.kind ? String(m.kind).replace(/[_-]/g,' ') : 'New content') + ' was added to the Space.';
+  if (event === 'task.toggled') return m.done ? 'A task was marked complete.' : 'A task was reopened.';
+  if (event === 'member.role_changed') return 'A member’s Space role or access was updated.';
+  if (event === 'member.joined') return 'A new member joined this Space.';
+  if (event === 'invite.issued' || event === 'invite.rotated') return 'The Space invitation was ' + (event.endsWith('rotated') ? 'renewed.' : 'created.');
+  if (/^order\./.test(event)) return 'An order moved through the Space marketplace workflow.';
+  if (/^dispute\./.test(event)) return 'A marketplace dispute was updated.';
+  if (event === 'product.listed') return 'A new marketplace listing was published.';
+  return 'A change was recorded in this Space.';
+}
+function applySpaceActivityFilters() {
+  const root = document.getElementById('screen-space');
+  if (!root || root.dataset.nature !== 'business' || !root.querySelector('.sp-activity')) return;
+  const query = (root.querySelector('#sp-activity-search')?.value || '').trim().toLowerCase();
+  const category = root.querySelector('#sp-activity-category')?.value || '';
+  const period = root.querySelector('#sp-activity-period')?.value || 'all';
+  const cutoff = period === 'day' ? Date.now()-86400000 : period === 'week' ? Date.now()-7*86400000 : period === 'month' ? Date.now()-30*86400000 : 0;
+  let shown = 0;
+  root.querySelectorAll('[data-activity-row]').forEach(row => {
+    const ok = (!query || row.dataset.search.includes(query)) &&
+      (!category || row.dataset.category === category) &&
+      Number(row.dataset.at || 0) >= cutoff;
+    row.hidden = !ok;
+    if (ok) shown++;
+  });
+  const empty = root.querySelector('#sp-activity-no-results');
+  if (empty) empty.hidden = shown > 0;
+}
+VIEWS.business.log = s => {
+  const entries = Server.auditFor(s.id);
+  const now = Date.now(), recent = entries.filter(a => now-a.at < 86400000).length;
+  const people = new Set(entries.map(a => a.actor).filter(Boolean)).size;
+  const work = entries.filter(a => auditEventCategory(a.event) === 'work').length;
+  const rows = entries.map(a => {
+    const actor = nameOf(a.actor) || 'Space member';
+    const label = auditEventLabel(a.event), category = auditEventCategory(a.event);
+    const date = new Date(a.at);
+    const timestamp = Number.isNaN(date.getTime()) ? 'Time unavailable' : date.toLocaleString([], {day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'});
+    const search = (actor+' '+label+' '+auditEventSummary(a)+' '+a.event).toLowerCase();
+    const symbol = category === 'work' ? '✓' : category === 'people' ? '♙' : category === 'access' ? '⌁' : category === 'market' ? '↗' : '·';
+    return '<article class="sp-activity-row" data-activity-row data-category="'+category+'" data-at="'+a.at+'" data-search="'+esc(search)+'"><span class="sp-activity-symbol c-'+category+'">'+symbol+'</span><div class="sp-activity-main"><div class="sp-activity-title"><b>'+esc(actor)+'</b><span>'+esc(label)+'</span></div><p>'+esc(auditEventSummary(a))+'</p><time>'+esc(timestamp)+'</time></div><span class="sp-activity-mark" aria-hidden="true">•</span></article>';
+  }).join('');
+  return '<div class="sp-activity"><section class="sp-activity-hero"><div><span class="sp-activity-eyebrow">THE SPACE RECORD</span><h2>Every move. One timeline.</h2><p>A clear history of changes across this workspace, from people and access to tasks and marketplace activity.</p></div><div class="sp-activity-seal" aria-hidden="true">↗</div></section>'+
+    '<section class="sp-activity-metrics"><article><span>◷</span><div><b>'+entries.length+'</b><small>Total events</small></div></article><article><span>✳</span><div><b>'+recent+'</b><small>Last 24 hours</small></div></article><article><span>♙</span><div><b>'+people+'</b><small>Contributors</small></div></article><article><span>✓</span><div><b>'+work+'</b><small>Work updates</small></div></article></section>'+
+    '<section class="sp-activity-toolbar"><label><span>⌕</span><input id="sp-activity-search" type="search" placeholder="Search people or activity…" aria-label="Search activity log"></label><select id="sp-activity-category" aria-label="Filter activity type"><option value="">All activity</option><option value="work">Tasks &amp; content</option><option value="people">People &amp; Space</option><option value="access">Invitations &amp; access</option><option value="market">Marketplace</option></select><select id="sp-activity-period" aria-label="Filter by date"><option value="all">Any time</option><option value="day">Last 24 hours</option><option value="week">Last 7 days</option><option value="month">Last 30 days</option></select></section>'+
+    '<section class="sp-activity-feed"><div class="sp-activity-feed-head"><div><span class="sp-activity-eyebrow">AUDIT TRAIL</span><h3>Recent activity</h3></div><span>Newest first</span></div>'+(rows || '<div class="sp-activity-empty"><span>✳</span><h3>Your Space story starts here.</h3><p>When members create content, change roles or update work, those events will appear here.</p></div>')+'<div class="sp-activity-no-results" id="sp-activity-no-results" hidden>No activity matches those filters. Try a broader search.</div></section>'+
+    '<p class="sp-activity-footnote">Activity records are append-only in the database. Only members of this Space can view its history.</p></div>';
+};
 
 /* ============================================================
    FRIENDLY
@@ -10439,6 +10533,8 @@ function openTaskDetails(id){
 function openTaskTextPrompt(id,comment=false){openSheet({title:comment?'Add a task update':'Add a checklist step',sub:comment?'Share context with the team.':'Turn the work into a small next action.',body:'<div class="field"><label for="sp-task-text">'+(comment?'Update':'Checklist item')+'</label><textarea id="sp-task-text" maxlength="1200" rows="4" placeholder="'+(comment?'What should the team know?':'What is the next step?')+'"></textarea></div>',foot:'<button type="button" class="btn btn--soft" data-sp="task-cancel">Cancel</button><button type="button" class="btn btn--primary" data-sp="'+(comment?'task-comment-save:':'task-subadd-save:')+id+'">Save</button>'});}
 function applyTaskFilters(){const root=document.getElementById('screen-space');if(!root)return;const q=(root.querySelector('#sp-task-search')?.value||'').trim().toLowerCase(),status=root.querySelector('#sp-task-filter-status')?.value||'',priority=root.querySelector('#sp-task-filter-priority')?.value||'',assignee=root.querySelector('#sp-task-filter-assignee')?.value||'';let count=0;root.querySelectorAll('[data-task-card]').forEach(card=>{const ok=(!q||(card.dataset.taskTitle||'').includes(q))&&(!status||card.dataset.taskStatus===status)&&(!priority||card.dataset.taskPriority===priority)&&(!assignee||card.dataset.taskAssignee===assignee);card.hidden=!ok;if(ok)count++;});const empty=root.querySelector('#sp-task-no-results');if(empty)empty.hidden=count>0;}
 document.addEventListener('input',e=>{if(e.target.id==='sp-task-search')applyTaskFilters();});
+document.addEventListener('input',e=>{if(e.target.id==='sp-activity-search')applySpaceActivityFilters();});
+document.addEventListener('change',e=>{if(['sp-activity-category','sp-activity-period'].includes(e.target.id))applySpaceActivityFilters();});
 document.addEventListener('change',e=>{if(['sp-task-filter-status','sp-task-filter-priority','sp-task-filter-assignee'].includes(e.target.id))applyTaskFilters();});
 document.addEventListener('change',async e=>{const sel=e.target.closest('[data-task-status-id]');if(!sel)return;const task=Server.db.content.find(t=>t.id===sel.dataset.taskStatusId&&t.spaceId===sp.activeId);if(!task)return;const prior=taskStatus(task);if(!['todo','in_progress','in_review','completed'].includes(sel.value))return;const ok=await saveTaskRow(task,{status:sel.value},'Task status updated');if(ok)renderSpace();else sel.value=prior;});
 document.addEventListener('change',async e=>{const input=e.target.closest('[data-task-attachment-id]');if(!input)return;const task=Server.db.content.find(t=>t.id===input.dataset.taskAttachmentId&&t.spaceId===sp.activeId),file=input.files?.[0];if(!task||!file)return;if(file.size>25*1024*1024){toast('Attachments must be 25 MB or smaller.','x');input.value='';return;}const result=await Server.uploadSpaceFile(sp.activeId,file,'task',task.id,null);if(!result.ok){toast(result.error||'Attachment upload failed.','x');return;}toast('Task attachment added','check');closeSheet();await loadSpacesFromDatabase();if(sp.activeId===task.spaceId)openTaskDetails(task.id);});
