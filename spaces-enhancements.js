@@ -64,6 +64,11 @@
   function read(suffix, fallback) {
     return Object.prototype.hasOwnProperty.call(dnaState, suffix) ? dnaState[suffix] : fallback;
   }
+  // Quiet Mode only suppresses in-app popup alerts while the user's own
+  // Casual Space is open; it never changes message delivery or receipts.
+  window.tweaklrQuietModeActive = function () {
+    return !!(dnaLoaded && activeSpaceId() && activeNature() === 'casual' && read('quiet', false));
+  };
   function write(suffix, value) {
     const spaceId = activeSpaceId();
     if (!spaceId || !dnaLoaded || !supabaseClient) {
@@ -142,7 +147,7 @@
     const config = {
       business: { title: 'BOARD MODE', desc: 'Keep a goal and deadline close.', buttons: toolButton('goal','Set pinned goal','target') + toolButton('deadline','Set deadline','timer') },
       friendly: { title: 'VIBE CHECK', desc: 'Save your mood to your account for this Space.', buttons: toolButton('mood','Choose mood','hands') + toolButton('joke','Save an inside joke','laugh') },
-      casual: { title: 'NO PRESSURE', desc: 'Set a calmer personal mode for this Space. Messages and receipts stay normal.', buttons: toolButton('quiet', read('quiet', false) ? 'Turn Quiet Mode off' : 'Turn Quiet Mode on', 'cloud') + toolButton('reset-quiet','Reset preference','leaf') },
+      casual: { title: 'NO PRESSURE', desc: 'While this Casual Space is open, pause in-app notification popups and sounds. Messages and read receipts stay normal.', buttons: toolButton('quiet', read('quiet', false) ? 'Turn Quiet Mode off' : 'Turn Quiet Mode on', 'cloud') + toolButton('reset-quiet','Reset preference','leaf') },
       silly: { title: 'CHAOS ENGINE', desc: 'A fresh prompt whenever the room needs chaos.', buttons: toolButton('dare','Generate a dare','dice') + toolButton('meme-vote','Vote meme of the day','trophy') },
       romantic: { title: 'FOR TWO', desc: 'Little gestures and a shared-moment countdown.', buttons: toolButton('thinking','Thinking of you','heart') + toolButton('love-note','Write a love letter','letter') + toolButton('rom-countdown','Set countdown','moon') },
       marketplace: { title: 'DEAL STUDIO', desc: 'Work out an offer before you send it in chat.', buttons: toolButton('haggle','Open haggle slider','handshake') + toolButton('claim-note','Save a claim reminder','bag') }
@@ -171,7 +176,7 @@
       return '<div class="sp-dna-saved">' + (mood ? '<span class="sp-dna-saved-icon">' + brandIcon(moodIcon || 'moon') + '</span><b>Your vibe today: ' + esc(mood.split(' ').slice(1).join(' ')) + '</b>' : '<span>No mood selected today.</span>') +
         (jokes.length ? '<span>' + jokes.length + ' inside joke' + (jokes.length === 1 ? '' : 's') + ' saved to your account</span>' : '') + '</div>';
     }
-    if (nature === 'casual') return '<div class="sp-dna-saved sp-casual-status' + (read('quiet', false) ? ' is-quiet' : '') + '"><span class="sp-casual-status__icon" aria-hidden="true">' + brandIcon(read('quiet', false) ? 'moon' : 'cloud') + '</span><div><b>' + (read('quiet', false) ? 'Quiet Mode is on' : 'Quiet Mode is off') + '</b><span>' + (read('quiet', false) ? 'This Space is in your personal calm mode. Messages still arrive; read receipts and online status are unchanged.' : 'Turn it on when you want a calmer, no-pressure Space.') + '</span></div></div>';
+    if (nature === 'casual') return '<div class="sp-dna-saved sp-casual-status' + (read('quiet', false) ? ' is-quiet' : '') + '"><span class="sp-casual-status__icon" aria-hidden="true">' + brandIcon(read('quiet', false) ? 'moon' : 'cloud') + '</span><div><b>' + (read('quiet', false) ? 'Quiet Mode is on' : 'Quiet Mode is off') + '</b><span>' + (read('quiet', false) ? 'While this Space is open, in-app notification popups and sounds are paused. Notifications remain in your inbox; messages and read receipts stay normal.' : 'Turn it on to pause in-app notification popups and sounds while this Space is open.') + '</span></div></div>';
     if (nature === 'silly') return '<div class="sp-dna-saved"><span>' + esc(read('dare', 'Ready for a little chaos?')) + '</span></div>';
     if (nature === 'romantic') {
       const date = read('rom-date', '');
