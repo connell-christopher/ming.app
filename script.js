@@ -8367,7 +8367,7 @@ const Server = (() => {
       {
         name: 'files',
         rpc: 'get_my_ming_space_files',
-        map: row => ({ id: row.id, spaceId: row.space_id, ownerId: row.owner_id, contentId: row.content_id, productId: row.product_id, storagePath: row.storage_path, filename: row.filename, contentType: row.content_type, sizeBytes: Number(row.size_bytes || 0), kind: row.kind, createdAt: new Date(row.created_at).getTime() })
+        map: row => ({ id: row.id, spaceId: row.space_id, ownerId: row.owner_id, contentId: row.content_id, productId: row.product_id, storagePath: row.storage_path, filename: row.filename, displayName: row.display_name || row.filename, category: row.category || 'General', contentType: row.content_type, sizeBytes: Number(row.size_bytes || 0), kind: row.kind, createdAt: new Date(row.created_at).getTime() })
       },
       {
         name: 'bids',
@@ -9551,16 +9551,24 @@ function coverFor(s) {
 const VIEWS = { business: {}, friendly: {}, casual: {}, silly: {}, romantic: {}, marketplace: {} };
 
 VIEWS.business.files = s => {
-  const files = Server.db.files.filter(f => f.spaceId === s.id);
-  const docs = contentOf(s.id, 'doc');
-  return '<div class="sp-sec"><h3>Workspace files <span><button data-sp="new:file">Add</button></span></h3>' +
-    (files.length ? files.map(f => '<button class="sp-card" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left" data-sp="file-open:' + f.id + '">' +
-      icon(f.contentType.startsWith('image/') ? 'sp-camera' : f.contentType.startsWith('video/') ? 'sp-bolt' : 'sp-doc') +
-      '<span style="flex:1"><b>' + esc(f.filename) + '</b><small style="display:block;color:var(--muted);margin-top:3px">' + esc(f.contentType) + ' · ' + Math.max(1, Math.round(f.sizeBytes / 1024)) + ' KB</small></span>' +
-      icon('chev') + '</button>').join('') : spEmpty('No files have been shared yet.', {t:'Add a file',a:'new:file'})) +
-    '</div><div class="sp-sec"><h3>Documents</h3>' +
-    (docs.length ? docs.map(d => '<div class="sp-card"><b>' + esc(d.title || 'Document') + '</b><p style="font-size:12px;color:var(--muted);margin-top:5px">' + esc(d.body || 'Saved in this Space.') + '</p></div>').join('') : '<div class="sp-card"><span style="color:var(--muted)">No document notes yet.</span></div>') +
-    '</div>';
+  const files = Server.db.files.filter(f => f.spaceId === s.id && !f.contentId && !f.productId);
+  const docs = contentOf(s.id, 'doc'), role = Server.roleOf(s.id);
+  const canManage = ['owner','admin','manager'].includes(role);
+  const fileRows = files.map(f => {
+    const title = f.displayName || f.filename || 'Document', type = f.contentType || 'application/octet-stream';
+    const size = Number(f.sizeBytes || 0), sizeLabel = size >= 1048576 ? (size/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(size/1024))+' KB';
+    const category = f.category || 'General', date = f.createdAt ? new Date(f.createdAt).toLocaleDateString([], {day:'numeric',month:'short',year:'numeric'}) : 'Date unavailable';
+    return '<article class="sp-card sp-doc-card" data-doc-card data-doc-name="' + esc((title+' '+type+' '+category).toLowerCase()) + '" data-doc-category="' + esc(category) + '">' +
+      '<button type="button" class="sp-doc-open" data-sp="file-open:' + f.id + '" aria-label="Open ' + esc(title) + '"><span class="sp-doc-icon">' + icon(type.startsWith('image/')?'sp-camera':type.startsWith('video/')?'sp-bolt':'sp-doc') + '</span><span class="sp-doc-copy"><b>' + esc(title) + '</b><small>' + esc(category) + ' · ' + esc(type) + '</small><small>' + esc(sizeLabel) + ' · ' + esc(date) + '</small><small>Shared by ' + esc(nameOf(f.ownerId)) + '</small></span><span class="sp-doc-openmark">' + icon('chev') + '</span></button><div class="sp-doc-actions"><button type="button" class="btn btn--soft btn--sm" data-sp="file-open:' + f.id + '">Open / download</button>' +
+      ((canManage || f.ownerId === currentUser.id) ? '<button type="button" class="btn btn--soft btn--sm" data-sp="doc-rename:' + f.id + '">Rename</button><button type="button" class="btn btn--soft btn--sm" data-sp="doc-category:' + f.id + '">Category</button>' : '') +
+      (f.ownerId === currentUser.id ? '<button type="button" class="btn btn--ghost btn--sm sp-doc-delete" data-sp="doc-delete:' + f.id + '">Delete</button>' : '') + '</div></article>';
+  }).join('');
+  return '<div class="sp-documents"><section class="sp-doc-hero"><div class="sp-doc-hero-mark">' + icon('sp-doc') + '</div><div class="sp-doc-hero-copy"><span class="sp-doc-eyebrow">BUSINESS SPACE · LIBRARY</span><h2>Documents</h2><p>One polished home for your team’s shared files, references and working documents.</p><div class="sp-doc-statline"><span>' + files.length + ' file' + (files.length===1?'':'s') + '</span><span>Private to this Space</span></div></div><button type="button" class="btn btn--primary sp-doc-upload" data-sp="doc-upload">＋ Add document</button></section>' +
+    '<section class="sp-doc-toolbar"><label class="sp-doc-search"><span aria-hidden="true">⌕</span><input id="docs-search" type="search" placeholder="Search by name, type or category…" aria-label="Search documents"></label><label class="sp-doc-filter"><span>Category</span><select id="docs-category" aria-label="Filter documents by category"><option value="">All categories</option><option>General</option><option>Contracts</option><option>Finance</option><option>Design</option><option>Reports</option><option>Policies</option><option>Other</option></select></label></section>' +
+    '<section class="sp-doc-library"><div class="sp-doc-section-head"><div><span class="sp-doc-eyebrow">YOUR WORKSPACE</span><h3>Shared files</h3></div><span class="sp-doc-count">' + files.length + ' items</span></div>' +
+    (files.length ? '<div class="sp-doc-grid" id="docs-grid">' + fileRows + '</div><div class="sp-doc-no-results" id="docs-no-results" hidden>No documents match your search. Try another name or category.</div>' : '<div class="sp-doc-empty"><div class="sp-doc-empty-icon">' + icon('sp-doc') + '</div><h3>Your document library starts here</h3><p>Upload a proposal, contract, report, spreadsheet or image. Files are stored in your private Tweaklr Space.</p><button type="button" class="btn btn--primary" data-sp="doc-upload">Upload your first document</button></div>') +
+    '</section>' + (docs.length ? '<section class="sp-doc-notes"><div class="sp-doc-section-head"><div><span class="sp-doc-eyebrow">SPACE NOTES</span><h3>Document notes</h3></div><span class="sp-doc-count">' + docs.length + ' notes</span></div><div class="sp-doc-note-grid">' + docs.map(d=>'<article class="sp-card sp-doc-note"><span class="sp-doc-note-label">NOTE</span><b>'+esc(d.title||'Document note')+'</b><p>'+esc(d.body||'Saved in this Space.')+'</p></article>').join('')+'</div></section>' : '') +
+    '<p class="sp-doc-footnote">' + icon('lock') + ' Files are only available to approved members of this Space. Supported previews open in a new tab; other files can be downloaded from there.</p></div>';
 };
 
 VIEWS.friendly.meetings = s => {
@@ -10543,6 +10551,12 @@ function membersView(s, note) {
   </div>`;
 }
 
+/* Business Documents interactions, isolated from other Spaces and screens. */
+document.addEventListener('input',e=>{if(e.target.id==='docs-search')filterBusinessDocuments();});
+document.addEventListener('change',e=>{if(e.target.id==='docs-category')filterBusinessDocuments();});
+function filterBusinessDocuments(){const search=document.getElementById('docs-search'),category=document.getElementById('docs-category'),grid=document.getElementById('docs-grid');if(!search||!category||!grid)return;const q=search.value.trim().toLowerCase(),cat=category.value;let visible=0;grid.querySelectorAll('[data-doc-card]').forEach(card=>{const match=(!q||(card.dataset.docName||'').includes(q))&&(!cat||card.dataset.docCategory===cat);card.hidden=!match;if(match)visible++;});const empty=document.getElementById('docs-no-results');if(empty)empty.hidden=visible>0;}
+function openBusinessDocumentUpload(){if(!sp.activeId)return;openSheet({title:'Add to Documents',sub:'Shared securely with approved Space members.',body:'<div class="sp-doc-upload-panel"><div class="sp-doc-upload-drop"><div class="sp-doc-empty-icon">'+icon('sp-doc')+'</div><b>Choose a document</b><p>PDF, Word, Excel, PowerPoint, images, text and other file types.</p><input id="docs-upload-file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.md,.odt,.ods,.odp,image/*,video/mp4,video/webm" /></div><div class="field"><label for="docs-upload-name">Display name (optional)</label><input id="docs-upload-name" type="text" maxlength="120" placeholder="Use the original filename" /></div><div class="field"><label for="docs-upload-category">Category</label><select id="docs-upload-category"><option>General</option><option>Contracts</option><option>Finance</option><option>Design</option><option>Reports</option><option>Policies</option><option>Other</option></select></div><p class="sp-doc-upload-hint">Files use this Space’s existing private storage. Only share documents you have permission to upload.</p></div>',foot:'<button type="button" class="btn btn--soft" data-sp="doc-upload-cancel">Cancel</button><button type="button" class="btn btn--primary" data-sp="doc-upload-save">Upload document</button>'});}
+function openDocumentMetaSheet(fileId,field){const file=Server.db.files.find(f=>f.id===fileId&&f.spaceId===sp.activeId);if(!file){toast('Document not found. Refresh the Space and try again.','x');return;}const nameMode=field==='name';openSheet({title:nameMode?'Rename document':'Organise document',sub:'Your original uploaded file stays in place.',body:nameMode?'<div class="field"><label for="docs-rename-value">Document name</label><input id="docs-rename-value" type="text" maxlength="120" value="'+esc(file.displayName||file.filename||'')+'" /></div>':'<div class="field"><label for="docs-category-value">Category</label><select id="docs-category-value">'+['General','Contracts','Finance','Design','Reports','Policies','Other'].map(x=>'<option'+((file.category||'General')===x?' selected':'')+'>'+x+'</option>').join('')+'</select></div>',foot:'<button type="button" class="btn btn--soft" data-sp="doc-meta-cancel">Cancel</button><button type="button" class="btn btn--primary" data-sp="doc-meta-save:'+fileId+':'+field+'">Save changes</button>'});}
 /* ============================================================
    EVENTS
 ============================================================ */
@@ -10649,6 +10663,37 @@ document.addEventListener('click', async e => {
       toast(`Joined ${res.data.space.name}`, 'check');
       setTimeout(() => openSpace(res.data.space.id), 260);
       break;
+    }
+
+    /* Business Documents — only affects the active Space's document library. */
+    case 'doc-upload': openBusinessDocumentUpload(); break;
+    case 'doc-upload-cancel': closeSheet(); break;
+    case 'doc-upload-save': {
+      const file=$('#docs-upload-file')?.files?.[0]; if(!file){toast('Choose a document to upload first.','x');break;}
+      if(file.size>25*1024*1024){toast('Documents must be 25 MB or smaller.','x');break;}
+      const spaceId=sp.activeId,category=$('#docs-upload-category')?.value||'General',displayName=($('#docs-upload-name')?.value.trim()||file.name).slice(0,120);
+      const up=await Server.uploadSpaceFile(spaceId,file,'document',null,null);if(!up.ok){toast(up.error||'The document could not be uploaded.','x');break;}
+      const row=up.data.file;const {data:details,error:metaError}=await supabaseClient.rpc('update_ming_space_file_details',{p_file_id:row.id,p_display_name:displayName,p_category:category});
+      if(metaError){console.warn('Tweaklr: document uploaded but its details could not be saved.',metaError.message);toast('Uploaded, but details could not be saved. Run the Documents migration in Supabase.','x');}
+      else{row.displayName=details?.display_name||displayName;row.category=details?.category||category;toast('Document uploaded','check');}
+      closeSheet();await loadSpacesFromDatabase();if(sp.activeId===spaceId){sp.tab='files';renderSpace();}break;
+    }
+    case 'file-open': await openSpaceFile(a); break;
+    case 'doc-rename': openDocumentMetaSheet(a,'name'); break;
+    case 'doc-category': openDocumentMetaSheet(a,'category'); break;
+    case 'doc-meta-cancel': closeSheet(); break;
+    case 'doc-meta-save': {
+      const file=Server.db.files.find(f=>f.id===a&&f.spaceId===sp.activeId);if(!file){toast('Document not found.','x');break;}
+      const field=b,displayName=field==='name'?($('#docs-rename-value')?.value.trim()||''):(file.displayName||file.filename),category=field==='category'?($('#docs-category-value')?.value||'General'):(file.category||'General');
+      if(field==='name'&&!displayName){toast('Enter a document name.','x');break;}
+      const {data:details,error}=await supabaseClient.rpc('update_ming_space_file_details',{p_file_id:a,p_display_name:displayName,p_category:category});
+      if(error){toast(error.message||'Document details could not be saved.','x');break;}
+      file.displayName=details?.display_name||displayName;file.category=details?.category||category;closeSheet();renderSpace();toast(field==='name'?'Document renamed':'Category updated','check');break;
+    }
+    case 'doc-delete': {
+      const file=Server.db.files.find(f=>f.id===a&&f.spaceId===sp.activeId);if(!file){toast('Document not found.','x');break;}
+      openModal({title:'Delete this document?',lede:'This removes the shared file from this Space. This action cannot be undone.',actions:[{t:'Keep document',cls:'btn--soft',a:'close-modal'},{t:'Delete document',cls:'btn--danger',a:'noop'}]});
+      $('#modal').querySelector('[data-action="noop"]').addEventListener('click',async()=>{const {error:storageError}=await supabaseClient.storage.from('ming-space-media').remove([file.storagePath]);if(storageError){closeModal();toast(storageError.message||'File could not be removed from storage.','x');return;}const {error}=await supabaseClient.rpc('delete_ming_space_file',{p_file_id:file.id});closeModal();if(error){toast(error.message||'File storage was removed but its record could not be deleted. Contact a Space admin.','x');return;}Server.db.files=Server.db.files.filter(f=>f.id!==file.id);renderSpace();toast('Document deleted','check');});break;
     }
 
     /* Business Space Open Roles */
