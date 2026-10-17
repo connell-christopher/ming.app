@@ -1506,3 +1506,13 @@
 #screen-space .sp-friendly-modal footer button{padding:10px 17px;border:1px solid var(--border);border-radius:11px;background:var(--surface-2);color:var(--text);font:inherit;font-size:11px;font-weight:750}
 @keyframes sp-friendly-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){#screen-space .sp-friendly-modal{animation:none}}
+
+
+/* Casual Spaces-only Quiet Mode status; messaging and receipt behaviour remain unchanged. */
+#screen-space .sp-casual-status{display:flex;align-items:flex-start;gap:10px;padding:12px;margin-top:10px;border:1px solid var(--border);border-radius:15px;background:var(--surface-2)}
+#screen-space .sp-casual-status.is-quiet{border-color:color-mix(in srgb,#8B3543 42%,var(--border));background:linear-gradient(135deg,color-mix(in srgb,#8B3543 10%,var(--surface-2)),var(--surface-2))}
+#screen-space .sp-casual-status__icon{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:11px;background:color-mix(in srgb,#B77A80 16%,var(--surface))}
+#screen-space .sp-casual-status__icon .sp-dna-emoji{width:22px;height:22px}
+#screen-space .sp-casual-status>div{display:grid;gap:4px;min-width:0}
+#screen-space .sp-casual-status b{font-size:12px;line-height:1.35}
+#screen-space .sp-casual-status>div>span{color:var(--muted);font-size:10px;line-height:1.5}
