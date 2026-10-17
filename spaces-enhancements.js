@@ -39,13 +39,58 @@
     ['sun', 'Sunny'], ['good', 'Good'], ['rain', 'Low-key'], ['fire', 'Energised'], ['bubbles', 'Need calm']
   ];
   const DARES = [
-    'Send the most dramatic voice note you can in 10 seconds.',
-    'Describe your day using only three emojis.',
-    'Give someone in this Space a ridiculously specific compliment.',
-    'Invent a new holiday and explain how everyone celebrates it.',
-    'Share a harmless hot take and defend it for one minute.',
-    'Create a meme caption for the last thing you ate.',
-    'Talk like a movie trailer narrator for your next three messages.'
+    '🎭 DRAMA MODE — Describe your last meal like it was the season finale of a hit series.',
+    '🫠 EMOJI ONLY — Explain your current mood using exactly five emojis. No words.',
+    '🏆 HYPE PERSON — Give someone in this Space an outrageously specific compliment.',
+    '🧠 BIG BRAIN — Invent a completely unnecessary life hack and pitch it like a billionaire.',
+    '🌶️ HOT TAKE — Drop a harmless hot take and defend it in three short messages.',
+    '🎬 TRAILER VOICE — Narrate your next three messages like a blockbuster movie trailer.',
+    '🕺 MAIN CHARACTER — Give your day a dramatic movie title and tagline.',
+    '🧪 INVENTOR — Create a new holiday. Name it, explain the tradition, sell us on it.',
+    '🍿 PLOT TWIST — Tell a tiny true story from your day with one unexpected twist.',
+    '🎤 PRESS CONFERENCE — Answer the next question like a celebrity after a scandal involving spilled juice.',
+    '🦸 SUPERPOWER — Give the person above you a ridiculous superpower and a hilarious weakness.',
+    '📢 BREAKING NEWS — Announce what you last ate as a world-changing news alert.',
+    '🧑‍⚖️ COURT IS IN SESSION — Defend a silly opinion like your future depends on it.',
+    '🧙 PROPHECY — Predict something hilariously specific that will happen in this Space.',
+    '💅 AWARD SPEECH — Thank three completely unexpected things in a 20-second award speech.',
+    '🧩 TWO TRUTHS — Share two true things and one believable lie; let the room guess.',
+    '🎨 WORD ART — Describe your favourite colour without naming it.',
+    '📱 AUTOCORRECT CHAOS — Write a sentence with your eyes closed, then share the result.',
+    '🐸 CREATURE ENERGY — Choose an animal that matches your vibe and defend your choice.',
+    '💬 THE REBRAND — Rename yourself for the next five minutes based on your current mood.',
+    '🎵 SOUNDTRACK — Pick a song title that describes today; no lyrics needed.',
+    '🧳 TIME TRAVEL — Send one piece of advice to your past self in exactly seven words.',
+    '🍳 CHEF CHAOS — Invent a cursed food combination and give it a five-star review.',
+    '🪞 MIRROR MODE — Describe yourself like a product listing with three honest features.',
+    '🚀 PITCH IT — Sell the group an imaginary product nobody needs but everybody wants.',
+    '🧊 UNPOPULAR OPINION — Share a harmless preference you will defend forever.',
+    '🧸 NOSTALGIA — Name a childhood thing you thought was elite and explain why.',
+    '🌀 RANDOM LORE — Invent a completely fake fact about yourself that sounds almost true.',
+    '📸 CAPTION THIS — Describe the last photo you took as if it belongs in a museum.',
+    '👑 ROYAL DECREE — Make one harmless new rule for this Space for the next ten minutes.'
+  ];
+  const ROASTS = [
+    name => name + ' has the confidence of a phone on 1% with no charger in sight.',
+    name => name + ' would open 37 tabs to avoid one simple decision.',
+    name => name + ' gives “I’ll be ready in five minutes” a completely new meaning.',
+    name => name + ' could turn a quick story into a limited series with bonus episodes.',
+    name => name + ' has premium main-character energy and free-trial planning skills.',
+    name => name + ' would lose a staring contest with a front camera.',
+    name => name + ' brings loading-screen energy to a room full of fast Wi-Fi.',
+    name => name + ' could overthink a yes-or-no question into a documentary.',
+    name => name + ' is the human version of “update available — remind me later.”',
+    name => name + ' has 4K confidence and 144p directions.',
+    name => name + ' would ask the GPS for emotional support.',
+    name => name + ' treats a small inconvenience like a season finale.',
+    name => name + ' has the organisation style of 19 screenshots named “IMG_0001”.',
+    name => name + ' would bring vibes to a group project and call it leadership.',
+    name => name + ' is proof that chaos can have excellent fashion sense.',
+    name => name + ' could make choosing a snack feel like a board meeting.',
+    name => name + ' has a PhD in “I was just about to do that.”',
+    name => name + ' would put “professional napper” on a résumé and get shortlisted.',
+    name => name + ' has the timing of a plot twist and the memory of a goldfish.',
+    name => name + ' is a walking notification that somehow nobody wants to dismiss.'
   ];
 
   function activeScreen() { return document.querySelector(ROOT); }
@@ -148,7 +193,7 @@
       business: { title: 'BOARD MODE', desc: 'Keep a goal and deadline close.', buttons: toolButton('goal','Set pinned goal','target') + toolButton('deadline','Set deadline','timer') },
       friendly: { title: 'VIBE CHECK', desc: 'Save your mood to your account for this Space.', buttons: toolButton('mood','Choose mood','hands') + toolButton('joke','Save an inside joke','laugh') },
       casual: { title: 'NO PRESSURE', desc: 'While this Casual Space is open, pause in-app notification popups and sounds. Messages and read receipts stay normal.', buttons: toolButton('quiet', read('quiet', false) ? 'Turn Quiet Mode off' : 'Turn Quiet Mode on', 'cloud') + toolButton('reset-quiet','Reset preference','leaf') },
-      silly: { title: 'CHAOS ENGINE', desc: 'A fresh prompt whenever the room needs chaos.', buttons: toolButton('dare','Generate a dare','dice') + toolButton('meme-vote','Vote meme of the day','trophy') },
+      silly: { title: 'CHAOS ENGINE', desc: 'Spin the wheel. Choose friendly chaos. Make this Space legendary.', buttons: toolButton('dare','Spin Chaos Roulette','dice') + toolButton('roast','Playful Auto-Roast','laugh') + toolButton('meme-vote','Vote meme of the day','trophy') },
       romantic: { title: 'FOR TWO', desc: 'Little gestures and a shared-moment countdown.', buttons: toolButton('thinking','Thinking of you','heart') + toolButton('love-note','Write a love letter','letter') + toolButton('rom-countdown','Set countdown','moon') },
       marketplace: { title: 'DEAL STUDIO', desc: 'Work out an offer before you send it in chat.', buttons: toolButton('haggle','Open haggle slider','handshake') + toolButton('claim-note','Save a claim reminder','bag') }
     }[nature];
@@ -177,7 +222,14 @@
         (jokes.length ? '<span>' + jokes.length + ' inside joke' + (jokes.length === 1 ? '' : 's') + ' saved to your account</span>' : '') + '</div>';
     }
     if (nature === 'casual') return '<div class="sp-dna-saved sp-casual-status' + (read('quiet', false) ? ' is-quiet' : '') + '"><span class="sp-casual-status__icon" aria-hidden="true">' + brandIcon(read('quiet', false) ? 'moon' : 'cloud') + '</span><div><b>' + (read('quiet', false) ? 'Quiet Mode is on' : 'Quiet Mode is off') + '</b><span>' + (read('quiet', false) ? 'While this Space is open, in-app notification popups and sounds are paused. Notifications remain in your inbox; messages and read receipts stay normal.' : 'Turn it on to pause in-app notification popups and sounds while this Space is open.') + '</span></div></div>';
-    if (nature === 'silly') return '<div class="sp-dna-saved"><span>' + esc(read('dare', 'Ready for a little chaos?')) + '</span></div>';
+    if (nature === 'silly') {
+      const dare = read('dare', '');
+      const roast = read('roast', '');
+      return '<div class="sp-dna-silly-feed">' +
+        '<div class="sp-dna-silly-card sp-dna-silly-card--dare"><span class="sp-dna-silly-card__label">🎲 YOUR LATEST CHAOS</span><p>' + esc(dare || 'The wheel is waiting. Spin it and give the room a story to tell.') + '</p></div>' +
+        (roast ? '<div class="sp-dna-silly-card sp-dna-silly-card--roast"><span class="sp-dna-silly-card__label">🔥 FRIENDLY FIRE</span><p>' + esc(roast) + '</p><small>Just for laughs — keep it kind.</small></div>' : '') +
+        '</div>';
+    }
     if (nature === 'romantic') {
       const date = read('rom-date', '');
       return '<div class="sp-dna-saved"><span class="sp-dna-saved-icon">' + brandIcon(date ? 'moon' : 'heart') + '</span><span>' + (date ? 'Countdown: ' + esc(date) : 'Your little rituals, saved privately to your account.') + '</span></div>';
@@ -443,8 +495,27 @@
         if (write('quiet', false)) announce('Quiet Mode reset to off for this Space.');
         break;
       case 'dare': {
-        const dare = DARES[Math.floor(Math.random() * DARES.length)];
-        write('dare', dare); announce(dare); break;
+        const previous = Number(read('dare-index', -1));
+        let index = Math.floor(Math.random() * DARES.length);
+        if (DARES.length > 1 && index === previous) index = (index + 1 + Math.floor(Math.random() * (DARES.length - 1))) % DARES.length;
+        const dare = DARES[index];
+        write('dare-index', index);
+        write('dare', dare);
+        announce('🎲 Chaos Roulette: ' + dare);
+        break;
+      }
+      case 'roast': {
+        const target = ask('Who is volunteering for a friendly roast? Enter their name or nickname. Keep it playful and get their okay first:');
+        if (target === null || !target) return;
+        const name = target.slice(0, 40);
+        const previous = Number(read('roast-index', -1));
+        let index = Math.floor(Math.random() * ROASTS.length);
+        if (ROASTS.length > 1 && index === previous) index = (index + 1 + Math.floor(Math.random() * (ROASTS.length - 1))) % ROASTS.length;
+        const roast = ROASTS[index](name);
+        write('roast-index', index);
+        write('roast', roast);
+        announce('🔥 Friendly roast ready: ' + roast);
+        break;
       }
       case 'meme-vote': {
         const v = ask('Vote for today’s funniest meme. Enter the member name or meme description:');
