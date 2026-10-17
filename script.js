@@ -6791,7 +6791,7 @@ function viewAvatar() {
   if (!currentUser.avatarUrl) return;
   openModal({
     title: 'Your photo',
-    fields: `<div style="text-align:center"><img src="${esc(currentUser.avatarUrl)}" alt="Your profile photo" style="display:block;width:min(100%,360px);height:auto;aspect-ratio:1;object-fit:cover;object-position:center;border-radius:50%;clip-path:circle(50% at 50% 50%);margin:0 auto"></div>`,
+    fields: `<div style="width:min(100%,360px);aspect-ratio:1;overflow:hidden;border-radius:50%;clip-path:circle(50% at 50% 50%);margin:0 auto"><img src="${esc(currentUser.avatarUrl)}" alt="Your profile photo" style="display:block;width:100%;height:100%;min-width:100%;min-height:100%;max-width:none;max-height:none;object-fit:cover;object-position:center;border-radius:50%"></div>`,
     actions: [
       { t: 'Edit photo', cls: 'btn--soft', a: 'pick-avatar' },
       { t: 'Close', cls: 'btn--primary', a: 'close-modal' }
