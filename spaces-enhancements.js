@@ -590,7 +590,11 @@
     renderTools();
     if (activeSpaceId()) { lastSpaceId = activeSpaceId(); loadDnaState(); }
     document.addEventListener('click', function (event) {
-      if (event.target.closest('#screen-space [data-sp]')) setTimeout(refreshPanel, 80);
+      // Romantic Space tabs and controls render locally; do not schedule an
+      // extra delayed panel rebuild after every tap in this Space.
+      if (activeNature() !== 'romantic' && event.target.closest('#screen-space [data-sp]')) {
+        setTimeout(refreshPanel, 80);
+      }
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once:true});
