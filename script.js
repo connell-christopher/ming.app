@@ -8831,20 +8831,6 @@ const NATURES = {
     ],
     tabs: [['now', 'Now', 'sp-bolt'], ['around', 'Around', 'pin'], ['people', 'People', 'users']]
   },
-  silly: {
-    label: 'Silly', eyebrow: 'Leave dignity at the door', icon: 'sp-game', hue: 14,
-    blurb: 'Deliberately unserious. Prompts, stickers, games and a scoreboard for your people.',
-    signature: 'The chaos room',
-    promise: 'A safe little corner where being ridiculous is the whole point.',
-    features: ['Daily prompts', 'Sticker wall', 'Mini games', 'Friendly scoreboard'],
-    swatch: 'linear-gradient(135deg,#0A0908,#302016 56%,#D7AC68)',
-    palettes: [
-      { name:'Eclipse Gold', colors:['#0B0908','#21170F','#F4C879'] },
-      { name:'Goblin Mint', colors:['#080D0B','#14231C','#8EE6C7'] },
-      { name:'Cosmic Plum', colors:['#0C0910','#21142B','#DDA0FF'] }
-    ],
-    tabs: [['chaos', 'Chaos', 'sp-bolt'], ['wall', 'Wall', 'sp-grid'], ['game', 'Game', 'sp-game'], ['people', 'People', 'users']]
-  },
   romantic: {
     label: 'Romantic', eyebrow: 'Just the two of you', icon: 'sp-heart2', hue: 350,
     blurb: 'A private world for two — memories, plans and lists that never become public.',
@@ -8927,7 +8913,7 @@ async function loadSpacesFromDatabase() {
 const mySpaces = () => Server.db.members
   .filter(m => m.userId === Server.session.userId)
   .map(m => spaceById(m.spaceId))
-  .filter(Boolean)
+  .filter(s => s && s.nature !== 'silly')
   .sort((a, b) => b.createdAt - a.createdAt);
 const contentOf = (spaceId, kind) => Server.db.content.filter(c => c.spaceId === spaceId && c.kind === kind);
 const money = (n, asset = 'USDT') => (asset === 'BTC' ? n.toFixed(5) : n.toFixed(2)) + ' ' + asset;
@@ -9225,7 +9211,6 @@ function openWizard(nature = null) {
   if (nature === 'business') sp.wizard.maxMembers = 100;
   if (nature === 'friendly') sp.wizard.maxMembers = 50;
   if (nature === 'casual') { sp.wizard.maxMembers = 30; sp.wizard.ttlDays = 1; }
-  if (nature === 'silly') sp.wizard.maxMembers = 40;
   if (nature === 'romantic') { sp.wizard.maxMembers = 2; sp.wizard.privacy = 'private'; sp.wizard.requireApproval = true; }
   if (nature === 'marketplace') sp.wizard.maxMembers = 100;
   renderWizard();
@@ -9517,6 +9502,7 @@ function openJoinSheet() {
 function openSpace(id, tab) {
   const s = spaceById(id);
   if (!s) return;
+  if (s.nature === 'silly') { toast('Silly Spaces are no longer available.'); return; }
   sp.activeId = id;
   sp.tab = tab || NATURES[s.nature].tabs[0][0];
   const screen = $('#screen-space');
