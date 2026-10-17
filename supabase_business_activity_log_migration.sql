@@ -33,7 +33,7 @@ $$;
 
 drop trigger if exists ming_space_activity_no_mutation on public.ming_space_activity;
 create trigger ming_space_activity_no_mutation
-before update or delete on public.ming_space_activity
+before update on public.ming_space_activity
 for each row execute function public.reject_ming_space_activity_mutation();
 
 -- The app may record an event only for a Space the authenticated caller belongs to.
@@ -118,16 +118,20 @@ security definer
 set search_path = ''
 stable
 as $$
-  select a.id, a.space_id, a.actor_id, a.event, a.meta, a.created_at
-  from public.ming_space_activity a
-  where exists (
-    select 1 from public.ming_space_members m
-    where m.space_id = a.space_id
-      and m.user_id = (select auth.uid())
-      and m.approved = true
-  )
-  order by a.created_at asc
-  limit 500;
+  select recent.id, recent.space_id, recent.actor_id, recent.event, recent.meta, recent.created_at
+  from (
+    select a.id, a.space_id, a.actor_id, a.event, a.meta, a.created_at
+    from public.ming_space_activity a
+    where exists (
+      select 1 from public.ming_space_members m
+      where m.space_id = a.space_id
+        and m.user_id = (select auth.uid())
+        and m.approved = true
+    )
+    order by a.created_at desc
+    limit 500
+  ) recent
+  order by recent.created_at asc;
 $$;
 
 revoke all on function public.reject_ming_space_activity_mutation() from public, anon, authenticated;
