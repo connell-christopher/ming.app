@@ -9714,12 +9714,27 @@ async function openRoleApplicants(roleId) {
     skillsExperience:a.skills_experience || '', portfolioUrl:a.portfolio_url || '',
     message:a.message || '', status:a.status, createdAt:a.created_at
   }));
+  const applicantProfiles = new Map();
+  const profileIds = [...new Set(applications.map(a => a.applicantId).filter(id => id && id !== currentUser.id && !mingConnectionProfiles.has(id)))];
+  if (profileIds.length) {
+    const { data: profiles, error: profileError } = await supabaseClient
+      .from('profiles').select('id, username, display_name, avatar_url').in('id', profileIds);
+    if (!profileError) (profiles || []).forEach(profile => {
+      const displayName = profile.display_name || '';
+      applicantProfiles.set(profile.id, {
+        id:profile.id, name:displayName, short:displayName.split(' ')[0] || '',
+        username:profile.username ? '@' + profile.username.replace(/^@/, '') : '',
+        avatarUrl:profile.avatar_url || '', bio:'', tag:'', interests:[], tags:[], activity:'',
+        hue:0, status:null, visitor:false
+      });
+    });
+  }
   const statuses = [['submitted','Submitted'],['reviewing','Reviewing'],['shortlisted','Shortlisted'],['interview','Interview'],['rejected','Rejected'],['hired','Hired']];
   openSheet({
     title: 'Applicants · ' + role.title,
     sub: applications.length + (applications.length === 1 ? ' application' : ' applications'),
     body: applications.length ? applications.map(a => {
-      const person = personOf(a.applicantId);
+      const person = applicantProfiles.get(a.applicantId) || personOf(a.applicantId);
       return `<article class="sp-card sp-role-applicant">
         <div class="sp-role-applicant__head">${avatar(person,38)}<div class="sp-role-applicant__identity"><strong>${esc(person.short || person.name || person.username || 'Tweaklr member')}</strong><small>${esc(person.username || '')} · ${esc(timeAgo(new Date(a.createdAt).getTime()))}</small></div><span class="sp-role-status">${esc(a.status)}</span></div>
         <div class="sp-role-applicant__section"><b>Introduction</b><p>${esc(a.introduction)}</p></div>
