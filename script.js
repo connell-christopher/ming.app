@@ -8837,11 +8837,11 @@ const NATURES = {
     signature: 'The chaos room',
     promise: 'A safe little corner where being ridiculous is the whole point.',
     features: ['Daily prompts', 'Sticker wall', 'Mini games', 'Friendly scoreboard'],
-    swatch: 'linear-gradient(135deg,#FFF0C9,#FF9C6D 54%,#F04D30)',
+    swatch: 'linear-gradient(135deg,#0A0908,#302016 56%,#D7AC68)',
     palettes: [
-      { name:'Banana', colors:['#FFF6B7','#FFB86B','#F05A47'] },
-      { name:'Bubblegum', colors:['#FFE7F1','#FF91C2','#7A4E86'] },
-      { name:'Arcade', colors:['#E8FFF9','#70E0C2','#5144A8'] }
+      { name:'Eclipse Gold', colors:['#0B0908','#21170F','#F4C879'] },
+      { name:'Goblin Mint', colors:['#080D0B','#14231C','#8EE6C7'] },
+      { name:'Cosmic Plum', colors:['#0C0910','#21142B','#DDA0FF'] }
     ],
     tabs: [['chaos', 'Chaos', 'sp-bolt'], ['wall', 'Wall', 'sp-grid'], ['game', 'Game', 'sp-game'], ['people', 'People', 'users']]
   },
