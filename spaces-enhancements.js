@@ -194,7 +194,6 @@
       friendly: { title: 'VIBE CHECK', desc: 'Save your mood to your account for this Space.', buttons: toolButton('mood','Choose mood','hands') + toolButton('joke','Save an inside joke','laugh') },
       casual: { title: 'NO PRESSURE', desc: 'While this Casual Space is open, pause in-app notification popups and sounds. Messages and read receipts stay normal.', buttons: toolButton('quiet', read('quiet', false) ? 'Turn Quiet Mode off' : 'Turn Quiet Mode on', 'cloud') + toolButton('reset-quiet','Reset preference','leaf') },
       silly: { title: 'CHAOS ENGINE', desc: 'Spin the wheel. Choose friendly chaos. Make this Space legendary.', buttons: toolButton('dare','Spin Chaos Roulette','dice') + toolButton('roast','Playful Auto-Roast','laugh') + toolButton('meme-vote','Vote meme of the day','trophy') },
-      romantic: { title: 'FOR TWO', desc: 'Little gestures and a shared-moment countdown.', buttons: toolButton('thinking','Thinking of you','heart') + toolButton('love-note','Write a love letter','letter') + toolButton('rom-countdown','Set countdown','moon') },
       marketplace: { title: 'DEAL STUDIO', desc: 'Work out an offer before you send it in chat.', buttons: toolButton('haggle','Open haggle slider','handshake') + toolButton('claim-note','Save a claim reminder','bag') }
     }[nature];
     if (!config) { panel.hidden = true; return; }
