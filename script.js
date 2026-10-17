@@ -8274,12 +8274,22 @@ const Server = (() => {
     return { ok:true, data:{ file:mapped } };
   }
 
-  async function openSpaceFile(fileId) {
+  async function openSpaceFile(fileId, forceDownload = false) {
     const file = db.files.find(f => f.id === fileId);
     if (!file) return;
-    const { data, error } = await supabaseClient.storage.from('ming-space-media').createSignedUrl(file.storagePath, 300);
-    if (error || !data?.signedUrl) { toast(error?.message || 'File could not be opened.', 'x'); return; }
-    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    // Open the browsing tab during the trusted click, before awaiting Supabase,
+    // so mobile browsers are less likely to block the signed-file destination.
+    const tab = window.open('about:blank', '_blank');
+    try { if (tab) tab.opener = null; } catch (_) {}
+    const options = forceDownload ? { download: file.displayName || file.filename || true } : undefined;
+    const { data, error } = await supabaseClient.storage.from('ming-space-media').createSignedUrl(file.storagePath, 300, options);
+    if (error || !data?.signedUrl) {
+      if (tab) tab.close();
+      toast(error?.message || 'File could not be opened.', 'x');
+      return;
+    }
+    if (tab) tab.location.href = data.signedUrl;
+    else toast('Your browser blocked the new tab. Allow pop-ups for Tweaklr and try again.', 'x');
   }
 
   async function load() {
@@ -9559,7 +9569,7 @@ VIEWS.business.files = s => {
     const size = Number(f.sizeBytes || 0), sizeLabel = size >= 1048576 ? (size/1048576).toFixed(1)+' MB' : Math.max(1,Math.round(size/1024))+' KB';
     const category = f.category || 'General', date = f.createdAt ? new Date(f.createdAt).toLocaleDateString([], {day:'numeric',month:'short',year:'numeric'}) : 'Date unavailable';
     return '<article class="sp-card sp-doc-card" data-doc-card data-doc-name="' + esc((title+' '+type+' '+category).toLowerCase()) + '" data-doc-category="' + esc(category) + '">' +
-      '<button type="button" class="sp-doc-open" data-sp="file-open:' + f.id + '" aria-label="Open ' + esc(title) + '"><span class="sp-doc-icon">' + icon(type.startsWith('image/')?'sp-camera':type.startsWith('video/')?'sp-bolt':'sp-doc') + '</span><span class="sp-doc-copy"><b>' + esc(title) + '</b><small>' + esc(category) + ' · ' + esc(type) + '</small><small>' + esc(sizeLabel) + ' · ' + esc(date) + '</small><small>Shared by ' + esc(nameOf(f.ownerId)) + '</small></span><span class="sp-doc-openmark">' + icon('chev') + '</span></button><div class="sp-doc-actions"><button type="button" class="btn btn--soft btn--sm" data-sp="file-open:' + f.id + '">Open / download</button>' +
+      '<button type="button" class="sp-doc-open" data-sp="file-open:' + f.id + '" aria-label="Open ' + esc(title) + '"><span class="sp-doc-icon">' + icon(type.startsWith('image/')?'sp-camera':type.startsWith('video/')?'sp-bolt':'sp-doc') + '</span><span class="sp-doc-copy"><b>' + esc(title) + '</b><small>' + esc(category) + ' · ' + esc(type) + '</small><small>' + esc(sizeLabel) + ' · ' + esc(date) + '</small><small>Shared by ' + esc(nameOf(f.ownerId)) + '</small></span><span class="sp-doc-openmark">' + icon('chev') + '</span></button><div class="sp-doc-actions"><button type="button" class="btn btn--soft btn--sm" data-sp="file-open:' + f.id + '">Open</button><button type="button" class="btn btn--soft btn--sm" data-sp="file-download:' + f.id + '">Download</button>' +
       ((canManage || f.ownerId === currentUser.id) ? '<button type="button" class="btn btn--soft btn--sm" data-sp="doc-rename:' + f.id + '">Rename</button><button type="button" class="btn btn--soft btn--sm" data-sp="doc-category:' + f.id + '">Category</button>' : '') +
       (f.ownerId === currentUser.id ? '<button type="button" class="btn btn--ghost btn--sm sp-doc-delete" data-sp="doc-delete:' + f.id + '">Delete</button>' : '') + '</div></article>';
   }).join('');
@@ -10679,6 +10689,7 @@ document.addEventListener('click', async e => {
       closeSheet();await loadSpacesFromDatabase();if(sp.activeId===spaceId){sp.tab='files';renderSpace();}break;
     }
     case 'file-open': await openSpaceFile(a); break;
+    case 'file-download': await openSpaceFile(a, true); break;
     case 'doc-rename': openDocumentMetaSheet(a,'name'); break;
     case 'doc-category': openDocumentMetaSheet(a,'category'); break;
     case 'doc-meta-cancel': closeSheet(); break;
