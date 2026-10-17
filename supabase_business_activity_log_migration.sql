@@ -92,6 +92,14 @@ begin
       v_meta := '{}'::jsonb;
     when 'dispute.evidence_added' then
       v_meta := jsonb_build_object('kind', left(coalesce(p_meta->>'kind', ''), 30));
+    when 'document.uploaded' then
+      v_meta := '{}'::jsonb;
+    when 'document.renamed' then
+      v_meta := '{}'::jsonb;
+    when 'document.categorized' then
+      v_meta := '{}'::jsonb;
+    when 'document.deleted' then
+      v_meta := '{}'::jsonb;
     else
       v_meta := '{}'::jsonb;
   end case;
