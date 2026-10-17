@@ -6171,7 +6171,7 @@ function renderSearch(mode, q = '') {
     ? searchDiscoverableSpaces
     : Server.db.spaces;
   const rs = spaceSearchSource.filter(s => {
-    if (!s.discoverable || (s.expiresAt && s.expiresAt <= now())) return false;
+    if (s.nature === 'silly' || !s.discoverable || (s.expiresAt && s.expiresAt <= now())) return false;
     return [s.name, s.description, s.nature, NATURES[s.nature]?.label]
       .filter(Boolean).join(' ').toLowerCase().includes(t);
   });
