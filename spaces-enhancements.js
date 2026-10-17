@@ -242,14 +242,16 @@
     }
     const close = () => modal.remove();
     modal.addEventListener('click', event => {
-      if (event.target === modal || event.target.closest('[data-editor-cancel]')) close();
-      if (event.target.closest('[data-editor-clear]')) {
+      const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+      if (!target) return;
+      if (target === modal || target.closest('[data-editor-cancel]')) { close(); return; }
+      if (target.closest('[data-editor-clear]')) {
         write(isGoal ? 'goal' : 'deadline', '');
         close();
         refreshPanel();
         announce(isGoal ? 'Pinned goal cleared.' : 'Deadline cleared.');
       }
-      if (event.target.closest('[data-editor-save]')) {
+      if (target.closest('[data-editor-save]')) {
         const error = modal.querySelector('#sp-dna-editor-error');
         error.hidden = true;
         if (isGoal) {
@@ -284,7 +286,7 @@
           announce('Deadline saved to your Space.');
         }
       }
-    });
+    }, true);
     modal.addEventListener('keydown', event => {
       if (event.key === 'Escape') close();
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') modal.querySelector('[data-editor-save]')?.click();
