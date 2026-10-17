@@ -48,7 +48,7 @@
   const esc = value => String(value == null ? '' : value).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const currentSpace = () => typeof spaceById === 'function' ? spaceById(sp.activeId) : null;
   const isSillyOpen = () => !!(document.querySelector('#screen-space[data-nature="silly"]') && currentSpace()?.nature === 'silly');
-  const contents = (spaceId, kind) => Server.db.content.filter(row => row.spaceId === spaceId && row.kind === kind);
+  const contents = (spaceId, kind) => Server.db.content.filter(row => row.spaceId === spaceId && (row.kind === kind || (row.kind === 'answer' && row.sillyType === kind)));
   const ukHour = () => Number(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London',hour:'2-digit',hourCycle:'h23'}).format(new Date()));
   const midnight = () => ukHour() >= 23 || ukHour() < 4;
   const aliasFor = spaceId => {
@@ -178,7 +178,7 @@
       if (modeNow === 'roast' && /\b(my|your|their) (face|body|weight|skin|race|religion|disability)\b/i.test(message)) { toast('Roast the chaos, not somebody’s body or identity.'); return; }
       const payload = {text:message,alias:aliasFor(spaceId),mode:modeNow,at:Date.now(),lols:0,legendary:false,expiresAt:new Date(Date.now()+86400000).toISOString()};
       const button=form.querySelector('button[type="submit"]'); button.disabled=true; button.textContent='Releasing…';
-      const result=await Server.submit('space.post',{spaceId,kind:'silly_post',payload});
+      const result=await Server.submit('space.post',{spaceId,kind:'answer',payload:{...payload,sillyType:'silly_post'}});
       button.disabled=false; button.textContent='Release the goblin ↗';
       if (!result?.ok) { toast(result?.error || 'Could not post. Check your connection and Space permissions.'); return; }
       boop(); scatter(button); root.dataset.sillyDare='';
@@ -187,7 +187,7 @@
   }
 
   async function createContent(spaceId,kind,payload) {
-    const result = await Server.submit('space.post',{spaceId,kind,payload});
+    const result = await Server.submit('space.post',{spaceId,kind:'answer',payload:{...payload,sillyType:kind}});
     if (!result?.ok) { toast(result?.error || 'Could not save that chaos.'); return false; }
     return true;
   }
