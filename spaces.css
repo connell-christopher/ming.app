@@ -1516,3 +1516,16 @@
 #screen-space .sp-casual-status>div{display:grid;gap:4px;min-width:0}
 #screen-space .sp-casual-status b{font-size:12px;line-height:1.35}
 #screen-space .sp-casual-status>div>span{color:var(--muted);font-size:10px;line-height:1.5}
+
+
+/* Silly Spaces Chaos Engine — scoped cards for roulette prompts and playful roasts. */
+#screen-space .sp-dna-silly-feed{display:grid;gap:9px;margin-top:11px}
+#screen-space .sp-dna-silly-card{position:relative;overflow:hidden;padding:12px 13px;border:1px solid color-mix(in srgb,var(--sp-accent-2,var(--coffee)) 24%,var(--border));border-radius:15px;background:linear-gradient(135deg,color-mix(in srgb,var(--surface-2) 82%,#8B3543 7%),var(--surface-2));}
+#screen-space .sp-dna-silly-card--dare{border-color:color-mix(in srgb,#B77A80 38%,var(--border))}
+#screen-space .sp-dna-silly-card--roast{background:linear-gradient(135deg,color-mix(in srgb,var(--surface-2) 85%,#F1D2AE 10%),var(--surface-2))}
+#screen-space .sp-dna-silly-card__label{display:block;margin-bottom:6px;color:var(--sp-accent-2,var(--coffee));font-size:9px;font-weight:850;letter-spacing:.12em}
+#screen-space .sp-dna-silly-card p{margin:0;color:var(--text);font-size:12px;font-weight:650;line-height:1.55;overflow-wrap:anywhere}
+#screen-space .sp-dna-silly-card small{display:block;margin-top:7px;color:var(--muted);font-size:10px;line-height:1.4}
+#screen-space .sp-dna-panel[data-nature="silly"] .sp-dna-action{transition:transform .18s ease,border-color .18s ease,background .18s ease}
+#screen-space .sp-dna-panel[data-nature="silly"] .sp-dna-action:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--sp-accent-2,var(--coffee)) 48%,var(--border));background:color-mix(in srgb,var(--surface-2) 86%,#8B3543 8%)}
+@media(prefers-reduced-motion:reduce){#screen-space .sp-dna-panel[data-nature="silly"] .sp-dna-action{transition:none}}
