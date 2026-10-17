@@ -99,13 +99,14 @@
       screen.appendChild(dot); setTimeout(()=>dot.remove(),720);
     }
   }
-  function isExpired(post) {
-    if (Number(post.lols || 0) >= 20 || post.legendary) return false;
+  function isExpired(post, spaceId) {
+    const lolCount = reactions(spaceId, post.id).filter(r => r.reaction === 'lol').length;
+    if (lolCount >= 20 || Number(post.lols || 0) >= 20 || post.legendary) return false;
     return Date.now() - Number(post.at || post.createdAt || Date.now()) >= 86400000;
   }
   function visiblePosts(spaceId, mode) {
     return contents(spaceId,'silly_post')
-      .filter(post => !isExpired(post) && (mode === 'chaos' || post.mode === mode))
+      .filter(post => !isExpired(post, spaceId) && (mode === 'chaos' || post.mode === mode))
       .sort((a,b) => {
         if (mode === 'roast') return Number(b.lols||0)-Number(a.lols||0) || Number(b.at||0)-Number(a.at||0);
         return Number(b.at||0)-Number(a.at||0);
@@ -162,6 +163,7 @@
     root.innerHTML = header;
     const text = root.querySelector('#silly-post-text'), count = root.querySelector('#silly-char-count');
     text?.addEventListener('input',()=>{if(count)count.textContent=text.value.length+' / '+text.maxLength;});
+    root.querySelector('#silly-filter-toggle')?.addEventListener('change',event=>{root.dataset.sillyFilter=event.target.checked?'on':'off';});
     root.querySelectorAll('.silly-particle').forEach(p=>p.addEventListener('click',()=>{boop();scatter(p);p.classList.add('is-giggling');setTimeout(()=>p.classList.remove('is-giggling'),700);}));
     const form = root.querySelector('#silly-post-form');
     form?.addEventListener('submit', async event=>{
