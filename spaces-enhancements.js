@@ -360,12 +360,13 @@
     refreshPanel();
   }
   document.addEventListener('click', function (event) {
-    const btn = event.target.closest('[data-sp-dna]');
+    const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+    const btn = target?.closest('[data-sp-dna]');
     if (!btn || !document.querySelector(ROOT + ' #sp-dna-panel')) return;
     event.preventDefault();
     event.stopPropagation();
     handle(btn.dataset.spDna);
-  }, true);
+  });
 
   // Observe only the Space header; existing app renderers remain untouched.
   function start() {
