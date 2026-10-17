@@ -194,7 +194,7 @@
       friendly: { title: 'VIBE CHECK', desc: 'Save your mood to your account for this Space.', buttons: toolButton('mood','Choose mood','hands') + toolButton('joke','Save an inside joke','laugh') },
       casual: { title: 'NO PRESSURE', desc: 'While this Casual Space is open, pause in-app notification popups and sounds. Messages and read receipts stay normal.', buttons: toolButton('quiet', read('quiet', false) ? 'Turn Quiet Mode off' : 'Turn Quiet Mode on', 'cloud') + toolButton('reset-quiet','Reset preference','leaf') },
       silly: { title: 'CHAOS ENGINE', desc: 'Spin the wheel. Choose friendly chaos. Make this Space legendary.', buttons: toolButton('dare','Spin Chaos Roulette','dice') + toolButton('roast','Playful Auto-Roast','laugh') + toolButton('meme-vote','Vote meme of the day','trophy') },
-      marketplace: { title: 'DEAL STUDIO', desc: 'Work out an offer before you send it in chat.', buttons: toolButton('haggle','Open haggle slider','handshake') + toolButton('claim-note','Save a claim reminder','bag') }
+      marketplace: { title: 'DEAL STUDIO', desc: 'Build an offer, prepare your message, and keep track of the deal.', buttons: toolButton('haggle','Create an offer','handshake') + toolButton('claim-note','Track an item','bag') }
     }[nature];
     if (!config) { panel.hidden = true; return; }
     panel.hidden = false;
@@ -235,7 +235,20 @@
     }
     if (nature === 'marketplace') {
       const claim = read('claim', '');
-      return '<div class="sp-dna-saved"><span class="sp-dna-saved-icon">' + brandIcon('bag') + '</span><span>' + (claim ? 'Reminder saved: ' + esc(claim) : 'Compare an offer before you send it.') + '</span></div>';
+      const offers = read('offers', []);
+      const claimText = typeof claim === 'string' ? claim : (claim && claim.item ? claim.item : '');
+      const claimCard = claimText ? '<div class="sp-dna-deal-card"><div><b>' + esc(claimText) + '</b><small>Interest saved · not reserved</small></div><span class="sp-dna-deal-pill">Tracking</span></div>' : '';
+      const offerCards = Array.isArray(offers) ? offers.slice(0,5).map((offer, index) => {
+        const currency = esc(offer.currency || '');
+        const amount = Number(offer.amount);
+        const price = Number(offer.price);
+        const amountText = Number.isFinite(amount) ? amount.toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
+        const priceText = Number.isFinite(price) ? price.toLocaleString(undefined,{maximumFractionDigits:2}) : '—';
+        const statuses = ['Prepared','Sent','Accepted','Declined','Cancelled'];
+        const options = statuses.map(status => '<option value="' + status + '"' + (offer.status === status ? ' selected' : '') + '>' + status + '</option>').join('');
+        return '<div class="sp-dna-deal-card"><div><b>' + esc(offer.item || 'Offer') + '</b><small>Offer: ' + currency + amountText + ' · Asking: ' + currency + priceText + '</small></div><label class="sp-dna-deal-status"><span>Status</span><select data-sp-deal-status="' + index + '" aria-label="Offer status for ' + esc(offer.item || 'offer') + '">' + options + '</select></label></div>';
+      }).join('') : '';
+      return '<div class="sp-dna-deal-list">' + (offerCards || '') + claimCard + (!offerCards && !claimCard ? '<div class="sp-dna-saved"><span class="sp-dna-saved-icon">' + brandIcon('bag') + '</span><span>Your offers and tracked items will appear here.</span></div>' : '') + '</div>';
     }
     return '';
   }
@@ -538,25 +551,78 @@
         write('rom-date', v); announce(v ? 'Countdown date saved to your account.' : 'Countdown cleared.'); break;
       }
       case 'haggle': {
-        const raw = ask('Enter the listed price (number only):');
-        if (raw === null) return;
-        const price = Number(raw);
-        if (!Number.isFinite(price) || price <= 0) { announce('Enter a valid price greater than zero.'); return; }
-        const offer = document.createElement('div'); offer.className = 'sp-dna-offer';
-        offer.innerHTML = '<label for="sp-dna-haggle-range">Your offer: <strong id="sp-dna-haggle-value"></strong></label><input id="sp-dna-haggle-range" type="range" min="50" max="100" value="85" step="1"><small>Slider sets your offer from 50% to 100% of the listed price. It does not contact the seller.</small>';
-        document.getElementById('sp-dna-panel')?.appendChild(offer);
-        const range = offer.querySelector('input'), value = offer.querySelector('strong');
-        const update = () => { value.textContent = (price * Number(range.value) / 100).toLocaleString(undefined,{maximumFractionDigits:2}) + ' (' + range.value + '%)'; };
-        range.addEventListener('input', update); update(); break;
+        const panel = document.getElementById('sp-dna-panel');
+        if (!panel) return;
+        panel.querySelector('.sp-dna-offer')?.remove();
+        const offer = document.createElement('div'); offer.className = 'sp-dna-offer sp-dna-offer--studio';
+        offer.innerHTML = '<div class="sp-dna-deal-field"><label for="sp-dna-item">Item name</label><input id="sp-dna-item" type="text" maxlength="100" placeholder="e.g. Wireless headphones"></div>' +
+          '<div class="sp-dna-deal-field"><label for="sp-dna-price">Asking price</label><input id="sp-dna-price" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter listed price"></div>' +
+          '<label for="sp-dna-haggle-range">Your offer <strong id="sp-dna-haggle-value">—</strong></label><input id="sp-dna-haggle-range" type="range" min="50" max="100" value="85" step="1" disabled>' +
+          '<div class="sp-dna-deal-field"><label for="sp-dna-offer-note">Message to seller (optional)</label><textarea id="sp-dna-offer-note" maxlength="240" rows="2" placeholder="Add a friendly note…"></textarea></div>' +
+          '<div class="sp-dna-deal-buttons"><button type="button" class="sp-dna-action" data-sp-dna="save-offer">Save offer</button><button type="button" class="sp-dna-action" data-sp-dna="copy-offer">Copy message</button></div>' +
+          '<small>Preparing an offer does not send it or reserve the item. You can copy the message into your chat with the seller.</small>';
+        panel.appendChild(offer);
+        const priceInput = offer.querySelector('#sp-dna-price'), range = offer.querySelector('#sp-dna-haggle-range'), value = offer.querySelector('#sp-dna-haggle-value');
+        const update = () => {
+          const price = Number(priceInput.value);
+          const valid = priceInput.value.trim() !== '' && Number.isFinite(price) && price > 0;
+          range.disabled = !valid;
+          value.textContent = valid ? price.toLocaleString(undefined,{maximumFractionDigits:2}) + ' × ' + range.value + '% = ' + (price * Number(range.value) / 100).toLocaleString(undefined,{maximumFractionDigits:2}) : 'Enter asking price';
+        };
+        priceInput.addEventListener('input', update); range.addEventListener('input', update); update(); break;
+      }
+      case 'save-offer':
+      case 'copy-offer': {
+        const panel = document.getElementById('sp-dna-panel');
+        const item = panel?.querySelector('#sp-dna-item')?.value.trim() || '';
+        const priceInput = panel?.querySelector('#sp-dna-price');
+        const price = Number(priceInput?.value);
+        const range = panel?.querySelector('#sp-dna-haggle-range');
+        if (!priceInput || priceInput.value.trim() === '' || !Number.isFinite(price) || price <= 0 || !range || range.disabled) {
+          announce('Enter a valid asking price first.'); return;
+        }
+        const amount = Math.round(price * Number(range.value)) / 100;
+        const note = panel.querySelector('#sp-dna-offer-note')?.value.trim() || '';
+        const message = 'Hi! I’m interested in ' + (item || 'this item') + '. The listed price is ' + price.toLocaleString(undefined,{maximumFractionDigits:2}) + ', and I’d like to offer ' + amount.toLocaleString(undefined,{maximumFractionDigits:2}) + ' (' + range.value + '% of asking). ' + note;
+        if (action === 'copy-offer') {
+          try {
+            if (navigator.clipboard && window.isSecureContext) {
+              await navigator.clipboard.writeText(message);
+              announce('Offer message copied. Open your seller chat and paste it.');
+            } else {
+              const box = document.createElement('textarea'); box.value = message; box.setAttribute('readonly',''); box.style.position='fixed'; box.style.opacity='0'; document.body.appendChild(box); box.select();
+              const copied = document.execCommand('copy'); box.remove();
+              announce(copied ? 'Offer message copied. Open your seller chat and paste it.' : message);
+            }
+          } catch (_) { announce(message); }
+          return;
+        }
+        const offers = read('offers', []);
+        const next = Array.isArray(offers) ? offers.slice() : [];
+        next.unshift({item: item || 'Untitled item', price, amount, percent:Number(range.value), note, status:'Prepared', currency:'', at:Date.now()});
+        if (write('offers', next.slice(0,20))) { refreshPanel(); announce('Offer saved as Prepared. It has not been sent to the seller.'); }
+        return;
       }
       case 'claim-note': {
-        const v = ask('Save a reminder for an item you want to claim (item name or link):');
+        const v = ask('Which item do you want to track? Enter its name (this will not reserve it):');
         if (v === null || !v) return;
-        write('claim', v); announce('Claim reminder saved to your account; no item has been reserved.'); break;
+        if (write('claim', {item:v, status:'Interested', at:Date.now()})) { refreshPanel(); announce('Item added to your deal tracker. Nothing has been reserved.'); }
+        return;
       }
     }
     refreshPanel();
   }
+  document.addEventListener('change', function (event) {
+    const select = event.target instanceof Element ? event.target.closest('[data-sp-deal-status]') : null;
+    if (!select || activeNature() !== 'marketplace') return;
+    const index = Number(select.dataset.spDealStatus);
+    const offers = read('offers', []);
+    if (!Array.isArray(offers) || !Number.isInteger(index) || !offers[index]) return;
+    const next = offers.slice();
+    next[index] = Object.assign({}, next[index], {status:select.value, statusUpdatedAt:Date.now()});
+    if (write('offers', next)) { refreshPanel(); announce('Offer status updated. This only updates your tracker.'); }
+  });
+
   document.addEventListener('click', function (event) {
     const target = event.target instanceof Element ? event.target : event.target?.parentElement;
     const btn = target?.closest('[data-sp-dna]');
