@@ -4819,7 +4819,7 @@ async function openChat(personId) {
   renderNotifications();
   updateNotifDot();
   state.activeChat = personId;
-  $('#chat-av').innerHTML = avatar(p, 36);
+  $('#chat-av').innerHTML = `<button type="button" data-action="person:${esc(p.id)}" aria-label="View ${esc(p.short)}'s profile" title="View profile" style="display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;background:transparent;border-radius:50%;cursor:pointer">${avatar(p, 36)}</button>`;
   $('#chat-name').textContent = p.short;
   chatTyping = false;
   chatOnline = false;
