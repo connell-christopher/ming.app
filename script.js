@@ -5075,10 +5075,24 @@ function openMessageActions(messageId) {
     ? `<button data-action="chat-edit:${esc(messageId)}"><span aria-hidden="true">✎</span><br>Edit</button>`
     : '';
 
+  const reactionChoices = [
+    { emoji: '😀', label: 'Smile' },
+    { emoji: '😂', label: 'Laugh' },
+    { emoji: '😢', label: 'Cry' },
+    { emoji: '❤️', label: 'Love' },
+    { emoji: '😡', label: 'Angry' },
+    { emoji: '👍', label: 'Thumbs up' }
+  ];
+
   openSheet({
     title: 'Message',
-    sub: 'Choose an action',
+    sub: 'React or choose an action',
     body: `
+      <div class="chat-reaction-picker" role="group" aria-label="React to message">
+        ${reactionChoices.map(({ emoji, label }) => `
+          <button type="button" class="chat-reaction-choice" data-action="chat-add-reaction:${esc(messageId)}:${encodeURIComponent(emoji)}" aria-label="${label}" title="${label}">${emoji}</button>
+        `).join('')}
+      </div>
       <div class="chat-action-grid">
         <button data-action="chat-reply:${esc(messageId)}"><span class="tw-action-icon tw-action-reply" aria-hidden="true"></span><br>Reply</button>
         <button data-action="chat-copy:${esc(messageId)}"><span class="tw-action-icon tw-action-copy" aria-hidden="true"></span><br>Copy</button>
