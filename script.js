@@ -3133,17 +3133,26 @@ function openPerson(id) {
   const incoming = status === 'incoming';
   const outgoing = hasOutgoingConnectionRequest(id);
   const theirUpdates = liveUpdates().filter(u => u.authorId === id);
+  const publicLikes = theirUpdates.reduce((total, update) => total + Math.max(0, Number(update.likes) || 0), 0);
+  const relationshipLabel = connected ? 'Connected' : incoming ? 'Request received' : outgoing ? 'Request sent' : 'Not connected';
 
   $('#person-body').innerHTML = `
-    <div class="phead" style="padding-top:8px">
+    <div class="phead public-profile-head" style="padding-top:8px">
       ${ringAvatar(p, 88, isMingUserOnline(p.id))}
       <div class="who">
         <h1>${esc(p.name)}</h1>
-        <div class="u">${esc(p.tag)}</div>
+        ${p.username ? `<div class="u public-profile-username">${esc(p.username.startsWith('@') ? p.username : '@' + p.username)}</div>` : ''}
+        <div class="u">${esc(p.tag || 'Tweaklr member')}</div>
+        ${p.headline ? `<div class="u">${esc(p.headline)}</div>` : ''}
         <div class="u" style="color:var(--coffee);margin-top:6px">${esc(distLabel(p.km))}${hasLocation() ? ' · ' + esc(areaLabel()) : ''}</div>
       </div>
     </div>
-    <div class="pmeta"><p class="bio">${esc(p.bio)}</p></div>
+    <div class="public-profile-stats" aria-label="Public profile statistics">
+      <div class="public-profile-stat"><strong>${publicLikes.toLocaleString()}</strong><span>Likes received</span></div>
+      <div class="public-profile-stat"><strong>${theirUpdates.length.toLocaleString()}</strong><span>Live updates</span></div>
+      <div class="public-profile-stat"><strong>${esc(relationshipLabel)}</strong><span>Your connection</span></div>
+    </div>
+    <div class="pmeta"><p class="bio">${esc(p.bio || 'This member has not added a bio yet.')}</p></div>
     <div class="now">
       <div><div class="lbl">Right now</div><div class="val">${esc(p.activity)}</div></div>
     </div>
@@ -4819,8 +4828,8 @@ async function openChat(personId) {
   renderNotifications();
   updateNotifDot();
   state.activeChat = personId;
-  $('#chat-av').innerHTML = `<button type="button" data-action="person:${esc(p.id)}" aria-label="View ${esc(p.short)}'s profile" title="View profile" style="display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;background:transparent;border-radius:50%;cursor:pointer">${avatar(p, 36)}</button>`;
-  $('#chat-name').textContent = p.short;
+  $('#chat-av').innerHTML = `<button type="button" class="chat-profile-avatar" data-action="person:${esc(p.id)}" aria-label="View ${esc(p.short)}'s public profile" title="View public profile">${avatar(p, 36)}</button>`;
+  $('#chat-name').innerHTML = `<button type="button" class="chat-profile-name" data-action="person:${esc(p.id)}" aria-label="View ${esc(p.short)}'s public profile" title="View public profile">${esc(p.short)}<span aria-hidden="true">↗</span></button>`;
   chatTyping = false;
   chatOnline = false;
   renderChatPresenceStatus();
