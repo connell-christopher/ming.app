@@ -4389,186 +4389,276 @@ html.theme-transitioning *::after {
   #auth-screen .btn--primary { transition: none; }
 }
 
-/* ------------------------------------------------------------
-   TWEAK — isolated styling; does not alter Nearby components
------------------------------------------------------------- */
-#screen-tweak .tweak-brand-mark { color: var(--coffee-light, #c7a17d); font-size: .78em; vertical-align: .16em; }
-#screen-tweak #tweak-body { padding: 4px 16px 20px; }
+/* ============================================================
+   TWEAK — THE EIGHT WORLDS
+   Celestial visual system, strictly scoped to #screen-tweak.
+   No Moonflower styles, Nearby components, or app logic touched.
+============================================================ */
+#screen-tweak {
+  --tw-void: #080910;
+  --tw-deep: #0d1020;
+  --tw-panel: rgba(20, 23, 42, .78);
+  --tw-line: rgba(202, 199, 255, .15);
+  --tw-starlight: #f8f3ff;
+  --tw-mist: #aaaac6;
+  --tw-gold: #f2d4a0;
+  --tw-lilac: #b8a7ff;
+  --tw-rose: #e7a2bd;
+  --tw-cyan: #91d9ed;
+  color: var(--tw-starlight);
+  background:
+    radial-gradient(ellipse at 50% -8%, rgba(112, 92, 190, .22), transparent 42%),
+    radial-gradient(ellipse at 100% 40%, rgba(38, 104, 149, .10), transparent 42%),
+    linear-gradient(180deg, #0b0b16 0%, #080910 62%, #0c0d19 100%);
+}
+#screen-tweak .topbar {
+  position: relative;
+  background: linear-gradient(180deg, rgba(10, 10, 22, .96), rgba(10, 10, 22, .78));
+  border-bottom: 1px solid rgba(190, 177, 255, .13);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .18);
+}
+#screen-tweak .topbar-title,
+#screen-tweak .brand,
+#screen-tweak .icon-btn { color: var(--tw-starlight); }
+#screen-tweak .topbar-sub { color: var(--tw-mist); }
+#screen-tweak .scroll {
+  background:
+    radial-gradient(1px 1px at 8% 8%, rgba(255,255,255,.85) 50%, transparent 100%),
+    radial-gradient(1px 1px at 83% 17%, rgba(196,207,255,.8) 50%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 94% 47%, rgba(255,228,188,.8) 50%, transparent 100%),
+    radial-gradient(1px 1px at 13% 62%, rgba(255,255,255,.7) 50%, transparent 100%),
+    radial-gradient(1px 1px at 77% 77%, rgba(185,205,255,.75) 50%, transparent 100%),
+    linear-gradient(180deg, #0a0b16, #080910 58%, #0c0d19);
+}
+#screen-tweak #tweak-body {
+  position: relative;
+  padding: 9px 14px 26px;
+}
 #screen-tweak .tweak-welcome {
-  margin: 12px 0 18px; padding: 22px 18px 20px; border: 1px solid var(--border);
-  border-radius: 24px; background: linear-gradient(150deg, rgba(139,53,67,.11), rgba(241,210,174,.055) 62%, transparent);
-  box-shadow: var(--shadow-sm);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 8px 0 20px;
+  padding: 23px 17px 17px;
+  border: 1px solid rgba(192, 181, 255, .22);
+  border-radius: 29px;
+  background:
+    radial-gradient(ellipse at 78% 9%, rgba(128, 102, 215, .24), transparent 37%),
+    radial-gradient(ellipse at 8% 56%, rgba(56, 138, 172, .12), transparent 42%),
+    linear-gradient(148deg, rgba(25, 25, 49, .96), rgba(11, 13, 28, .96) 58%, rgba(17, 18, 36, .98));
+  box-shadow: 0 26px 65px -38px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 1px rgba(177,158,255,.035);
 }
-#screen-tweak .tweak-eyebrow { display: inline-flex; align-items: center; gap: 7px; color: var(--coffee-light, #a97c59); font-size: 10px; font-weight: 800; letter-spacing: .13em; }
-#screen-tweak .tweak-eyebrow span { color: #b97885; font-size: 15px; }
-#screen-tweak .tweak-welcome h2 { margin: 13px 0 8px; font-size: clamp(27px, 7vw, 36px); line-height: 1.06; letter-spacing: -.055em; font-weight: 780; }
-#screen-tweak .tweak-welcome h2 em { color: var(--coffee-light, #a97c59); font-style: normal; }
-#screen-tweak .tweak-welcome > p { margin: 0; max-width: 430px; color: var(--muted); font-size: 13px; line-height: 1.65; }
-#screen-tweak .tweak-source-card { display: flex; align-items: center; gap: 11px; margin: 21px 0 24px; padding: 13px; border-radius: 17px; border: 1px solid rgba(139,53,67,.22); background: rgba(139,53,67,.065); }
-#screen-tweak .tweak-source-icon { display: grid; place-items: center; width: 39px; height: 39px; flex: 0 0 39px; border-radius: 13px; color: #f1d2ae; background: #71303a; font-size: 23px; }
-#screen-tweak .tweak-source-copy { display: grid; gap: 4px; min-width: 0; flex: 1; }
-#screen-tweak .tweak-source-copy b { font-size: 13px; }
-#screen-tweak .tweak-source-copy span { color: var(--muted); font-size: 11px; line-height: 1.45; }
-#screen-tweak .tweak-connect-btn { border: 1px solid var(--border); border-radius: 11px; padding: 9px 11px; color: var(--text); background: var(--surface, rgba(255,255,255,.06)); font-size: 11px; font-weight: 750; }
-#screen-tweak .tweak-tag-heading { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
-#screen-tweak .tweak-tag-heading > div { display: grid; gap: 4px; }
-#screen-tweak .tweak-tag-heading b { font-size: 15px; }
-#screen-tweak .tweak-tag-heading span, #screen-tweak .tweak-tag-heading strong { color: var(--muted); font-size: 11px; font-weight: 650; }
-#screen-tweak .tweak-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-#screen-tweak .tweak-tag { display: inline-flex; align-items: center; gap: 6px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 999px; color: var(--text); background: var(--surface, rgba(255,255,255,.035)); font-size: 12px; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
-#screen-tweak .tweak-tag > span { color: var(--muted); font-size: 13px; }
-#screen-tweak .tweak-tag.is-selected { border-color: rgba(185,120,133,.72); background: rgba(139,53,67,.16); box-shadow: inset 0 0 0 1px rgba(185,120,133,.13); }
-#screen-tweak .tweak-tag.is-selected > span { color: #c98796; }
-#screen-tweak .tweak-continue { display: flex; justify-content: center; align-items: center; gap: 12px; width: 100%; margin-top: 22px; min-height: 48px; border-radius: 14px; }
-#screen-tweak .tweak-continue:disabled { opacity: .42; cursor: not-allowed; filter: saturate(.65); }
-#screen-tweak .tweak-privacy-note { margin: 13px auto 0; max-width: 330px; text-align: center; font-size: 10px; line-height: 1.6; }
-#screen-tweak .tweak-feed-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 2px 10px; }
-#screen-tweak .tweak-feed-head h2 { margin: 6px 0 0; font-size: 25px; letter-spacing: -.045em; }
-#screen-tweak .tweak-edit-tags, #screen-tweak .tweak-outline-btn { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; color: var(--text); background: var(--surface, rgba(255,255,255,.04)); font-size: 12px; font-weight: 700; }
-#screen-tweak .tweak-selected-tags { display: flex; gap: 7px; overflow-x: auto; padding: 2px 0 14px; scrollbar-width: none; }
-#screen-tweak .tweak-selected-tags span { flex: 0 0 auto; padding: 6px 10px; border-radius: 999px; color: var(--muted); background: var(--surface, rgba(255,255,255,.05)); border: 1px solid var(--border); font-size: 10px; }
-#screen-tweak .tweak-feed-empty { display: flex; flex-direction: column; align-items: center; text-align: center; margin: 5px 0 16px; padding: 28px 17px 22px; border: 1px solid var(--border); border-radius: 24px; background: linear-gradient(160deg, rgba(139,53,67,.08), transparent 62%); }
-#screen-tweak .tweak-play-orbit { position: relative; display: grid; place-items: center; width: 94px; height: 94px; margin: 4px 0 19px; border: 1px solid rgba(185,120,133,.35); border-radius: 50%; background: radial-gradient(circle, rgba(139,53,67,.16), transparent 69%); color: var(--coffee-light, #a97c59); font-size: 27px; }
-#screen-tweak .tweak-play-orbit i, #screen-tweak .tweak-play-orbit b { position: absolute; border: 1px solid rgba(185,120,133,.18); border-radius: 50%; inset: -9px; }
-#screen-tweak .tweak-play-orbit b { inset: 9px; border-style: dashed; }
-#screen-tweak .tweak-feed-empty h3 { margin: 0 0 8px; font-size: 20px; letter-spacing: -.03em; }
-#screen-tweak .tweak-feed-empty > p { max-width: 420px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
-#screen-tweak .tweak-feed-sources { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; width: 100%; margin: 21px 0 17px; text-align: left; }
-#screen-tweak .tweak-feed-sources > div { display: grid; gap: 5px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface, rgba(255,255,255,.035)); }
-#screen-tweak .tweak-feed-sources > div > span { color: var(--coffee-light, #a97c59); font-size: 19px; }
-#screen-tweak .tweak-feed-sources b { font-size: 11px; }
-#screen-tweak .tweak-feed-sources small { color: var(--muted); font-size: 10px; line-height: 1.45; }
-#screen-tweak .tweak-outline-btn { min-width: 170px; }
-@media (max-width: 370px) {
-  #screen-tweak .tweak-welcome { padding: 18px 14px; }
-  #screen-tweak .tweak-source-card { gap: 8px; padding: 10px; }
-  #screen-tweak .tweak-connect-btn { padding: 8px; }
-  #screen-tweak .tweak-feed-sources { grid-template-columns: 1fr; }
+#screen-tweak .tweak-welcome::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 65px;
+  right: -116px;
+  width: 320px;
+  height: 320px;
+  border: 1px solid rgba(185, 174, 255, .16);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 27%, rgba(174,164,255,.045) 27.2% 27.5%, transparent 27.8% 44%, rgba(174,164,255,.09) 44.2% 44.5%, transparent 44.8% 61%, rgba(174,164,255,.12) 61.2% 61.5%, transparent 61.8%),
+    radial-gradient(circle at 28% 18%, #f3d7a5 0 2px, transparent 3px),
+    radial-gradient(circle at 73% 14%, #e6a4c0 0 4px, transparent 5px),
+    radial-gradient(circle at 83% 31%, #7bb7eb 0 5px, transparent 6px),
+    radial-gradient(circle at 80% 64%, #8ad9dc 0 6px, transparent 7px),
+    radial-gradient(circle at 63% 82%, #d8a1ff 0 3px, transparent 4px),
+    radial-gradient(circle at 34% 87%, #e6a08e 0 4px, transparent 5px),
+    radial-gradient(circle at 16% 65%, #d8b88a 0 2px, transparent 3px),
+    radial-gradient(circle at 12% 36%, #e9e7f8 0 3px, transparent 4px);
+  box-shadow: 0 0 0 17px rgba(163,146,255,.025), 0 0 0 38px rgba(163,146,255,.02), 0 0 70px rgba(100,83,188,.16);
+  pointer-events: none;
+  animation: tweakOrbitDrift 34s linear infinite;
 }
-@media (prefers-reduced-motion: reduce) {
-  #screen-tweak .tweak-tag { transition: none; }
+#screen-tweak .tweak-welcome::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  opacity: .8;
+  background:
+    radial-gradient(1px 1px at 14% 13%, #fff 50%, transparent 100%),
+    radial-gradient(1px 1px at 48% 8%, #c6c5ff 50%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 92% 18%, #ffe2b0 50%, transparent 100%),
+    radial-gradient(1px 1px at 64% 31%, #fff 50%, transparent 100%),
+    radial-gradient(1px 1px at 84% 58%, #d3d4ff 50%, transparent 100%),
+    radial-gradient(1px 1px at 43% 72%, #fff 50%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 8% 84%, #b9e8ff 50%, transparent 100%),
+    linear-gradient(115deg, transparent 0 62%, rgba(178,163,255,.035) 62.2%, transparent 62.5%);
 }
-
-/* Tweak interest search — scoped only to the Tweak onboarding panel */
-#screen-tweak .tweak-more-toggle {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  margin: 12px 0 4px;
-  padding: 11px 14px;
-  border: 1px dashed var(--border);
-  border-radius: 13px;
-  color: var(--coffee-light, #a97c59);
-  background: transparent;
-  font-size: 12px;
-  font-weight: 800;
-}
-#screen-tweak .tweak-more-toggle span { font-size: 16px; }
-#screen-tweak .tweak-more-panel {
-  margin: 10px 0 18px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 17px;
-  background: var(--surface, rgba(255,255,255,.025));
-}
-#screen-tweak .tweak-more-panel[hidden] { display: none !important; }
-#screen-tweak .tweak-search-label { display: block; margin-bottom: 9px; font-size: 12px; font-weight: 800; }
-#screen-tweak .tweak-tag-search-wrap {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 45px;
-  padding: 0 11px;
-  border: 1px solid var(--border);
-  border-radius: 13px;
-  background: var(--bg, rgba(0,0,0,.08));
-}
-#screen-tweak .tweak-tag-search-wrap > span { color: var(--coffee-light, #a97c59); font-size: 23px; line-height: 1; }
-#screen-tweak .tweak-tag-search-wrap input {
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  outline: 0;
-  color: var(--text);
-  background: transparent;
-  font: inherit;
-  font-size: 13px;
-}
-#screen-tweak .tweak-tag-search-wrap input::placeholder { color: var(--muted); opacity: .8; }
-#screen-tweak .tweak-tag-search-wrap button {
-  border: 0;
-  padding: 4px 7px;
-  color: var(--muted);
-  background: transparent;
-  font-size: 20px;
-}
-#screen-tweak .tweak-tag-search-wrap button[hidden] { display: none !important; }
-#screen-tweak .tweak-search-hint { margin: 8px 2px 12px; color: var(--muted); font-size: 10px; }
-#screen-tweak .tweak-tag-suggestions { display: flex; flex-wrap: wrap; gap: 7px; }
-#screen-tweak .tweak-suggestion {
+#screen-tweak .tweak-eyebrow {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--text);
-  background: var(--surface, rgba(255,255,255,.035));
-  font-size: 11px;
-  line-height: 1.3;
-  text-align: left;
-}
-#screen-tweak .tweak-suggestion > span { color: var(--muted); }
-#screen-tweak .tweak-suggestion.is-selected { border-color: rgba(185,120,133,.72); background: rgba(139,53,67,.16); }
-#screen-tweak .tweak-suggestion.is-selected > span { color: #c98796; }
-#screen-tweak .tweak-suggestion-caption { flex-basis: 100%; margin: 2px 0 4px; color: var(--muted); font-size: 10px; font-weight: 750; }
-#screen-tweak .tweak-no-results {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 22px 10px;
-  border: 1px dashed var(--border);
-  border-radius: 13px;
-  text-align: center;
-}
-#screen-tweak .tweak-no-results > span { color: var(--coffee-light, #a97c59); font-size: 21px; }
-#screen-tweak .tweak-no-results b { font-size: 13px; }
-#screen-tweak .tweak-no-results small { color: var(--muted); font-size: 10px; line-height: 1.5; }
-
-
-/* TWEAK — connected TikTok video feed only */
-#screen-tweak .tweak-account-status {
-  margin: -13px 2px 20px !important;
-  color: var(--muted);
-  font-size: 11px !important;
+  gap: 7px;
+  color: #d4c6ff;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .19em;
   line-height: 1.5;
+  text-transform: uppercase;
 }
-#screen-tweak .tweak-video-section { margin-top: 8px; }
-#screen-tweak .tweak-video-section .tweak-feed-head { padding: 8px 0 13px; }
-#screen-tweak .tweak-video-section .tweak-feed-head h2 { font-size: 22px; }
-#screen-tweak .tweak-video-section .tweak-outline-btn { min-width: 0; padding: 9px 11px; }
-#screen-tweak .tweak-video-feed { display: grid; gap: 13px; }
-#screen-tweak .tweak-video-message {
-  padding: 20px 15px;
-  border: 1px solid var(--border);
-  border-radius: 17px;
-  color: var(--muted);
-  background: var(--surface, rgba(255,255,255,.035));
+#screen-tweak .tweak-eyebrow span {
+  color: #f4d6a3;
+  font-size: 16px;
+  text-shadow: 0 0 15px rgba(244,214,163,.65);
+}
+#screen-tweak .tweak-welcome h2 {
+  position: relative;
+  max-width: 310px;
+  margin: 14px 0 10px;
+  font-size: clamp(31px, 8.2vw, 42px);
+  font-weight: 850;
+  letter-spacing: -.065em;
+  line-height: .99;
+  text-wrap: balance;
+  text-shadow: 0 4px 30px rgba(0,0,0,.3);
+}
+#screen-tweak .tweak-welcome h2 em {
+  color: transparent;
+  font-style: normal;
+  background: linear-gradient(100deg, #f4d8a6 0%, #e5b6d2 45%, #a8c9ff 90%);
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+#screen-tweak .tweak-welcome > p {
+  position: relative;
+  max-width: 360px;
+  color: #b9b8d2;
   font-size: 12px;
+  line-height: 1.7;
+}
+#screen-tweak .tweak-source-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 21px 0 15px;
+  padding: 13px;
+  border: 1px solid rgba(191,177,255,.22);
+  border-radius: 19px;
+  background: linear-gradient(130deg, rgba(121,102,190,.16), rgba(24,26,48,.72) 68%, rgba(35,48,75,.42));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.065), 0 12px 28px -22px rgba(0,0,0,.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+#screen-tweak .tweak-source-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border: 1px solid rgba(246,217,174,.28);
+  border-radius: 15px;
+  color: #ffe4b5;
+  background: radial-gradient(circle at 32% 22%, rgba(255,255,255,.18), transparent 42%), linear-gradient(145deg, #775b94, #293b63);
+  font-size: 22px;
+  box-shadow: 0 0 24px rgba(138,111,213,.18), inset 0 1px 0 rgba(255,255,255,.15);
+}
+#screen-tweak .tweak-source-copy { display: grid; gap: 4px; min-width: 0; flex: 1; }
+#screen-tweak .tweak-source-copy b { color: #f8f2ff; font-size: 12px; font-weight: 800; }
+#screen-tweak .tweak-source-copy span { color: #b4b4cf; font-size: 10px; line-height: 1.5; }
+#screen-tweak .tweak-connect-btn {
+  flex: 0 0 auto;
+  border: 1px solid rgba(242,212,160,.4);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #fff2d7;
+  background: linear-gradient(135deg, rgba(133,103,180,.75), rgba(80,67,131,.86));
+  font-size: 10px;
+  font-weight: 850;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 7px 20px -13px rgba(190,164,255,.8);
+  transition: transform .2s ease, filter .2s ease, border-color .2s ease;
+}
+#screen-tweak .tweak-connect-btn:hover { filter: brightness(1.14); border-color: rgba(255,228,184,.72); }
+#screen-tweak .tweak-connect-btn:active { transform: scale(.96); }
+#screen-tweak .tweak-account-status {
+  position: relative;
+  margin: -4px 3px 20px !important;
+  color: #a7a7c3;
+  font-size: 10px !important;
   line-height: 1.6;
+}
+#screen-tweak .tweak-video-section {
+  position: relative;
+  margin: 25px -4px 0;
+  padding: 16px 12px 13px;
+  border: 1px solid rgba(178,166,255,.16);
+  border-radius: 23px;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(87,113,190,.13), transparent 46%),
+    linear-gradient(150deg, rgba(24,26,47,.88), rgba(13,15,30,.82));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.045), 0 18px 36px -30px rgba(0,0,0,.9);
+}
+#screen-tweak .tweak-video-section .tweak-feed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 0 14px;
+}
+#screen-tweak .tweak-video-section .tweak-feed-head h2 {
+  margin: 6px 0 0;
+  color: #faf5ff;
+  font-size: 22px;
+  font-weight: 820;
+  letter-spacing: -.05em;
+  line-height: 1.1;
+}
+#screen-tweak .tweak-outline-btn {
+  min-width: 0;
+  flex: 0 0 auto;
+  padding: 9px 11px;
+  border: 1px solid rgba(185,173,255,.25);
+  border-radius: 12px;
+  color: #ded7ff;
+  background: rgba(119,104,183,.13);
+  font-size: 10px;
+  font-weight: 800;
+  transition: background .18s ease, transform .18s ease;
+}
+#screen-tweak .tweak-outline-btn:hover { background: rgba(142,125,218,.24); }
+#screen-tweak .tweak-outline-btn:active { transform: scale(.97); }
+#screen-tweak .tweak-video-feed { display: grid; gap: 14px; }
+#screen-tweak .tweak-video-message {
+  position: relative;
+  overflow: hidden;
+  padding: 24px 15px 23px;
+  border: 1px dashed rgba(179,168,255,.28);
+  border-radius: 18px;
+  color: #aaa9c7;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(126,107,210,.15), transparent 70%),
+    rgba(10,12,26,.5);
+  font-size: 11px;
+  line-height: 1.7;
   text-align: center;
+}
+#screen-tweak .tweak-video-message::before {
+  content: "✦  ·  ☉  ·  ✧";
+  display: block;
+  margin-bottom: 8px;
+  color: #e7ce9d;
+  font-size: 17px;
+  letter-spacing: .25em;
+  text-shadow: 0 0 22px rgba(231,206,157,.28);
 }
 #screen-tweak .tweak-video-card {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: var(--surface, rgba(255,255,255,.035));
+  border: 1px solid rgba(179,168,255,.2);
+  border-radius: 19px;
+  background: linear-gradient(145deg, rgba(26,28,51,.97), rgba(13,15,29,.98));
+  box-shadow: 0 17px 38px -28px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.04);
+  transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+}
+#screen-tweak .tweak-video-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(192,181,255,.38);
+  box-shadow: 0 20px 42px -28px rgba(0,0,0,.95), 0 0 24px rgba(106,96,187,.08);
 }
 #screen-tweak .tweak-video-embed {
   display: block;
@@ -4576,23 +4666,76 @@ html.theme-transitioning *::after {
   height: min(590px, 125vw);
   max-height: 590px;
   border: 0;
-  background: #0f0a08;
+  background: #070810;
 }
-#screen-tweak .tweak-video-cover { display: block; background: #0f0a08; }
+#screen-tweak .tweak-video-cover { display: block; background: #070810; }
 #screen-tweak .tweak-video-cover img {
   display: block;
   width: 100%;
   max-height: 430px;
   object-fit: cover;
 }
-#screen-tweak .tweak-video-copy { display: grid; gap: 7px; padding: 13px 14px 15px; }
-#screen-tweak .tweak-video-copy b { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
-#screen-tweak .tweak-video-copy p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
-#screen-tweak .tweak-video-copy a { justify-self: start; color: var(--coffee-light, #c7a17d); font-size: 11px; font-weight: 750; text-decoration: none; }
-@media (prefers-reduced-motion: reduce) {
-  #screen-tweak .tweak-video-card { scroll-behavior: auto; }
+#screen-tweak .tweak-video-copy { display: grid; gap: 8px; padding: 14px 14px 16px; }
+#screen-tweak .tweak-video-copy b { color: #f8f2ff; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+#screen-tweak .tweak-video-copy p { margin: 0; color: #b5b4cf; font-size: 11px; line-height: 1.65; overflow-wrap: anywhere; }
+#screen-tweak .tweak-video-copy a { justify-self: start; color: #f0d3a0; font-size: 11px; font-weight: 800; text-decoration: none; }
+#screen-tweak .tweak-privacy-note {
+  margin: 17px auto 0;
+  max-width: 340px;
+  color: #8889a8;
+  text-align: center;
+  font-size: 9px;
+  line-height: 1.7;
 }
-
+#screen-tweak .tweak-brand-mark { color: #e4c6ff; font-size: .78em; vertical-align: .16em; }
+#screen-tweak .tweak-tag,
+#screen-tweak .tweak-suggestion,
+#screen-tweak .tweak-edit-tags {
+  border-color: rgba(179,168,255,.2);
+  color: #e6e1ff;
+  background: rgba(27,28,52,.78);
+}
+#screen-tweak .tweak-tag.is-selected,
+#screen-tweak .tweak-suggestion.is-selected {
+  border-color: rgba(228,181,221,.72);
+  background: linear-gradient(135deg, rgba(125,87,160,.38), rgba(62,87,132,.28));
+  box-shadow: inset 0 0 0 1px rgba(219,183,255,.12), 0 0 18px rgba(153,122,221,.08);
+}
+#screen-tweak .tweak-more-panel {
+  border-color: rgba(179,168,255,.2);
+  border-radius: 19px;
+  background: rgba(19,21,41,.9);
+}
+#screen-tweak .tweak-tag-search-wrap {
+  border-color: rgba(179,168,255,.22);
+  background: rgba(8,10,23,.72);
+}
+#screen-tweak .tweak-tag-search-wrap input { color: #f8f3ff; background: transparent; }
+#screen-tweak .tweak-tag-search-wrap input::placeholder { color: #8586a6; }
+#screen-tweak .tweak-no-results {
+  border-color: rgba(179,168,255,.22);
+  color: #f4efff;
+  background: rgba(9,11,25,.72);
+}
+#screen-tweak .tweak-no-results small { color: #aaa9c7; }
+#screen-tweak .wordmark-foot { color: rgba(205,194,255,.42); }
+#screen-tweak .wordmark-foot b { color: rgba(230,216,255,.65); }
+@keyframes tweakOrbitDrift { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@media (max-width: 370px) {
+  #screen-tweak #tweak-body { padding-right: 10px; padding-left: 10px; }
+  #screen-tweak .tweak-welcome { padding: 20px 13px 15px; border-radius: 24px; }
+  #screen-tweak .tweak-welcome::before { right: -164px; width: 285px; height: 285px; }
+  #screen-tweak .tweak-source-card { gap: 8px; padding: 10px; }
+  #screen-tweak .tweak-connect-btn { padding: 9px 10px; }
+  #screen-tweak .tweak-video-section { margin-right: -2px; margin-left: -2px; padding: 13px 9px; }
+  #screen-tweak .tweak-video-section .tweak-feed-head h2 { font-size: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #screen-tweak .tweak-welcome::before,
+  #screen-tweak .tweak-connect-btn,
+  #screen-tweak .tweak-outline-btn,
+  #screen-tweak .tweak-video-card { animation: none; transition: none; }
+}
 
 /* ---------- TWEAKLR SIGNATURE: SHARE UPDATE SHEET ---------- */
 .sheet:has(.share-update-recipients) {
