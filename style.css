@@ -5203,8 +5203,7 @@ html.theme-transitioning *::after {
 /* ---------- TARGETED FIX: PROFILE PHOTO CIRCLE + ACTIVITY LAYOUT ---------- */
 /* Keep the full-size photo preview square regardless of the source image's
    portrait/landscape dimensions; constrain the image to the circular viewport. */
-#modal .modal-fields > div:has(> img),
-#modal .modal-body > div:has(> img) {
+#modal > div:has(> img) {
   position: relative;
   width: min(76vw, 320px) !important;
   height: min(76vw, 320px) !important;
@@ -5215,8 +5214,7 @@ html.theme-transitioning *::after {
   clip-path: circle(50% at 50% 50%) !important;
   isolation: isolate;
 }
-#modal .modal-fields > div:has(> img) > img,
-#modal .modal-body > div:has(> img) > img {
+#modal > div:has(> img) > img {
   position: absolute !important;
   inset: 0 !important;
   display: block !important;
