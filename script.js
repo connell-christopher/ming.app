@@ -6214,6 +6214,22 @@ async function openSearch() {
   setTimeout(() => $('#search-input').focus(), 80);
 }
 
+/* Branded loading state shared by Tweaklr screens. Kept presentation-only. */
+function tweaklrLoadingMarkup(message = 'Nearby is everything…') {
+  return '<div class="tweaklr-loading" role="status" aria-live="polite">' +
+    '<div class="tweaklr-loading-orbit" aria-hidden="true">' +
+      '<span class="tweaklr-loading-dot tweaklr-loading-dot--one"></span>' +
+      '<span class="tweaklr-loading-dot tweaklr-loading-dot--two"></span>' +
+      '<span class="tweaklr-loading-dot tweaklr-loading-dot--three"></span>' +
+      '<span class="tweaklr-loading-core">T</span>' +
+    '</div>' +
+    '<div class="tweaklr-loading-brand">Tweaklr<span class="tweaklr-loading-pulse">✦</span></div>' +
+    '<div class="tweaklr-loading-message">' + esc(message) + '</div>' +
+    '<div class="tweaklr-loading-motto">NEARBY IS EVERYTHING</div>' +
+    '<div class="tweaklr-loading-track" aria-hidden="true"><span></span></div>' +
+  '</div>';
+}
+
 function renderSearch(mode, q = '') {
   const host = $('#search-body');
   if (mode === 'idle') {
@@ -6235,7 +6251,7 @@ function renderSearch(mode, q = '') {
     return;
   }
   if (mode === 'loading') {
-    host.innerHTML = `<div style="padding:18px 0">${skeletonCards(2)}</div>`;
+    host.innerHTML = tweaklrLoadingMarkup('Finding your people and places…');
     return;
   }
 
@@ -9165,7 +9181,7 @@ async function openSpaces() {
 
   const body = $('#spaces-body');
   if (body && !body.innerHTML.trim()) {
-    body.innerHTML = '<div style="padding:28px 18px;color:var(--muted);font-size:13.5px">Loading your Spaces…</div>';
+    body.innerHTML = tweaklrLoadingMarkup('Bringing your Spaces together…');
   }
 
   await loadSpacesFromDatabase();
