@@ -5198,3 +5198,70 @@ html.theme-transitioning *::after {
 #screen-person .public-profile-stat span { color:var(--muted); font-size:10px; line-height:1.35; }
 @media (max-width:350px) { #screen-person .public-profile-stats { gap:5px; margin-right:12px; margin-left:12px; } #screen-person .public-profile-stat { padding:9px 3px; } #screen-person .public-profile-stat span { font-size:9px; } }
 @media (prefers-reduced-motion:reduce) { #screen-chat .chat-profile-name span, #screen-chat .chat-profile-avatar .av { transition:none; } }
+
+
+/* ---------- TARGETED FIX: PROFILE PHOTO CIRCLE + ACTIVITY LAYOUT ---------- */
+/* Keep the full-size photo preview square regardless of the source image's
+   portrait/landscape dimensions; constrain the image to the circular viewport. */
+#modal .modal-fields > div:has(> img),
+#modal .modal-body > div:has(> img) {
+  position: relative;
+  width: min(76vw, 320px) !important;
+  height: min(76vw, 320px) !important;
+  aspect-ratio: 1 / 1 !important;
+  margin-inline: auto !important;
+  overflow: hidden !important;
+  border-radius: 50% !important;
+  clip-path: circle(50% at 50% 50%) !important;
+  isolation: isolate;
+}
+#modal .modal-fields > div:has(> img) > img,
+#modal .modal-body > div:has(> img) > img {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: 50% !important;
+  clip-path: circle(50% at 50% 50%) !important;
+}
+
+/* Profile activity cards must stay inside their own section and never stretch
+   or paint over the account controls/navigation beneath them. */
+#screen-profile #profile-body,
+#screen-profile #my-updates,
+#screen-profile #profile-content-list {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+#screen-profile #my-updates {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+}
+#screen-profile #profile-content-list > * {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+#screen-profile #profile-content-list .update-card,
+#screen-profile #profile-content-list .upd,
+#screen-profile #profile-content-list .empty-state {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#screen-profile #my-updates > div[style*="display:flex"] {
+  position: relative;
+  z-index: 1;
+  flex-wrap: wrap;
+  max-width: 100%;
+  box-sizing: border-box;
+}
