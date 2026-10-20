@@ -5200,38 +5200,28 @@ html.theme-transitioning *::after {
 @media (prefers-reduced-motion:reduce) { #screen-chat .chat-profile-name span, #screen-chat .chat-profile-avatar .av { transition:none; } }
 
 
-/* ---------- TARGETED FIX: PROFILE PHOTO CIRCLE + ACTIVITY LAYOUT ---------- */
-/* Keep the full-size photo preview square regardless of the source image's
-   portrait/landscape dimensions; constrain the image to the circular viewport. */
-#modal > div:has(> img) {
-  position: relative;
-  width: min(76vw, 320px) !important;
-  height: min(76vw, 320px) !important;
-  aspect-ratio: 1 / 1 !important;
-  margin-inline: auto !important;
-  overflow: hidden !important;
-  border-radius: 50% !important;
-  clip-path: circle(50% at 50% 50%) !important;
-  isolation: isolate;
+/* ---------- PROFILE PHOTO + ACTIVITY LAYOUT FIX ---------- */
+/* Restrict circular cropping to the dedicated profile-photo preview only.
+   Other modal content (audio covers, media, etc.) must keep its normal shape. */
+#modal .profile-photo-preview {
+  width: min(100%, 360px);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 50%;
+  clip-path: circle(50% at 50% 50%);
 }
-#modal > div:has(> img) > img {
-  position: absolute !important;
-  inset: 0 !important;
-  display: block !important;
-  width: 100% !important;
-  height: 100% !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-  max-width: 100% !important;
-  max-height: 100% !important;
-  object-fit: cover !important;
-  object-position: center !important;
-  border-radius: 50% !important;
-  clip-path: circle(50% at 50% 50%) !important;
+#modal .profile-photo-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  border-radius: inherit;
 }
 
-/* Profile activity cards must stay inside their own section and never stretch
-   or paint over the account controls/navigation beneath them. */
+/* Keep activity content in normal document flow; don't clip the whole section
+   or change the tab row's layout. */
 #screen-profile #profile-body,
 #screen-profile #my-updates,
 #screen-profile #profile-content-list {
@@ -5239,27 +5229,15 @@ html.theme-transitioning *::after {
   max-width: 100%;
   box-sizing: border-box;
 }
-#screen-profile #my-updates {
-  position: relative;
-  isolation: isolate;
-  overflow: clip;
-}
-#screen-profile #profile-content-list > * {
-  box-sizing: border-box;
-  min-width: 0;
-  max-width: 100%;
-}
-#screen-profile #profile-content-list .update-card,
 #screen-profile #profile-content-list .upd,
-#screen-profile #profile-content-list .empty-state {
-  max-width: 100%;
+#screen-profile #profile-content-list .empty {
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+#screen-profile #profile-content-list .upd h3,
+#screen-profile #profile-content-list .upd p {
   overflow-wrap: anywhere;
 }
-#screen-profile #my-updates > div[style*="display:flex"] {
-  position: relative;
-  z-index: 1;
-  flex-wrap: wrap;
-  max-width: 100%;
-  box-sizing: border-box;
-}
+
