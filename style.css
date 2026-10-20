@@ -4808,3 +4808,50 @@ html.theme-transitioning *::after {
   .sheet:has(.share-update-recipients) .sheet-body { padding-right: 13px; padding-left: 13px; }
   .sheet:has(.share-update-recipients) .chat-action-grid button { gap: 8px; padding: 10px; }
 }
+
+
+/* TWEAKLR SIGNATURE: LONG-PRESS REACTIONS */
+.chat-reaction-picker {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0 0 16px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 19px;
+  background:
+    radial-gradient(ellipse at 95% 0%, rgba(139,53,67,.12), transparent 52%),
+    var(--surface-2);
+}
+.chat-reaction-choice {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  font-family: inherit;
+  font-size: clamp(21px, 6vw, 27px);
+  line-height: 1;
+  cursor: pointer;
+  transition: transform var(--t-fast) var(--ease), background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.chat-reaction-choice:active {
+  transform: scale(.86);
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+@media (hover: hover) {
+  .chat-reaction-choice:hover {
+    transform: translateY(-2px) scale(1.08);
+    background: var(--surface);
+    border-color: var(--border);
+  }
+}
+@media (max-width: 340px) {
+  .chat-reaction-picker { gap: 3px; padding: 7px; }
+  .chat-reaction-choice { border-radius: 11px; }
+}
