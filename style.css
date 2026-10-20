@@ -4855,3 +4855,58 @@ html.theme-transitioning *::after {
   .chat-reaction-picker { gap: 3px; padding: 7px; }
   .chat-reaction-choice { border-radius: 11px; }
 }
+
+
+/* TWEAKLR SIGNATURE: CELESTIAL RETURN TO LATEST CHAT */
+.chat-return-latest {
+  position: sticky;
+  bottom: 12px;
+  z-index: 8;
+  align-self: flex-end;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  margin: -46px 2px 8px auto;
+  padding: 5px 11px 5px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent, #d9b48b) 48%, transparent);
+  border-radius: 999px;
+  color: var(--text, #f5e8dc);
+  background: color-mix(in srgb, var(--surface, #17110f) 88%, transparent);
+  box-shadow: 0 7px 22px rgba(0, 0, 0, .18), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .02em;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(6px) scale(.96);
+  transition: opacity .2s ease, transform .2s ease, visibility .2s ease;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.chat-return-latest.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.chat-return-latest svg {
+  display: block;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+}
+.chat-return-latest:active { transform: scale(.94); }
+@media (prefers-reduced-motion: reduce) {
+  .chat-return-latest { transition: none; }
+}
+@media (max-width: 380px) {
+  .chat-return-latest { min-height: 36px; padding-right: 9px; }
+  .chat-return-latest svg { width: 26px; height: 26px; flex-basis: 26px; }
+}
