@@ -4910,3 +4910,127 @@ html.theme-transitioning *::after {
   .chat-return-latest { min-height: 36px; padding-right: 9px; }
   .chat-return-latest svg { width: 26px; height: 26px; flex-basis: 26px; }
 }
+
+
+/* TWEAKLR SIGNATURE: CELESTIAL FORWARD SHEET */
+.sheet:has(button[data-action^="forward-to:"]) .sheet-head {
+  padding-bottom: 16px;
+  background:
+    radial-gradient(ellipse at 88% 0%, color-mix(in srgb, var(--coffee-light, #b68a70) 19%, transparent), transparent 56%),
+    linear-gradient(135deg, color-mix(in srgb, var(--surface) 96%, var(--coffee-light, #b68a70)), var(--surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, var(--coffee-light, #b68a70));
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-head h2 {
+  font-size: clamp(21px, 5.5vw, 25px);
+  font-weight: 760;
+  letter-spacing: -.055em;
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-head h2::before {
+  content: "✦";
+  display: inline-grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  margin-right: 9px;
+  border: 1px solid color-mix(in srgb, var(--coffee-light, #b68a70) 44%, transparent);
+  border-radius: 10px;
+  color: var(--coffee-light, #b68a70);
+  background: color-mix(in srgb, var(--coffee-light, #b68a70) 12%, transparent);
+  font-size: 15px;
+  vertical-align: 2px;
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-head p {
+  margin-top: 5px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-body {
+  padding: 13px 17px 24px;
+  background:
+    radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--coffee-light, #b68a70) 7%, transparent), transparent 50%),
+    var(--surface);
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt {
+  position: relative;
+  gap: 12px;
+  min-height: 68px;
+  margin: 5px 0;
+  padding: 11px 12px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 17px;
+  background: color-mix(in srgb, var(--surface-2) 42%, transparent);
+  box-shadow: 0 2px 8px rgba(42, 25, 18, .025);
+  transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt + .opt {
+  border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  opacity: 0;
+  background: linear-gradient(180deg, var(--coffee-light, #b68a70), var(--coffee, #8b3543));
+  transition: opacity .18s ease;
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt:active {
+  transform: scale(.985);
+  border-color: color-mix(in srgb, var(--coffee-light, #b68a70) 48%, var(--border));
+  background: color-mix(in srgb, var(--coffee-light, #b68a70) 9%, var(--surface));
+}
+@media (hover: hover) {
+  .sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--coffee-light, #b68a70) 42%, var(--border));
+    background: color-mix(in srgb, var(--coffee-light, #b68a70) 8%, var(--surface));
+    box-shadow: 0 7px 18px rgba(42, 25, 18, .06);
+  }
+  .sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt:hover::after {
+    opacity: 1;
+  }
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt .tx .t {
+  font-size: 14px;
+  font-weight: 740;
+  letter-spacing: -.025em;
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt .tx .s {
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: .015em;
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt .go {
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  flex: 0 0 31px;
+  border: 1px solid color-mix(in srgb, var(--coffee-light, #b68a70) 35%, var(--border));
+  border-radius: 11px;
+  color: var(--coffee, #8b3543);
+  background: color-mix(in srgb, var(--coffee-light, #b68a70) 10%, var(--surface));
+  font-size: 23px;
+  line-height: 1;
+  transition: transform .18s ease;
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt:active .go {
+  transform: translateX(2px);
+}
+.sheet:has(button[data-action^="forward-to:"]) .sheet-body .center-note {
+  padding: 25px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  color: var(--muted);
+  line-height: 1.6;
+  text-align: center;
+}
+@media (max-width: 360px) {
+  .sheet:has(button[data-action^="forward-to:"]) .sheet-body { padding-right: 12px; padding-left: 12px; }
+  .sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt { gap: 9px; padding: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt,
+  .sheet:has(button[data-action^="forward-to:"]) .sheet-body > .opt .go { transition: none; }
+}
