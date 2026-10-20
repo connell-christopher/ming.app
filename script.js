@@ -1335,26 +1335,10 @@ function emptyState(title, body, cta) {
   return `<div class="empty"><div class="mark"></div><h3>${esc(title)}</h3><p>${esc(body)}</p>${cta ? `<button class="btn btn--soft" data-action="${cta.a}">${esc(cta.t)}</button>` : ''}</div>`;
 }
 function skeletonCards(n = 3) {
-  let out = '';
-  for (let i = 0; i < n; i++) {
-    out += `<div class="sk-card">
-      <div class="sk-row"><div class="sk sk-circle" style="width:38px;height:38px"></div>
-      <div style="flex:1"><div class="sk sk-line" style="width:42%"></div><div class="sk sk-line" style="width:26%;margin-top:7px;height:9px"></div></div></div>
-      <div class="sk sk-line" style="width:76%;margin-top:14px;height:14px"></div>
-      <div class="sk sk-line" style="width:96%;margin-top:9px"></div>
-      <div class="sk sk-line" style="width:60%;margin-top:7px"></div>
-    </div>`;
-  }
-  return out;
+  return tweaklrLoadingMarkup('Gathering the latest around you…');
 }
 function skeletonRail() {
-  let out = '<div class="rail">';
-  for (let i = 0; i < 4; i++) {
-    out += `<div class="pcard"><div class="sk sk-circle" style="width:56px;height:56px;margin:0 auto"></div>
-      <div class="sk sk-line" style="width:70%;margin:12px auto 0"></div>
-      <div class="sk sk-line" style="width:88%;margin:7px auto 0;height:9px"></div></div>`;
-  }
-  return out + '</div>';
+  return tweaklrLoadingMarkup('Discovering people nearby…');
 }
 
 /* ------------------------------------------------------------
@@ -3003,7 +2987,7 @@ async function loadNearby() {
   } else {
     mingNearbyActivities = [];
   }
-  $('#nearby-body').innerHTML = `<div style="margin:0 18px"><div class="sk" style="height:330px;border-radius:var(--r-xl)"></div></div>` + skeletonCards(2);
+  $('#nearby-body').innerHTML = tweaklrLoadingMarkup('Finding what is happening nearby…');
   await sleep(640);
   renderNearby();
 }
@@ -5948,7 +5932,7 @@ function renderProfile() {
       <div id="profile-content-list">
         ${profileContentTab === 'likes'
           ? (!profileLikesLoaded
-              ? '<p style="padding:12px 0;color:var(--muted);font-size:13.5px">Loading your likes…</p>'
+              ? tweaklrLoadingMarkup('Gathering the updates you liked…')
               : (profileLikedUpdates.length
                   ? profileLikedUpdates.map(profileLikedUpdateCard).join('')
                   : emptyState('No liked posts yet', 'Posts you like will appear here while they are live.')))
