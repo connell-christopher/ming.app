@@ -5355,12 +5355,25 @@ async function addChatReaction(messageId, emoji) {
   if (!m || !isUuidPerson(state.activeChat)) return;
   const { data:{session} } = await supabaseClient.auth.getSession();
   if (!session?.user) return;
-  const existing = (m.reactions || []).find(r => r.user_id === session.user.id && r.emoji === emoji);
+
+  const myReactions = (m.reactions || []).filter(r => r.user_id === session.user.id);
+  const existing = myReactions.find(r => r.emoji === emoji);
   let error;
+
   if (existing) {
     ({ error } = await supabaseClient.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', session.user.id).eq('emoji', emoji));
-    m.reactions = (m.reactions || []).filter(r => !(r.user_id === session.user.id && r.emoji === emoji));
+    if (!error) m.reactions = (m.reactions || []).filter(r => !(r.user_id === session.user.id && r.emoji === emoji));
   } else {
+    // A user can have only one reaction per message: a new emoji replaces their previous one.
+    if (myReactions.length) {
+      ({ error } = await supabaseClient.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', session.user.id));
+      if (error) {
+        toast('Could not update reaction.', 'alert');
+        return;
+      }
+      m.reactions = (m.reactions || []).filter(r => r.user_id !== session.user.id);
+    }
+
     const { data, error: insertError } = await supabaseClient.from('message_reactions').insert({ message_id:messageId, user_id:session.user.id, emoji }).select('message_id,user_id,emoji').single();
     error = insertError;
     if (!error && data) m.reactions = [...(m.reactions || []), data];
