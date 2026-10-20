@@ -4935,6 +4935,15 @@ function renderVoiceMessage(m) {
   </div>`;
 }
 
+function updateChatReturnLatest(thread) {
+  if (!thread) return;
+  const button = thread.querySelector('[data-action="chat-return-latest"]');
+  if (!button) return;
+  const distanceFromLatest = thread.scrollHeight - thread.clientHeight - thread.scrollTop;
+  button.classList.toggle('is-visible', distanceFromLatest > 220);
+  button.setAttribute('aria-hidden', distanceFromLatest > 220 ? 'false' : 'true');
+}
+
 function renderThread() {
   const c = convoFor(state.activeChat);
 
@@ -4961,10 +4970,25 @@ function renderThread() {
     ? `<div class="typing-state"><span class="typing-dots"><i></i><i></i><i></i></span><span>Typing…</span></div>`
     : '';
 
-  $('#chat-thread').innerHTML =
+  const thread = $('#chat-thread');
+  thread.innerHTML =
     `<div class="day-sep">Messages are stored securely for this conversation.</div>` +
     messages +
-    typing;
+    typing +
+    `<button type="button" class="chat-return-latest" data-action="chat-return-latest" aria-label="Jump to latest messages" title="Jump to latest messages" aria-hidden="true">
+      <svg viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="15.5" fill="none" stroke="currentColor" stroke-opacity=".24" stroke-width="1"/>
+        <path d="M25.8 11.8a9 9 0 1 0 3.1 11.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        <path d="M20 15.5v11m-4.5-4.1 4.5 4.5 4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M28.8 8.1l1 2.4 2.4 1-2.4 1-1 2.4-1-2.4-2.4-1 2.4-1z" fill="currentColor"/>
+      </svg>
+      <span>Latest</span>
+    </button>`;
+  if (!thread.dataset.returnLatestBound) {
+    thread.addEventListener('scroll', () => updateChatReturnLatest(thread), { passive: true });
+    thread.dataset.returnLatestBound = 'true';
+  }
+  updateChatReturnLatest(thread);
   void hydrateChatAttachments();
 
 }
@@ -10794,6 +10818,13 @@ function openDocumentMetaSheet(fileId,field){const file=Server.db.files.find(f=>
    EVENTS
 ============================================================ */
 document.addEventListener('click', async e => {
+  const returnLatest = e.target.closest('[data-action="chat-return-latest"]');
+  if (returnLatest) {
+    const thread = document.querySelector('#chat-thread');
+    if (thread) thread.scrollTo({ top: thread.scrollHeight, behavior: 'smooth' });
+    return;
+  }
+
   const host = e.target.closest('[data-sp]');
   if (!host) return;
   const [verb, a, b] = host.dataset.sp.split(':');
