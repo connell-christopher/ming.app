@@ -1375,10 +1375,10 @@ function renderTweak() {
     <section class="tweak-welcome">
       <div class="tweak-eyebrow"><span>✦</span> YOUR PERSONAL VIDEO SPACE</div>
       <h2>Your videos. Your <em>space.</em></h2>
-      <p>Tweak brings eligible videos from creators who connect TikTok, while likes, comments, follows, connections and messages stay native to Tweaklr.</p>
+      <p>Pulse brings eligible videos from creators who connect TikTok, while likes, comments, follows, connections and messages stay native to Tweaklr.</p>
       <div class="tweak-source-card">
         <div class="tweak-source-icon">♪</div>
-        <div class="tweak-source-copy"><b>Connect TikTok</b><span>Securely link your TikTok account to bring your public videos into Tweak.</span></div>
+        <div class="tweak-source-copy"><b>Connect TikTok</b><span>Securely link your TikTok account to bring your public videos into Pulse.</span></div>
         <button type="button" class="tweak-connect-btn" data-action="tweak-connect">Connect</button>
       </div>
       <p id="tweak-account-status" class="tweak-account-status" aria-live="polite">Checking TikTok connection…</p>
