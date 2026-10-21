@@ -5347,6 +5347,55 @@ html.theme-transitioning *::after {
   z-index: 0;
 }
 
+
+
+/* Search screen: refined guidance card with balanced horizontal alignment. */
+#screen-search #search-body > .section:first-child {
+  margin: 14px 18px 0 !important;
+  padding: 0;
+  box-sizing: border-box;
+}
+#screen-search .search-guidance {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 22px;
+  padding: 18px 18px 19px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, var(--coffee) 22%);
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--coffee) 11%, transparent), transparent 60%),
+    color-mix(in srgb, var(--surface) 94%, var(--bg));
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+  letter-spacing: .005em;
+  box-shadow: 0 8px 24px rgba(35, 20, 14, .045);
+}
+#screen-search .search-guidance strong {
+  display: block;
+  margin: 0 0 5px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 750;
+  letter-spacing: -.025em;
+}
+#screen-search #search-body > .section:first-child > .section-head,
+#screen-search #search-body > .section:first-child > .chips {
+  margin-left: 0;
+  margin-right: 0;
+}
+@media (max-width: 480px) {
+  #screen-search #search-body > .section:first-child {
+    margin-left: 16px !important;
+    margin-right: 16px !important;
+  }
+  #screen-search .search-guidance {
+    padding: 16px;
+  }
+}
+
 /* Tweaklr signature loading state — scoped to loading components only */
 .tweaklr-loading {
   position: relative;
