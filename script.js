@@ -5342,27 +5342,71 @@ async function addChatReaction(messageId, emoji) {
 
   const myReactions = (m.reactions || []).filter(r => r.user_id === session.user.id);
   const existing = myReactions.find(r => r.emoji === emoji);
-  let error;
+  let error = null;
 
   if (existing) {
-    ({ error } = await supabaseClient.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', session.user.id).eq('emoji', emoji));
-    if (!error) m.reactions = (m.reactions || []).filter(r => !(r.user_id === session.user.id && r.emoji === emoji));
+    ({ error } = await supabaseClient
+      .from('message_reactions')
+      .delete()
+      .eq('message_id', messageId)
+      .eq('user_id', session.user.id)
+      .eq('emoji', emoji));
+
+    if (!error) {
+      m.reactions = (m.reactions || []).filter(r => !(r.user_id === session.user.id && r.emoji === emoji));
+    }
   } else {
-    // A user can have only one reaction per message: a new emoji replaces their previous one.
+    // Prefer updating an existing per-user reaction atomically when the table
+    // has a unique (message_id, user_id) constraint. This avoids a delete/insert
+    // race and works when RLS silently returns zero deleted rows.
     if (myReactions.length) {
-      ({ error } = await supabaseClient.from('message_reactions').delete().eq('message_id', messageId).eq('user_id', session.user.id));
+      const replacement = await supabaseClient
+        .from('message_reactions')
+        .upsert(
+          { message_id: messageId, user_id: session.user.id, emoji },
+          { onConflict: 'message_id,user_id' }
+        )
+        .select('message_id,user_id,emoji')
+        .single();
+
+      if (!replacement.error && replacement.data) {
+        m.reactions = [
+          ...(m.reactions || []).filter(r => r.user_id !== session.user.id),
+          replacement.data
+        ];
+        closeSheet();
+        renderThread();
+        return;
+      }
+
+      // Some deployments permit multiple emoji rows per user instead of
+      // enforcing one row per message/user. Retain the existing compatible path.
+      ({ error } = await supabaseClient
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', messageId)
+        .eq('user_id', session.user.id));
+
       if (error) {
+        console.error('[Tweaklr] Could not replace message reaction:', replacement.error || error);
         toast('Could not update reaction.', 'alert');
         return;
       }
       m.reactions = (m.reactions || []).filter(r => r.user_id !== session.user.id);
     }
 
-    const { data, error: insertError } = await supabaseClient.from('message_reactions').insert({ message_id:messageId, user_id:session.user.id, emoji }).select('message_id,user_id,emoji').single();
+    const { data, error: insertError } = await supabaseClient
+      .from('message_reactions')
+      .insert({ message_id: messageId, user_id: session.user.id, emoji })
+      .select('message_id,user_id,emoji')
+      .single();
+
     error = insertError;
     if (!error && data) m.reactions = [...(m.reactions || []), data];
   }
+
   if (error) {
+    console.error('[Tweaklr] Could not update message reaction:', error);
     toast('Could not update reaction.', 'alert');
     return;
   }
