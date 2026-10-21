@@ -3119,6 +3119,7 @@ function openPerson(id) {
   const theirUpdates = liveUpdates().filter(u => u.authorId === id);
   const publicLikes = theirUpdates.reduce((total, update) => total + Math.max(0, Number(update.likes) || 0), 0);
   const relationshipLabel = connected ? 'Connected' : incoming ? 'Request received' : outgoing ? 'Request sent' : 'Not connected';
+  const isBlocked = tweaklrBlockedUserIds.has(id);
 
   $('#person-body').innerHTML = `
     <div class="phead public-profile-head" style="padding-top:8px">
@@ -3145,6 +3146,9 @@ function openPerson(id) {
         ${connected ? icon('check') + 'Connected' : incoming ? icon('users') + 'Respond in Connections' : outgoing ? icon('check') + 'Request sent' : icon('users') + 'Connect'}
       </button>
       <button class="btn btn--soft" style="flex:1" data-action="message:${p.id}">${icon('chat')}Message</button>
+    </div>
+    <div style="padding:10px 18px 0">
+      <button class="btn btn--soft btn--block" data-action="${isBlocked ? 'unblock-user:' + p.id : 'block-user:' + p.id}">${isBlocked ? 'Unblock this person' : 'Block this person privately'}</button>
     </div>
     <div class="section">${sectionHead('Interests')}
       <div class="tags">${p.interests.map(i => `<span class="tag-pill">${esc(i)}</span>`).join('')}</div>
@@ -3272,6 +3276,103 @@ function openPersonRefresh(id) {
 /* ------------------------------------------------------------
    MESSAGING
 ------------------------------------------------------------ */
+
+/* ------------------------------------------------------------
+   PRIVATE USER BLOCKING
+------------------------------------------------------------ */
+let tweaklrBlockedUserIds = new Set();
+
+async function refreshTweaklrBlocks() {
+  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+  if (sessionError || !session?.user) return false;
+  const { data, error } = await supabaseClient
+    .from('user_blocks')
+    .select('blocked_id')
+    .eq('blocker_id', session.user.id);
+  if (error) {
+    console.warn('Tweaklr: block list is not ready. Run the private blocking migration in Supabase.', error.message);
+    return false;
+  }
+  tweaklrBlockedUserIds = new Set((data || []).map(row => row.blocked_id));
+  return true;
+}
+
+async function blockTweaklrUser(personId) {
+  if (!isUuidPerson(personId)) {
+    toast('Blocking is available for registered Tweaklr accounts.', 'alert');
+    return;
+  }
+  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+  if (sessionError || !session?.user) { toast('Please sign in again.', 'alert'); return; }
+  if (personId === session.user.id) return;
+  const p = byId(personId);
+  const { error } = await supabaseClient.from('user_blocks').upsert(
+    { blocker_id: session.user.id, blocked_id: personId },
+    { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true }
+  );
+  if (error) {
+    console.error('Tweaklr: block failed:', error.message);
+    toast(error.message.includes('user_blocks') ? 'Run the blocking SQL migration in Supabase first.' : 'Could not block this person.', 'alert');
+    return;
+  }
+  tweaklrBlockedUserIds.add(personId);
+  closeSheet();
+  closeModal();
+  toast((p?.short || 'Person') + ' blocked privately.', 'check');
+  if (state.activeChat === personId) {
+    clearChatReply();
+    popStack();
+  }
+  if (state.activePerson === personId && state.stack[state.stack.length - 1] === 'person') popStack();
+  if (state.loaded.messages) renderMessages();
+  if (state.loaded.profile) renderProfile();
+}
+
+async function unblockTweaklrUser(personId) {
+  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+  if (sessionError || !session?.user) { toast('Please sign in again.', 'alert'); return; }
+  const { error } = await supabaseClient.from('user_blocks')
+    .delete().eq('blocker_id', session.user.id).eq('blocked_id', personId);
+  if (error) {
+    console.error('Tweaklr: unblock failed:', error.message);
+    toast('Could not unblock this person.', 'alert');
+    return;
+  }
+  tweaklrBlockedUserIds.delete(personId);
+  await openBlockedUsersSheet();
+  toast('Person unblocked.', 'check');
+}
+
+async function openBlockedUsersSheet() {
+  const ok = await refreshTweaklrBlocks();
+  if (!ok) {
+    toast('Blocked users are unavailable. Run the blocking SQL migration in Supabase.', 'alert');
+    return;
+  }
+  const ids = [...tweaklrBlockedUserIds];
+  openSheet({
+    title: 'Blocked people',
+    sub: 'Only you can see this list. People are not notified when you block or unblock them.',
+    body: ids.length ? ids.map(id => {
+      const p = byId(id);
+      return '<div class="settings-info"><div class="settings-info-icon">' + (p ? avatar(p, 38) : icon('user')) + '</div><div style="flex:1;min-width:0"><div class="settings-info-title">' + esc(p?.name || p?.username || 'Tweaklr member') + '</div><div class="settings-info-sub">' + esc(p?.username ? '@' + p.username.replace(/^@/, '') : 'Blocked account') + '</div></div><button type="button" class="btn btn--soft btn--sm" data-action="unblock-user:' + esc(id) + '">Unblock</button></div>';
+    }).join('') : '<div class="empty-state"><strong>No blocked people</strong><p>People you block will appear here.</p></div>',
+    foot: '<button class="btn btn--soft btn--block" data-action="close-sheet">Done</button>'
+  });
+}
+
+function confirmBlockTweaklrUser(personId) {
+  const p = byId(personId);
+  openModal({
+    title: 'Block ' + (p?.short || 'this person') + '?',
+    lede: 'They will not be notified. Tweaklr will prevent new messages and connection requests between you. Existing chat history is not deleted.',
+    actions: [
+      { t: 'Cancel', cls: 'btn--soft', a: 'close-modal' },
+      { t: 'Block privately', cls: 'btn--danger', a: 'confirm-block-user:' + personId }
+    ]
+  });
+}
+
 async function loadMingMessages() {  try {
     const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
     if (sessionError || !session?.user) return false;
@@ -4795,6 +4896,11 @@ async function openChat(personId) {
   if (!p) return;
 
   if (isUuidPerson(personId)) {
+    const blocksReady = await refreshTweaklrBlocks();
+    if (blocksReady && tweaklrBlockedUserIds.has(personId)) {
+      toast('You have blocked this person. Unblock them in Settings to message again.', 'alert');
+      return;
+    }
     await loadMingMessages();
     await markMingConversationRead(personId);
   }
@@ -5417,6 +5523,16 @@ async function addChatReaction(messageId, emoji) {
 async function sendMessage(text, options = {}) {
   const p = byId(state.activeChat);
   if (!p || !text) return;
+  if (isUuidPerson(state.activeChat)) {
+    if (!(await refreshTweaklrBlocks())) {
+      toast('Messaging privacy could not be checked. Please try again.', 'alert');
+      return;
+    }
+    if (tweaklrBlockedUserIds.has(state.activeChat)) {
+      toast('Unblock this person before sending a message.', 'alert');
+      return;
+    }
+  }
 
   const replyToId = options.replyToId || chatReplyTarget?.id || null;
 
@@ -6769,6 +6885,10 @@ function openSettingsSheet() {
         </div>
       </div>
 
+      <button class="opt" data-action="blocked-users"><span class="ic">${icon('shield')}</span>
+        <span class="tx"><span class="t" style="display:block">Blocked people</span><span class="s" style="display:block">Manage people you have privately blocked</span></span>
+        <span class="go">${icon('chev')}</span></button>
+
       <div class="settings-section-title">Account</div>
 
       <div class="settings-info">
@@ -7226,6 +7346,11 @@ document.addEventListener('click', async e => {
     case 'tweak-connect': await beginTweakSetup(); break;
     case 'tweak-refresh': await loadTweakTikTokData(true); break;
     case 'person': openPerson(arg); break;
+    case 'block-user': confirmBlockTweaklrUser(arg); break;
+    case 'confirm-block-user': await blockTweaklrUser(arg); break;
+    case 'unblock-user': await unblockTweaklrUser(arg); break;
+    case 'blocked-users': await openBlockedUsersSheet(); break;
+    case 'block-current-chat': if (state.activeChat) confirmBlockTweaklrUser(state.activeChat); break;
     case 'like': toggleLike(arg); break;
     case 'comments': openComments(arg); break;
     case 'share-update': await shareDailyUpdate(arg); break;
