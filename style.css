@@ -5312,6 +5312,28 @@ html.theme-transitioning *::after {
 
 
 
+
+/* Keep Profile activity cards inside the scrollable profile area and clear of the fixed account navigation. */
+#screen-profile > .scroll {
+  position: relative;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: calc(var(--nav-h) + var(--safe-b) + 56px);
+  isolation: isolate;
+}
+#screen-profile #my-updates,
+#screen-profile #profile-content-list {
+  position: relative;
+  z-index: 0;
+  overflow-x: clip;
+}
+#screen-profile #profile-content-list .upd {
+  position: relative;
+  z-index: 0;
+  animation: none;
+}
+
 /* Tweaklr signature loading state — scoped to loading components only */
 .tweaklr-loading {
   position: relative;
