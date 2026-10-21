@@ -5201,6 +5201,58 @@ html.theme-transitioning *::after {
 
 
 /* ---------- PROFILE PHOTO + ACTIVITY LAYOUT FIX ---------- */
+
+/* Keep the profile photo in the View/Edit action menu circular and square-sized. */
+#modal .profile-avatar-menu-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 8px 0;
+  box-sizing: border-box;
+}
+#modal .profile-avatar-menu-preview .av-ring {
+  display: block;
+  flex: 0 0 96px;
+  width: 96px;
+  height: 96px;
+  min-width: 96px;
+  min-height: 96px;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+#modal .profile-avatar-menu-preview .av {
+  display: grid;
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+#modal .profile-avatar-menu-preview .av > img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: 50%;
+  clip-path: circle(50% at 50% 50%);
+}
+
 /* Restrict circular cropping to the dedicated profile-photo preview only.
    Other modal content (audio covers, media, etc.) must keep its normal shape. */
 #modal .profile-photo-preview {
