@@ -6887,7 +6887,7 @@ function openAvatarMenu() {
     lede: currentUser.avatarUrl
       ? 'View your current photo or choose a new one.'
       : 'Add a clear photo so people can recognize and connect with you.',
-    fields: `<div style="text-align:center;padding:8px 0">${ringAvatar(currentUser, 96, false)}</div>`,
+    fields: `<div class="profile-avatar-menu-preview">${ringAvatar(currentUser, 96, false)}</div>`,
     actions: [
       ...(currentUser.avatarUrl ? [{ t: 'View photo', cls: 'btn--soft', a: 'view-avatar' }] : []),
       { t: currentUser.avatarUrl ? 'Edit photo' : 'Add photo', cls: 'btn--primary', a: 'pick-avatar' }
