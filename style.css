@@ -5565,3 +5565,8 @@ html.theme-transitioning *::after {
     animation: none !important;
   }
 }
+
+
+/* Tweaklr private blocking control */
+#screen-chat .chat-call-actions [data-action="block-current-chat"] { color:var(--coffee,#8b3543); }
+#screen-chat .chat-call-actions [data-action="block-current-chat"] svg { width:19px;height:19px; }
