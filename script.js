@@ -5923,24 +5923,7 @@ function renderProfile() {
     <div class="section">${sectionHead('Interests and services')}
       <div class="tags">${currentUser.interests.map(i => `<span class="tag-pill">${esc(i)}</span>`).join('')}</div>
     </div>
-    <div class="section" id="my-updates">
-      ${sectionHead('Your activity', profileContentTab === 'posts' ? 'Your posts' : 'Posts you liked')}
-      <div style="display:flex;gap:8px;padding:0 0 14px;margin-left:16px">
-        <button class="btn ${profileContentTab === 'posts' ? 'btn--primary' : 'btn--soft'} btn--sm" data-action="profile-content:posts">Posts</button>
-        <button class="btn ${profileContentTab === 'likes' ? 'btn--primary' : 'btn--soft'} btn--sm" data-action="profile-content:likes">Likes</button>
-      </div>
-      <div id="profile-content-list">
-        ${profileContentTab === 'likes'
-          ? (!profileLikesLoaded
-              ? tweaklrLoadingMarkup('Gathering the updates you liked…')
-              : (profileLikedUpdates.length
-                  ? profileLikedUpdates.map(profileLikedUpdateCard).join('')
-                  : emptyState('No liked posts yet', 'Posts you like will appear here while they are live.')))
-          : (mine.length
-              ? mine.map(updateCard).join('')
-              : emptyState('No live posts', 'Anything you share disappears after 24 hours. Nothing to maintain.', { t: 'Share an update', a: 'create:update' }))}
-      </div>
-    </div>
+    
     <div class="section">${sectionHead('Your account')}
       <div class="menu-list">
         <button class="menu-item profile-account-messages" data-action="go-messages">${icon('chat')}<span class="t">Messages</span><span class="profile-account-message-dot" id="profile-account-message-dot" aria-label="Unread messages"></span><span class="go">${icon('chev')}</span></button>
